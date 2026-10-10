@@ -52,3 +52,4 @@ deploy/install-lab-ches.sh
 
 # 인쇄용 학습지 PDF는 공개(136)
 !print/dist/
+deploy/redeploy-lab-ches.sh
