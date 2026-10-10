@@ -2,6 +2,8 @@
  * T01 교사 시작 화면(작업 109, PRD 7.5 v0.3.2): 서버 공지 띠 → "사용 중인 방 n/50"(30초마다) →
  * [새 판 열기] / [이어하기](이 브라우저에 진행 중인 판이 있으면 크게) / [판 옮기기 파일 열기] / [연결 테스트] → 맨 아래 이용 안내 한 줄.
  * [새 판 열기]·[이어하기]는 방 수와 관계없이 막지 않는다. 로컬 모드에서는 131 부품이 스스로 숨는다.
+ * (작업 138, PRD 7.5.2.4) 큰 버튼 아래 "처음이세요? 수업 준비 3단계" 상자(① 학습지 인쇄 [학습지 열기 ▾] ② 새 판 열기 ③ TV·입장).
+ * 접으면 이 브라우저에 기억(`voyage.teacher.guide` = 'closed', 학생 정보 없음).
  */
 import { useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
@@ -12,6 +14,69 @@ import { ServiceFooter } from '../ui/common/ServiceFooter';
 import { playUnitLabel, scopeLabel, type TeacherGame } from './game';
 import { mmss, tradeRemainingSec } from './schedule-view';
 import type { StoredHost } from '../sync/host-store';
+import { WorksheetPdfMenu } from './WorksheetPdfMenu';
+
+/** 수업 준비 3단계 상자를 접었는지 기억하는 열쇠(교사 localStorage) */
+export const GUIDE_KEY = 'voyage.teacher.guide';
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+function guideStorage(): StorageLike | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 상자를 펼쳐 둘까(처음엔 펼침, 한 번 접으면 접힘으로 기억) */
+export function guideOpenInitially(storage: StorageLike | null = guideStorage()): boolean {
+  try {
+    return storage?.getItem(GUIDE_KEY) !== 'closed';
+  } catch {
+    return true;
+  }
+}
+
+export function rememberGuide(open: boolean, storage: StorageLike | null = guideStorage()): void {
+  try {
+    storage?.setItem(GUIDE_KEY, open ? 'open' : 'closed');
+  } catch {
+    /* 기억 못 해도 괜찮다 */
+  }
+}
+
+/** "처음이세요? 수업 준비 3단계" 상자 */
+export function PrepGuide({ storage }: { storage?: StorageLike | null }) {
+  const st = storage === undefined ? guideStorage() : storage;
+  const [open, setOpen] = useState(() => guideOpenInitially(st));
+  return (
+    <details
+      class="t-guide"
+      data-testid="start-guide"
+      open={open}
+      onToggle={(e) => {
+        const now = (e.currentTarget as HTMLDetailsElement).open;
+        if (now === open) return;
+        setOpen(now);
+        rememberGuide(now, st);
+      }}
+    >
+      <summary class="t-guide__sum">처음이세요? 수업 준비 3단계</summary>
+      <ol class="t-guide__steps">
+        <li data-testid="guide-step-1">
+          <b>학습지 인쇄</b> — 오늘 차시 학습지를 A4 단면으로 뽑아 두세요.
+          <WorksheetPdfMenu variant="menu" />
+        </li>
+        <li data-testid="guide-step-2">
+          <b>[새 판 열기]</b>에서 차시와 무역 시간을 고르고 [방 열기]를 누르세요.
+        </li>
+        <li data-testid="guide-step-3">
+          <b>TV에 방 코드</b>를 띄우고([공용 화면 창 열기]) 학생들이 들어오게 하세요.
+        </li>
+      </ol>
+    </details>
+  );
+}
 
 export interface ResumeInfo {
   code: string;
@@ -96,7 +161,10 @@ export function StartScreen({ resume, busy, error, onNew, onResume, onImport }: 
             >
               새 판 열기
             </button>
-            <label class="btn btn--secondary t-file" data-testid="btn-import">
+          </div>
+          <PrepGuide />
+          <div class="t-start__small">
+            <label class="link-small t-file" data-testid="btn-import">
               판 옮기기 파일 열기
               <input type="file" accept="application/json,.json" onChange={pickFile} disabled={busy} />
             </label>

@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { pickProgressMode } from './support/voyage-ui';
 
 /**
  * 작업 134 "라운드가 안 시작돼요" 혼란 해결 e2e(`?sync=local`, 가짜 시계): 실제 교사 화면 + 학생 탭.
@@ -34,11 +35,7 @@ async function openTeacher(ctx: BrowserContext, o: { minutes: 10; manual?: boole
   await t.getByTestId('unit-lesson').click();
   await t.getByTestId('lesson-L1').click();
   await t.getByTestId('trade-minutes').getByRole('button', { name: `${o.minutes}분` }).click();
-  if (o.manual) {
-    const b = t.locator('[data-testid="progress-mode"] button', { hasText: '수동' });
-    await b.click();
-    await expect(b).toHaveAttribute('aria-pressed', 'true');
-  }
+  if (o.manual) await pickProgressMode(t, 'manual'); // (작업 138) [고급 설정] 안
   await t.getByTestId('btn-open').click();
   const codeEl = t.getByTestId('room-code');
   await expect(codeEl).toHaveText(/^\d{6}$/);

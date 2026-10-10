@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { openActivities } from './support/voyage-ui';
 
 /**
  * 작업 113 미니게임 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 1366×768).
@@ -49,6 +50,7 @@ async function openTeacher(ctx: BrowserContext, o: { minutes: number; forms?: Re
   await custom.fill(String(o.minutes));
   await custom.blur();
   await expect(custom).toHaveValue(String(o.minutes));
+  if (Object.keys(o.forms ?? {}).length) await openActivities(page); // (작업 138) [활동 직접 고치기] 안
   for (const [id, label] of Object.entries(o.forms ?? {})) {
     await page.getByTestId(`act-${id}`).getByRole('button', { name: label }).click();
     await expect(page.getByTestId(`act-${id}`).getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');

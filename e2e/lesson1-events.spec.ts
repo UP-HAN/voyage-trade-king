@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { openActivities, pickWorksheetMode } from './support/voyage-ui';
 
 /**
  * 작업 111 사건·결정 카드 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 107 실제 화면).
@@ -50,11 +51,8 @@ async function openTeacher(
   await custom.fill(String(o.minutes));
   await custom.blur();
   await expect(custom).toHaveValue(String(o.minutes));
-  if (o.worksheetOff) {
-    const seg = page.getByTestId('worksheet-mode').getByRole('button', { name: '끄기', exact: true });
-    await seg.click();
-    await expect(seg).toHaveAttribute('aria-pressed', 'true');
-  }
+  if (o.worksheetOff) await pickWorksheetMode(page, 'off'); // (작업 138) [고급 설정] 안, 보이는 말 '학습지 안 씀'
+  if (Object.keys(o.forms ?? {}).length) await openActivities(page); // (작업 138) [활동 직접 고치기] 안
   for (const [id, label] of Object.entries(o.forms ?? {})) {
     await page.getByTestId(`act-${id}`).getByRole('button', { name: label }).click();
     await expect(page.getByTestId(`act-${id}`).getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');

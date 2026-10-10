@@ -89,6 +89,42 @@ export async function openTeacher(env: Env, o: { unit?: boolean; minutes: number
   return { ctx, t, code: (await codeEl.innerText()).trim() };
 }
 
+/**
+ * (작업 138) 판 설정 [고급 설정](`setup-advanced`)을 펼친다 — 이미 펼쳐져 있으면 그대로.
+ * 학습지 넣는 때·활동 비중·순위 공개·진행 방식·연속 구간은 이 안에 있다.
+ */
+export async function openAdvanced(t: Page): Promise<void> {
+  await openDetails(t, 'setup-advanced');
+}
+
+/** (작업 138) 판 설정 미리보기 [활동 직접 고치기](`preview-activities-toggle`)를 펼친다(act-* 버튼) */
+export async function openActivities(t: Page): Promise<void> {
+  await openDetails(t, 'preview-activities-toggle');
+}
+
+async function openDetails(t: Page, testId: string): Promise<void> {
+  const d = t.getByTestId(testId);
+  await d.waitFor({ state: 'attached' });
+  if ((await d.getAttribute('open')) === null) await d.locator(':scope > summary').click();
+  await expect(d).toHaveAttribute('open', '');
+}
+
+/** (작업 138) 판 설정에서 진행 방식 고르기 — [고급 설정]을 먼저 펼치고, 버튼은 값(data-value)으로 찾는다(보이는 말이 바뀌어도 그대로) */
+export async function pickProgressMode(t: Page, mode: 'auto' | 'manual'): Promise<void> {
+  await openAdvanced(t);
+  const b = t.locator(`[data-testid="progress-mode"] button[data-value="${mode}"]`);
+  await b.click();
+  await expect(b).toHaveAttribute('aria-pressed', 'true');
+}
+
+/** (작업 138) 판 설정에서 학습지 넣는 때 고르기(값: auto/each/stageEnd/after/off) */
+export async function pickWorksheetMode(t: Page, mode: 'auto' | 'each' | 'stageEnd' | 'after' | 'off'): Promise<void> {
+  await openAdvanced(t);
+  const b = t.locator(`[data-testid="worksheet-mode"] button[data-value="${mode}"]`);
+  await b.click();
+  await expect(b).toHaveAttribute('aria-pressed', 'true');
+}
+
 export async function openScreen(t: Page): Promise<Page> {
   const [scr] = await Promise.all([t.context().waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
   await scr.setViewportSize({ width: 1920, height: 1080 });

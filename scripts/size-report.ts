@@ -10,12 +10,13 @@
  *
  * 출력: 경로·뷰포트별 합계 표(이미지·글꼴·스크립트·스타일·그 밖) + 큰 파일 상위 10개. 결과는 tmp/size-report/report.md·summary.json 에도 쓴다.
  * 예산을 넘으면 종료 코드 1. 1MB = 1,000,000 바이트(보수적으로 10진).
+ * (작업 138) 표 아래 "학습지 PDF 합계" 줄(dist/print/*.pdf — 누를 때만 받으므로 첫 화면 예산 계산에는 넣지 않음, 기준 파일당 2MB·합계 6MB).
  *
  * (나)에서는 측정이 끝난 뒤 해도를 휠로 확대해 큰 사본으로 바뀌는지·그 사이 그림이 비는 프레임이 없는지(깜박임)도 본다(합계에는 넣지 않음).
  * 인자: `--out <폴더>` 결과 폴더(기본 tmp/size-report).
  * fs.rmSync·fs.cpSync 는 쓰지 않는다(이 폴더 경로에서 Node 24가 죽음 — CLAUDE.md).
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { ROOT, startRelayProcess, startStatic, type RelayProcess, type StaticServer } from '../e2e/support/voyage-servers';
@@ -272,6 +273,18 @@ function zoomLine(r: Run): string {
   return `해도 확대 확인 (${r.viewport}): 사본 폭 ${z.before} → ${z.after}, 기록한 프레임 ${z.frames}개 중 그림이 빈 프레임 ${z.blankFrames}개 — ${z.ok ? `OK(${how}, 깜박임 없음)` : '실패'}`;
 }
 
+/** (작업 138) dist/print 의 학습지 PDF 합계 한 줄(첫 화면 예산 밖) */
+export function worksheetPdfLine(distDir = join(ROOT, 'dist')): string {
+  const dir = join(distDir, 'print');
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.pdf')) : [];
+  if (!files.length) return '학습지 PDF 합계: 없음(dist/print 에 PDF 없음 — 화면에는 안내 한 줄) · 첫 화면 예산 밖';
+  const sizes = files.map((f) => statSync(join(dir, f)).size);
+  const total = sizes.reduce((a, b) => a + b, 0);
+  const max = Math.max(...sizes);
+  const ok = max <= 2 * MB && total <= 6 * MB;
+  return `학습지 PDF 합계: ${files.length}개 ${mb(total)} (가장 큰 파일 ${mb(max)}) · 기준 파일당 2MB·합계 6MB ${ok ? 'OK' : '초과(경고)'} · 누를 때만 받으므로 첫 화면 예산 밖`;
+}
+
 function report(runs: Run[], swap: Run | null): string {
   const lines: string[] = [];
   lines.push('| 경로 | 뷰포트 | 이미지 | 글꼴 | 스크립트 | 스타일 | 그 밖 | 전체 | 이미지 예산 | 판정 |');
@@ -282,6 +295,7 @@ function report(runs: Run[], swap: Run | null): string {
       `| (${r.route}) ${r.label} | ${r.viewport} | ${mb(t.image)} | ${kb(t.font)} | ${kb(t.script)} | ${kb(t.style)} | ${kb(t.other)} | ${mb(t.all)} | ${mb(r.budget)} | ${r.ok ? 'OK' : '초과'} |`,
     );
   }
+  lines.push('', worksheetPdfLine());
   for (const r of runs.filter((x) => x.zoom)) lines.push('', zoomLine(r));
   if (swap?.zoom) lines.push('', `${zoomLine(swap)} (바꿔 끼우기 확인용 좁은 화면, 예산 표 밖 — 이 실행의 이미지 ${mb(swap.totals.image)})`);
   for (const r of runs) {

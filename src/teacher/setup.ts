@@ -3,13 +3,15 @@
  *
  * 기억(`voyage.teacher.prefs`, 교사 localStorage): 마지막 판 단위·차시·무역 시간·설정값만. 학생 정보는 넣지 않는다.
  */
-import { previewSchedule, type IncidentFreq, type ItemForm, type PlayUnit, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
+import { previewSchedule, tryBuildSchedule, type IncidentFreq, type ItemForm, type PlayUnit, type ScheduleInput, type ScheduleItem, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { eventsById } from '../data/events';
 import { lessons, lessonsById } from '../data/lessons';
 import { activityRatio as RATIO, FULL_UNIT_READY, incidentCountRule, playUnits, READY_LESSONS_BEFORE_FULL, tradeMinutes as TRADE_MINUTES } from '../data/schedule';
 import type { LessonId } from '../data/types';
+import { DURING_MARK } from '../data/worksheet';
 import { canOpenRoom, type RoomStatus } from '../ui/common/server-status';
+import { eventDefOf, worksheetNo } from './schedule-view';
 
 export const PREFS_KEY = 'voyage.teacher.prefs';
 export const ALL_LESSONS: readonly LessonId[] = ['L1', 'L2', 'L3', 'L4'];
@@ -71,8 +73,22 @@ export function lessonReleased(id: LessonId): boolean {
   return fullUnitReady() || READY_LESSONS_BEFORE_FULL.includes(id);
 }
 
-/** '준비 중' 안내(판 설정 화면) */
-export const NOT_READY_TEXT = '준비 중 — L2~L4 활동을 만들고 있어요. 지금은 차시 L1만 할 수 있어요';
+/** 'L1' → '1차시' (교사 화면 용어, PRD 7.5.2.5) */
+export function lessonName(id: LessonId): string {
+  return `${id.replace(/^L/, '')}차시`;
+}
+
+/** 여러 차시 → "1차시" / "2~4차시" / "1·3차시" */
+export function lessonsName(ids: readonly LessonId[]): string {
+  const n = ids.map((id) => Number(id.replace(/^L/, ''))).sort((a, b) => a - b);
+  if (!n.length) return '';
+  if (n.length === 1) return `${n[0]}차시`;
+  const contiguous = n.every((v, i) => i === 0 || v === (n[i - 1] as number) + 1);
+  return contiguous ? `${n[0]}~${n[n.length - 1]}차시` : `${n.join('·')}차시`;
+}
+
+/** '준비 중' 안내(판 설정 화면) — 플래그가 꺼져 있을 때만 보인다. 고를 수 있는 차시는 데이터(READY_LESSONS_BEFORE_FULL)에서 */
+export const NOT_READY_TEXT = `준비 중 — ${lessonsName(ALL_LESSONS.filter((l) => !READY_LESSONS_BEFORE_FULL.includes(l)))} 활동을 만들고 있어요. 지금은 ${lessonsName(READY_LESSONS_BEFORE_FULL)}만 할 수 있어요`;
 
 /** 구현이 끝난 차시인가(기능 플래그로 열렸고, 데이터에 본문 'TODO'인 사건이 없으면 구현됨) — 아니면 회색 "준비 중" */
 export function lessonImplemented(id: LessonId): boolean {
@@ -105,12 +121,11 @@ export function isContiguous(scope: readonly LessonId[]): boolean {
 
 export type PreviewResult = SchedulePreview | { ok: false; error: string; message: string } | null;
 
-/** 미리보기(판 단위를 고르기 전에는 null) */
-export function previewOf(v: SetupValues): PreviewResult {
+/** 미리보기 입력(판 단위를 고르기 전·이어지지 않는 구간이면 null) */
+function scheduleInputOf(v: SetupValues): ScheduleInput | null {
   const scope = scopeOf(v);
-  if (!v.playUnit || !scope) return null;
-  if (!isContiguous(scope)) return { ok: false, error: 'BAD_SCOPE', message: '이어지는 구간만 고를 수 있어요' };
-  return previewSchedule({
+  if (!v.playUnit || !scope || !isContiguous(scope)) return null;
+  return {
     playUnit: v.playUnit,
     scope,
     tradeMinutes: v.tradeMinutes,
@@ -121,7 +136,85 @@ export function previewOf(v: SetupValues): PreviewResult {
     seed: 0,
     incidentFreq: v.incidentFreq,
     comeback: v.comeback,
-  });
+  };
+}
+
+/** 미리보기(판 단위를 고르기 전에는 null) */
+export function previewOf(v: SetupValues): PreviewResult {
+  const scope = scopeOf(v);
+  if (!v.playUnit || !scope) return null;
+  if (!isContiguous(scope)) return { ok: false, error: 'BAD_SCOPE', message: '이어지는 구간만 고를 수 있어요' };
+  return previewSchedule(scheduleInputOf(v) as ScheduleInput);
+}
+
+// ─────────────────────────── 오늘 순서 한 줄 요약(작업 138, PRD 7.5.2.3) ───────────────────────────
+
+/** 요약에 보이는 최대 항목 수(마무리 빼고). 넘으면 앞 ORDER_MAX−1개 + "… 외 n개" */
+export const ORDER_MAX = 9;
+
+/** 배치표 항목 하나 → 요약 이름(편지·돌발 사건·예보·역전 장치·빠진 활동은 넣지 않음 — null) */
+function orderLabel(it: ScheduleItem, playUnit: PlayUnit): string | null {
+  if (it.form === 'dropped') return null;
+  switch (it.kind) {
+    case 'stageCover':
+      if (it.variant === 'summary') return '앞 차시 요약';
+      return playUnit === 'lesson' ? '차시 표지' : `${lessonName(it.stage)} 표지`;
+    case 'event': {
+      const d = eventDefOf(it);
+      return d ? d.title : null;
+    }
+    case 'round':
+      return `라운드 ${it.round ?? it.refId}`;
+    case 'worksheet': {
+      if (it.placement === 'during') return `${worksheetNo(it.refId)}${DURING_MARK} 지금 바로 쓰기`;
+      const ids = it.refIds?.length ? it.refIds : [it.refId];
+      return `학습지 ${ids.map(worksheetNo).join('')}`;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * 배치표 항목 → "차시 표지 → 벽란도 시장 → 라운드 1 → … → 마무리". 시각 순, 이어지는 라운드는 "라운드 2~3"으로 묶는다.
+ * 길면(마무리 빼고 ORDER_MAX개 초과) 앞 ORDER_MAX−1개 + "… 외 n개" + 마무리.
+ */
+export function orderSummaryText(items: readonly ScheduleItem[], playUnit: PlayUnit, max = ORDER_MAX): string {
+  const sorted = [...items].sort((a, b) => a.at - b.at);
+  const parts: string[] = [];
+  let roundRun: { first: number; last: number } | null = null;
+  const flush = () => {
+    if (!roundRun) return;
+    parts.push(roundRun.first === roundRun.last ? `라운드 ${roundRun.first}` : `라운드 ${roundRun.first}~${roundRun.last}`);
+    roundRun = null;
+  };
+  for (const it of sorted) {
+    if (it.kind === 'round' && it.form !== 'dropped') {
+      const n = it.round ?? Number(it.refId);
+      if (roundRun && Number.isFinite(n) && n === roundRun.last + 1) roundRun.last = n;
+      else {
+        flush();
+        roundRun = Number.isFinite(n) ? { first: n, last: n } : null;
+        if (!roundRun) parts.push(`라운드 ${it.refId}`);
+      }
+      continue;
+    }
+    const label = orderLabel(it, playUnit);
+    if (!label) continue;
+    flush();
+    parts.push(label);
+  }
+  flush();
+  const shown = parts.length > max ? [...parts.slice(0, max - 1), `… 외 ${parts.length - (max - 1)}개`] : parts;
+  return [...shown, '마무리'].join(' → ');
+}
+
+/** 판 설정 값 → 오늘 순서 한 줄(미리보기를 못 만들면 null) */
+export function orderSummaryOf(v: SetupValues): string | null {
+  const input = scheduleInputOf(v);
+  if (!input || !v.playUnit) return null;
+  const r = tryBuildSchedule(input);
+  return r.ok ? orderSummaryText(r.schedule.items, v.playUnit) : null;
 }
 
 export type DisableReason = { kind: 'unit' | 'time' | 'server'; text: string } | null;

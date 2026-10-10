@@ -48,6 +48,7 @@ const MIME: Record<string, string> = {
   '.woff': 'font/woff',
   '.ttf': 'font/ttf',
   '.txt': 'text/plain; charset=utf-8',
+  '.pdf': 'application/pdf',
   '.map': 'application/json; charset=utf-8',
 };
 

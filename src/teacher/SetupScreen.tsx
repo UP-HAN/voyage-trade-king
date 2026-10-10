@@ -3,13 +3,16 @@
  * ① 판 단위 카드(기본 선택 없음, 마지막 선택 기억) → ② 나머지 설정 → 오른쪽 배치 미리보기·예상 수업 시간.
  * [방 열기] 바로 위 "사용 중인 방 n/50", 바로 아래 가득 참·점검 안내 상자. 비활성 이유는 하나만(판 단위 → 시간 → 서버).
  * 방 수 상태는 부모가 `useServerRooms({ poll: true })`로 한 번 만들어 넘긴다(버튼과 두 부품이 같은 상태를 씀).
+ * (작업 138, PRD 7.5.2.3·7.5.2.5) 기본으로는 ① 판 단위 ② 차시 ③ 무역 시간 ④ 학급 이름만 보이고, 나머지는 [고급 설정](`setup-advanced`) 안.
+ * 미리보기 맨 위는 오늘 순서 한 줄 요약 + 예상 수업 시간 + '이 차시 학습지'(PDF), 활동 표는 [활동 직접 고치기](`preview-activities-toggle`) 안.
+ * 교사에게 보이는 말은 쉬운 말로(값·필드 이름·data-testid 는 그대로). 학생 화면 문구에 쓰이는 데이터 label 은 고치지 않고 여기 대응표로 바꾼다.
  */
 import type { ComponentChildren } from 'preact';
-import { useEffect, useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
 import type { ItemForm, SchedulePreview } from '../core';
 import { leaderboardRules } from '../data/awards';
-import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes } from '../data/schedule';
+import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes, type WorksheetMode } from '../data/schedule';
 import type { LessonId } from '../data/types';
 import { NoticeBanner } from '../ui/common/NoticeBanner';
 import { RoomCount, RoomFullNotice } from '../ui/common/RoomCount';
@@ -20,14 +23,18 @@ import {
   defaultMinutesFor,
   fullUnitReady,
   lessonImplemented,
+  lessonName,
   lessonReleased,
+  lessonsName,
   NOT_READY_TEXT,
   openDisabledReason,
+  orderSummaryOf,
   previewOf,
   savePrefs,
   type SetupValues,
 } from './setup';
 import { duringPreviewLine, worksheetNo } from './schedule-view';
+import { WorksheetPdfMenu } from './WorksheetPdfMenu';
 
 export interface OpenError {
   code: string;
@@ -77,6 +84,7 @@ function Seg<T extends string | number | boolean>({
             type="button"
             class="t-seg__btn"
             aria-pressed={o.value === value}
+            data-value={String(o.value)}
             disabled={disabled}
             onClick={() => onPick(o.value)}
           >
@@ -89,21 +97,41 @@ function Seg<T extends string | number | boolean>({
 }
 
 const FORM_TEXT: Record<ItemForm, string> = { full: '들어감', short: '짧게', dropped: '빠짐' };
-const MODE_TEXT: Record<string, string> = { each: '중간마다', stageEnd: '구간 끝', after: '끝나고', off: '끄기' };
+
+// ── 교사 화면 용어(PRD 7.5.2.5). 값 이름은 그대로, 보이는 말만 ──
+/** 학습지 넣는 때(값: auto/each/stageEnd/after/off) */
+export const WORKSHEET_MODE_TEXT: Record<WorksheetMode, string> = {
+  auto: '알아서 정하기',
+  each: '활동마다 바로',
+  stageEnd: '차시 끝에 모아서',
+  after: '게임 끝나고',
+  off: '학습지 안 씀',
+};
+/** 활동 비중(값: 0.5/0.6/0.7) */
+export const RATIO_TEXT: Record<string, string> = { '0.5': '거래 시간 많이', '0.6': '반반', '0.7': '활동 많이' };
+/** 진행 방식(값: auto/manual) */
+export const PROGRESS_TEXT: Record<'auto' | 'manual', string> = { auto: '시간 맞춰 저절로 넘어가기', manual: '선생님이 하나씩 넘기기' };
+/** 활동 등급 꼬리표 */
+export const TIER_TEXT: Record<1 | 2 | 3, string> = { 1: '꼭 할 활동', 2: '하면 좋은 활동', 3: '시간 나면 하는 활동' };
+const MODE_TEXT: Record<string, string> = WORKSHEET_MODE_TEXT;
+/** 'L1 무역은…' → '1차시 무역은…' (구간 띠 이름) */
+const bandName = (label: string) => label.replace(/^L(\d)/, '$1차시');
 
 function PreviewPanel({
   preview,
+  order,
   values,
   onForm,
 }: {
   preview: ReturnType<typeof previewOf>;
+  order: string | null;
   values: SetupValues;
   onForm: (id: string, form: ItemForm) => void;
 }) {
   if (!preview) {
     return (
       <div class="t-preview t-preview--empty" data-testid="preview-empty">
-        <p>판 단위를 고르면 배치 미리보기와 예상 수업 시간이 나와요.</p>
+        <p>판 단위를 고르면 오늘 순서와 예상 수업 시간이 나와요.</p>
       </div>
     );
   }
@@ -116,13 +144,22 @@ function PreviewPanel({
   }
   return (
     <div class="t-preview" data-testid="preview">
+      {order && (
+        <p class="t-order" data-testid="preview-order">
+          <span class="t-order__label">오늘 순서</span> {order}
+        </p>
+      )}
       <p class="t-expected" data-testid="expected-time">
         예상 수업 시간 <b>{preview.expected.text}</b>
       </p>
+      <div class="t-sheet" data-testid="preview-worksheets">
+        <span class="t-sheet__label">{values.playUnit === 'lesson' ? '이 차시 학습지' : '학습지'}</span>
+        <WorksheetPdfMenu variant="inline" highlightLesson={values.playUnit === 'lesson' ? values.lesson : 'unit'} />
+      </div>
       <div class="t-bands" data-testid="preview-bands" aria-label="구간 띠">
         {preview.bands.map((b) => (
-          <div key={b.stage} class="t-band" data-testid="preview-band" style={{ flex: `${Math.max(0.05, b.ratio)} 1 0` }} title={b.label}>
-            <span class="t-band__name">{b.label}</span>
+          <div key={b.stage} class="t-band" data-testid="preview-band" style={{ flex: `${Math.max(0.05, b.ratio)} 1 0` }} title={bandName(b.label)}>
+            <span class="t-band__name">{bandName(b.label)}</span>
             <span class="t-band__meta">
               라운드 {b.rounds} · 학습지 {MODE_TEXT[b.worksheetMode] ?? b.worksheetMode}
             </span>
@@ -130,14 +167,14 @@ function PreviewPanel({
         ))}
       </div>
       <p class="t-preview__facts" data-testid="preview-facts">
-        라운드 {preview.totalRounds}개 · 편지 {preview.letters}통 · 학습지 방식{' '}
-        {preview.bands.map((b) => `${values.playUnit === 'lesson' ? '' : `${b.stage} `}${MODE_TEXT[b.worksheetMode] ?? b.worksheetMode}`).join(', ')}
+        라운드 {preview.totalRounds}개 · 편지 {preview.letters}통 · 학습지 넣는 때{' '}
+        {preview.bands.map((b) => `${values.playUnit === 'lesson' ? '' : `${lessonName(b.stage)} `}${MODE_TEXT[b.worksheetMode] ?? b.worksheetMode}`).join(', ')}
         {preview.afterWorksheets.ids.length > 0 &&
           ` · 끝나고 쓸 학습지 ${preview.afterWorksheets.ids.length}개(약 ${preview.afterWorksheets.minutes}분: ${preview.afterWorksheets.ids.map(worksheetNo).join('')})`}
       </p>
       {duringPreviewLine(preview.duringWorksheets.placed) && (
         <p class="t-preview__facts" data-testid="preview-during">
-          {duringPreviewLine(preview.duringWorksheets.placed)}
+          {duringPreviewLine(preview.duringWorksheets.placed)?.replace(/^지금 쓰기: /, '지금 바로 쓰기: ').replace(/([①-⑳])\(/g, '$1★(')}
         </p>
       )}
       {preview.warnings.length > 0 && (
@@ -147,12 +184,14 @@ function PreviewPanel({
           ))}
         </ul>
       )}
+      <details class="t-adv t-acts-box" data-testid="preview-activities-toggle">
+        <summary>활동 직접 고치기 (넣기·짧게·빼기)</summary>
       <div class="t-acts-scroll">
         <table class="t-acts" data-testid="preview-activities">
           <thead>
             <tr>
               <th scope="col">활동</th>
-              <th scope="col">등급</th>
+              <th scope="col">종류</th>
               <th scope="col">이번 판</th>
               <th scope="col">바꾸기</th>
             </tr>
@@ -161,10 +200,10 @@ function PreviewPanel({
             {preview.activities.map((a) => (
               <tr key={a.id} class={a.form === 'dropped' ? 't-acts--dropped' : ''} data-testid={`act-${a.id}`}>
                 <td>
-                  <span class="t-acts__stage">{a.stage}</span> {a.title}
+                  <span class="t-acts__stage">{lessonName(a.stage)}</span> {a.title}
                 </td>
                 <td>
-                  <span class={`t-tier t-tier--${a.tier}`}>{a.tier}등급</span>
+                  <span class={`t-tier t-tier--${a.tier}`}>{TIER_TEXT[a.tier]}</span>
                 </td>
                 <td data-testid="act-form">
                   {FORM_TEXT[a.form]}
@@ -191,12 +230,16 @@ function PreviewPanel({
           </tbody>
         </table>
       </div>
+      </details>
     </div>
   );
 }
 
 export function SetupScreen({ values, onChange, rooms, opening, openError, onOpen, onBack, prefsStorage }: SetupScreenProps) {
   const preview = useMemo(() => previewOf(values), [values]);
+  const order = useMemo(() => (preview && preview.ok ? orderSummaryOf(values) : null), [values, preview]);
+  // [고급 설정] 펼침(연속 구간을 골라 둔 상태면 펼친 채로 시작)
+  const [advOpen, setAdvOpen] = useState(values.playUnit === 'custom');
   const reason = openDisabledReason(values, preview, rooms.status);
   const chosen = !!values.playUnit && (values.playUnit !== 'lesson' || !!values.lesson);
   const set = (patch: Partial<SetupValues>) => onChange({ ...values, ...patch });
@@ -222,21 +265,16 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
   const relay = syncMode() === 'relay';
   const big = openError && ['BUSY', 'ROOM_LIMIT', 'MAINTENANCE'].includes(openError.code);
 
-  const rest: ComponentChildren = (
+  // 기본으로 보이는 칸 번호(① 판 단위 ② 차시 ③ 무역 시간 ④ 학급 이름 — 차시를 고르지 않는 판이면 번호를 당긴다)
+  const nums = '①②③④';
+  const lessonStep = values.playUnit === 'lesson';
+  const nTime = nums[lessonStep ? 2 : 1];
+  const nClass = nums[lessonStep ? 3 : 2];
+
+  const basic: ComponentChildren = (
     <>
-      <label class="t-field">
-        <span class="t-field__label">학급 이름</span>
-        <input
-          class="t-input"
-          data-testid="class-name"
-          maxLength={20}
-          placeholder="예: 6-3"
-          value={values.className}
-          onInput={(e) => set({ className: (e.currentTarget as HTMLInputElement).value })}
-        />
-      </label>
       <div class="t-field" data-testid="trade-minutes">
-        <span class="t-field__label">무역 시간</span>
+        <span class="t-field__label">{nTime} 무역 시간</span>
         <div class="t-seg" role="group" aria-label="무역 시간">
           {TRADE_MINUTES.buttons.map((m) => (
             <button key={m} type="button" class="t-seg__btn" aria-pressed={values.tradeMinutes === m} onClick={() => set({ tradeMinutes: m })}>
@@ -258,18 +296,36 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
           </label>
         </div>
       </div>
+      <label class="t-field">
+        <span class="t-field__label">
+          {nClass} 학급 이름 <span class="t-optional">(선택)</span>
+        </span>
+        <input
+          class="t-input"
+          data-testid="class-name"
+          maxLength={20}
+          placeholder="예: 6-3"
+          value={values.className}
+          onInput={(e) => set({ className: (e.currentTarget as HTMLInputElement).value })}
+        />
+      </label>
+    </>
+  );
+
+  const advanced: ComponentChildren = (
+    <>
       <Seg
-        label="학습지 배치"
+        label="학습지 넣는 때"
         testId="worksheet-mode"
         value={values.worksheetMode}
-        options={worksheetModes.map((m) => ({ value: m.id, label: m.label }))}
+        options={worksheetModes.map((m) => ({ value: m.id, label: WORKSHEET_MODE_TEXT[m.id] ?? m.label }))}
         onPick={(v) => set({ worksheetMode: v })}
       />
       <Seg
         label="활동 비중"
         testId="activity-ratio"
         value={values.activityRatio}
-        options={RATIO.options.map((o) => ({ value: o.value as number, label: o.label }))}
+        options={RATIO.options.map((o) => ({ value: o.value as number, label: RATIO_TEXT[String(o.value)] ?? o.label }))}
         onPick={(v) => set({ activityRatio: v })}
       />
       <Seg
@@ -309,8 +365,8 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
         testId="progress-mode"
         value={values.progressMode}
         options={[
-          { value: 'auto', label: '자동' },
-          { value: 'manual', label: '수동' },
+          { value: 'auto', label: PROGRESS_TEXT.auto },
+          { value: 'manual', label: PROGRESS_TEXT.manual },
         ]}
         onPick={(v) => set({ progressMode: v })}
       />
@@ -331,7 +387,7 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
           <h2 class="t-h2">① 판 단위</h2>
           <div class="t-cards" data-testid="unit-cards">
             {(['lesson', 'unit'] as const).map((u) => {
-              // (작업 134) 기능 플래그: L2~L4 본편 전에는 단원 한 판을 '준비 중'으로(선택 불가 + 이유)
+              // (작업 134) 기능 플래그: 본편이 다 준비되기 전에는 단원 한 판을 '준비 중'으로(선택 불가 + 이유)
               const off = u === 'unit' && !fullUnitReady();
               return (
                 <button
@@ -356,35 +412,52 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
             })}
           </div>
           {values.playUnit === 'lesson' && (
-            <div class="t-lessons" data-testid="lesson-pick" role="group" aria-label="차시 고르기">
-              {lessonCards.map((c) => {
-                const ok = lessonImplemented(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    class="t-lesson"
-                    data-testid={`lesson-${c.id}`}
-                    aria-pressed={values.lesson === c.id}
-                    disabled={!ok}
-                    onClick={() => set({ lesson: c.id, overrides: {} })}
-                  >
-                    <b>{c.id}</b> {c.title}
-                    <span class="t-lesson__pages">교과서 {c.pages}쪽</span>
-                    {!ok && <span class="t-soon">준비 중</span>}
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <h2 class="t-h2">② 차시</h2>
+              <div class="t-lessons" data-testid="lesson-pick" role="group" aria-label="차시 고르기">
+                {lessonCards.map((c) => {
+                  const ok = lessonImplemented(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      class="t-lesson"
+                      data-testid={`lesson-${c.id}`}
+                      aria-pressed={values.lesson === c.id}
+                      disabled={!ok}
+                      onClick={() => set({ lesson: c.id, overrides: {} })}
+                    >
+                      <span>
+                        <b>{lessonName(c.id)}</b> <span class="t-lesson__id">({c.id})</span> {c.title}
+                      </span>
+                      <span class="t-lesson__pages">교과서 {c.pages}쪽</span>
+                      {!ok && <span class="t-soon">준비 중</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           )}
           {values.playUnit === 'unit' && (
             <p class="t-note" data-testid="unit-note">
-              L1~L4 네 구간을 한 판에 해요.
-              {ALL_LESSONS.some((l) => !lessonImplemented(l)) && ' 아직 준비 중인 구간(L2~L4 일부 활동)은 간단한 형태로 나와요.'}
+              {lessonsName(ALL_LESSONS)}를 한 판에 해요.
+              {ALL_LESSONS.some((l) => !lessonImplemented(l)) && ' 아직 준비 중인 차시의 일부 활동은 간단한 형태로 나와요.'}
             </p>
           )}
-          <details class="t-adv" open={values.playUnit === 'custom'}>
+          <div class={`t-rest${chosen ? '' : ' t-dim'}`} data-testid="setup-rest" aria-disabled={!chosen} inert={!chosen}>
+            {basic}
+          </div>
+          <details
+            class="t-adv"
+            data-testid="setup-advanced"
+            open={advOpen}
+            onToggle={(e) => setAdvOpen((e.currentTarget as HTMLDetailsElement).open)}
+          >
             <summary>고급 설정</summary>
+            <p class="t-adv__hint">처음에는 그대로 두어도 돼요. 기본: 학습지는 알아서, 시간 맞춰 저절로 넘어가기.</p>
+            <div class={`t-adv__rest${chosen ? '' : ' t-dim'}`} data-testid="setup-adv-rest" aria-disabled={!chosen} inert={!chosen}>
+              {advanced}
+            </div>
             <div class="t-field" data-testid="custom-scope">
               <span class="t-field__label">연속 구간 직접 고르기</span>
               <div class="t-seg" role="group" aria-label="연속 구간">
@@ -394,24 +467,26 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
                     type="button"
                     class="t-seg__btn"
                     aria-pressed={values.playUnit === 'custom' && values.customScope.includes(st)}
+                    data-value={st}
                     disabled={!lessonReleased(st)}
                     title={lessonReleased(st) ? undefined : '준비 중'}
                     onClick={() => toggleCustom(st)}
                   >
-                    {st}
+                    {lessonName(st)}
                   </button>
                 ))}
               </div>
             </div>
           </details>
-          <h2 class="t-h2">② 나머지 설정</h2>
-          <div class={`t-rest${chosen ? '' : ' t-dim'}`} data-testid="setup-rest" aria-disabled={!chosen} inert={!chosen}>
-            {rest}
-          </div>
         </section>
-        <section class={`t-setup__right${chosen ? '' : ' t-dim'}`} aria-label="배치 미리보기">
-          <h2 class="t-h2">배치 미리보기</h2>
-          <PreviewPanel preview={preview} values={values} onForm={(id, form) => set({ overrides: { ...values.overrides, [id]: form } })} />
+        <section class={`t-setup__right${chosen ? '' : ' t-dim'}`} aria-label="미리보기">
+          <h2 class="t-h2">미리보기</h2>
+          <PreviewPanel
+            preview={preview}
+            order={order}
+            values={values}
+            onForm={(id, form) => set({ overrides: { ...values.overrides, [id]: form } })}
+          />
           <div class="t-open">
             <RoomCount status={rooms.status} onRefresh={rooms.refresh} />
             <div class="t-open__row">

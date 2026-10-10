@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import preact from '@preact/preset-vite';
 import { defineConfig, type Plugin } from 'vitest/config';
 import { imageVariants } from './scripts/vite-image-variants.js';
+import { worksheetPdfs } from './scripts/vite-worksheet-pdfs.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
@@ -76,7 +77,13 @@ export default defineConfig({
   base: './',
   // (작업 133) imageVariants: 빌드 때 assets/images/**.png 의 WebP·AVIF·크기별 사본을 만들어(.cache/images 캐시) dist 에 넣고
   // 목록을 __IMAGE_VARIANTS__ 로 앱에 넣는다. 개발 서버·vitest 는 빈 목록(원본 PNG).
-  plugins: [preact(), voyageBuildOutput(), imageVariants({ root, srcDir: join(root, 'assets', 'images'), cacheDir: join(root, '.cache', 'images') })],
+  // (작업 138) worksheetPdfs: print/dist/ 의 학습지 PDF 를 dist/print/ 로 영문 이름 복사 + 목록 __WORKSHEET_PDFS__, 개발 서버는 미들웨어로 제공.
+  plugins: [
+    preact(),
+    voyageBuildOutput(),
+    imageVariants({ root, srcDir: join(root, 'assets', 'images'), cacheDir: join(root, '.cache', 'images') }),
+    worksheetPdfs({ root }),
+  ],
   resolve: {
     alias: {
       '@shared': join(root, 'shared'),

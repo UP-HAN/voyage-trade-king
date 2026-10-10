@@ -27,14 +27,16 @@ const imgDir = path.join(src, 'img');
 const refStudent = path.join(src, 'ref', 'student-136.html');
 
 // 장별 PDF: 이름은 136과 같다. 쪽 수 = 그 차시의 항해 기록 수
+// label: 장별 PDF 문서 제목 끝(작업 138 수정 1회차 — 장별 PDF 제목이 모두 '학생용'이던 것을 차시 이름으로)
 const SHEETS = [
-  { name: 'L1', acts: [1, 2, 3, 4] },
-  { name: 'L2', acts: [5, 6, 7, 8] },
-  { name: 'L3', acts: [9, 10, 11, 12] },
-  { name: 'L4-1', acts: [13, 14, 15, 16, 18] },
-  { name: 'L4-2', acts: [17] },
-  { name: '선택활동', acts: [19, 20] },
+  { name: 'L1', label: '1차시', acts: [1, 2, 3, 4] },
+  { name: 'L2', label: '2차시', acts: [5, 6, 7, 8] },
+  { name: 'L3', label: '3차시', acts: [9, 10, 11, 12] },
+  { name: 'L4-1', label: '4차시 ①', acts: [13, 14, 15, 16, 18] },
+  { name: 'L4-2', label: '4차시 ②', acts: [17] },
+  { name: '선택활동', label: '선택 활동', acts: [19, 20] },
 ];
+const SHEET_TITLE = (label) => `대항해 무역왕 항해 일지 — ${label}`;
 const ORDER = SHEETS.flatMap((s) => s.acts);
 const OUT_STUDENT = '대항해무역왕_항해일지_학생용.pdf';
 const OUT_TEACHER = '대항해무역왕_항해일지_교사용_예시답.pdf';
@@ -102,7 +104,10 @@ function inspectPdf(file) {
   const pages = (s.match(/\/Type\s*\/Page(?![s\w])/g) || []).length;
   const boxes = [...s.matchAll(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/g)].map((m) => [Number(m[1]), Number(m[2])]);
   const fonts = [...new Set([...s.matchAll(/\/(?:BaseFont|FontName)\s*\/([A-Za-z0-9+_-]+)/g)].map((m) => m[1].replace(/^[A-Z]{6}\+/, '')))];
-  return { pages, boxes, fonts };
+  // 문서 제목(/Title <FEFF…> UTF-16BE 16진) — 장별 PDF 제목 검사용
+  const hex = s.match(/\/Title\s*<FEFF([0-9A-Fa-f]*)>/);
+  const title = hex ? Buffer.from(hex[1], 'hex').swap16().toString('utf16le') : null;
+  return { pages, boxes, fonts, title };
 }
 
 // 4) 쪽 검사: 넘침·잘림, 빈 쪽, 활동 = 한 쪽
@@ -232,6 +237,7 @@ async function render(browser, htmlFile, { pdfOut, student, shotPrefix }) {
     for (const s of SHEETS) {
       const n = sheetsOf.filter((x) => x === s.name).length;
       const f = path.join(tmpSheet, `${s.name}.pdf`);
+      await page.evaluate((t) => { document.title = t; }, SHEET_TITLE(s.label)); // PDF 문서 제목(/Title)
       await page.pdf({ path: f, preferCSSPageSize: true, printBackground: true, pageRanges: `${start}-${start + n - 1}` });
       per.push({ file: f, expect: s.acts.length, sheet: s.name });
       start += n;
@@ -321,7 +327,13 @@ async function main() {
     return r;
   };
   const s = check(OUT_STUDENT, path.join(tmp, OUT_STUDENT), ORDER.length);
-  stu.per.forEach((p) => check(`장별/${path.basename(p.file)}`, p.file, p.expect));
+  stu.per.forEach((p) => {
+    const r = check(`장별/${path.basename(p.file)}`, p.file, p.expect);
+    const want = SHEET_TITLE(SHEETS.find((x) => x.name === p.sheet).label);
+    const tOk = r.title === want;
+    if (!tOk) failed = true;
+    report.push(`${tOk ? 'OK  ' : 'FAIL'} 장별/${path.basename(p.file)} 문서 제목: ${r.title ?? '(없음)'}${tOk ? '' : ` (기대 ${want})`}`);
+  });
   check(OUT_TEACHER, path.join(tmp, OUT_TEACHER), tea.count);
   const orderOk = JSON.stringify(stu.order) === JSON.stringify(ORDER);
   if (!orderOk) failed = true;

@@ -219,3 +219,38 @@
 }
 .t-acts-scroll { max-height: 38vh; overflow-y: auto; }
 .t-route { min-height: 100vh; min-height: 100dvh; }
+
+/* ---------- (작업 138) 수업 준비 3단계·학습지 PDF·판 설정 정리 ---------- */
+.t-start__small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 12px; }
+.t-guide { margin: 16px 0 0; padding: 10px 14px; border: 2px solid var(--brass-dark); border-radius: var(--radius); background: #f6eed6; }
+.t-guide__sum { min-height: 40px; font-size: 19px; font-weight: 700; cursor: pointer; }
+.t-guide__steps { margin: 6px 0 2px; padding-left: 1.4em; }
+.t-guide__steps li { padding: 4px 0; line-height: 1.5; }
+.t-guide__steps .t-wsm { margin-top: 6px; }
+
+.t-wsm { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.t-wsm__main { display: flex; flex-wrap: wrap; gap: 8px; }
+.t-wsm__drop { position: relative; }
+.t-wsm__toggle { min-height: 40px; }
+.t-wsm__pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; width: min(840px, calc(100vw - 32px)); padding: 8px; border: 2px solid var(--brass-dark); border-radius: 10px; background: var(--parchment-light); box-shadow: 0 6px 18px rgba(12, 34, 48, 0.25); }
+.t-wsm--inline .t-wsm__pop { left: auto; right: 0; }
+.t-wsm__group { grid-column: 1 / -1; margin: 4px 4px 2px; color: var(--ink-soft); font-size: 16px; font-weight: 700; }
+.t-wsm__link { display: flex; flex-wrap: nowrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; min-height: 40px; padding: 6px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+.t-wsm__link:hover, .t-wsm__link:focus-visible { background: #e3ecef; }
+.t-wsm__link--teacher { grid-column: 1 / -1; }
+.t-wsm__link--big { border: 2px solid var(--sea); background: #e3ecef; font-weight: 700; }
+.t-wsm__link--big:hover, .t-wsm__link--big:focus-visible { background: #d3e2e7; }
+.t-wsm__name { font-size: 16px; }
+.t-wsm__meta { flex: 0 0 auto; color: var(--ink-soft); font-size: 16px; font-weight: 400; white-space: nowrap; }
+.t-wsm__empty { margin: 0; color: #7a2412; }
+
+.t-order { margin: 0 0 6px; font-size: 17px; line-height: 1.5; }
+.t-order__label { display: inline-block; margin-right: 4px; padding: 0 8px; border-radius: 6px; background: var(--sea); color: var(--parchment-light); font-weight: 700; }
+.t-sheet { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; padding: 6px 0; border-top: 1px solid #e0d2a8; border-bottom: 1px solid #e0d2a8; }
+.t-sheet__label { font-weight: 700; }
+.t-optional { color: var(--ink-soft); font-weight: 400; }
+.t-adv { padding: 6px 12px; border: 1px solid #cdbb8f; border-radius: 10px; background: var(--parchment-light); }
+.t-adv summary { font-weight: 700; }
+.t-adv__hint { margin: 2px 0 4px; color: var(--ink-soft); }
+.t-acts-box { margin-top: 6px; }
+.t-lesson__id { color: var(--ink-soft); }

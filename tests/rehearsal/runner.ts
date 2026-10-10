@@ -315,9 +315,14 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     await custom.fill(String(sc.minutes));
     await custom.blur();
     if (sc.manual) {
-      await t.locator('[data-testid="progress-mode"] button', { hasText: '수동' }).click();
-      const pressed = await t.locator('[data-testid="progress-mode"] button', { hasText: '수동' }).getAttribute('aria-pressed');
-      step(`진행 방식 수동 선택(aria-pressed=${pressed})`);
+      // (작업 138) 진행 방식은 판 설정 [고급 설정] 안 — 접혀 있으면 먼저 펼친다. 버튼은 값(data-value)으로 찾는다(보이는 말: '선생님이 하나씩 넘기기')
+      const adv = t.getByTestId('setup-advanced');
+      const wasOpen = (await adv.getAttribute('open')) !== null;
+      if (!wasOpen) await adv.locator(':scope > summary').click();
+      const manualBtn = t.locator('[data-testid="progress-mode"] button[data-value="manual"]');
+      await manualBtn.click();
+      const pressed = await manualBtn.getAttribute('aria-pressed');
+      step(`[고급 설정] ${wasOpen ? '이미 펼쳐짐' : '펼침'} → 진행 방식 '${(await manualBtn.innerText()).trim()}'(수동) 선택(aria-pressed=${pressed})`);
     }
     await t.getByTestId('btn-open').click();
     await t.getByTestId('room-code').waitFor({ timeout: 20_000 });

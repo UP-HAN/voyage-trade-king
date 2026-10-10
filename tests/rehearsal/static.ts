@@ -22,6 +22,7 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.woff': 'font/woff',
   '.txt': 'text/plain; charset=utf-8',
+  '.pdf': 'application/pdf',
 };
 
 /** dist/ → dest 재귀 복사(파일 수 반환) */
