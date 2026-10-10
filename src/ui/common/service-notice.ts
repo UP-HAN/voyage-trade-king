@@ -36,7 +36,7 @@ export const SERVICE_NOTICE_FULL = {
 } as const;
 
 /** 8번 항목의 기본 설치 안내(저장소 주소가 없을 때) */
-export const INSTALL_GUIDE_DEFAULT = '공개 저장소 README — 저장소 공개 뒤에 링크를 넣습니다';
+export const INSTALL_GUIDE_DEFAULT = '공개 저장소 README — https://github.com/UP-HAN/voyage-trade-king';
 /** `maxRooms`를 못 읽었을 때 3번 항목의 "{maxRooms}개" 자리 */
 export const MAX_ROOMS_UNKNOWN = '정해진 수';
 

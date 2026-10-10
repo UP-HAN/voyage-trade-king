@@ -21,7 +21,9 @@ export type DetectorKind =
   | 'missing-screen' // 7. 학습지 팝업·편지·결과 화면 안 뜸
   | 'reconnect' // 8. 재접속 실패
   | 'health' // 9. 메모리·메시지율 이상(/health)
-  | 'harness'; // 리허설 도구 자체 문제(앱 문제 아님)
+  | 'harness' // 리허설 도구 자체 문제(앱 문제 아님)
+  | 'blocked-click' // (수정 1) 핵심 버튼이 정상 층이 아닌 것에 가려 눌리지 않음·층이 닫히지 않고 남음
+  | 'preview'; // 준비 중 기능(기능 플래그가 꺼진 단원 판·L2~L4) 때문에 생긴 것 — 참고
 
 export const KIND_LABEL: Record<DetectorKind, string> = {
   'no-action': '라운드 중 할 수 있는 행동 없음',
@@ -35,6 +37,8 @@ export const KIND_LABEL: Record<DetectorKind, string> = {
   reconnect: '재접속 실패',
   health: '서버 메모리·메시지율 이상',
   harness: '리허설 도구 문제(앱 문제 아님)',
+  'blocked-click': '버튼이 가려 눌리지 않음·층이 닫히지 않음',
+  preview: '준비 중 기능(참고 — 기능 플래그 FULL_UNIT_READY=false인 단원 판·L2~L4)',
 };
 
 export interface Problem {
@@ -162,3 +166,57 @@ export function mergeCounts(into: Record<string, number>, from: Record<string, n
 
 /** 리허설에서 일부러 만든 거절(이름 다시 짓기·다른 기기 허락 대기) — 정상 경로 */
 export const EXPECTED_REJECTS = /^(NAME_TAKEN|BAD_NAME|NAME_FORMAT|BAD_NAME\(기기 검사\)|NAME_TAKEN\(기기 검사\)|NAME_FORMAT\(기기 검사\)|REJOIN_PENDING)$/;
+
+/** 준비 중(L2~L4) 사건·활동에 대한 행동인가(예: "respondEvent L3-E4") */
+export function isPreviewAct(act: string | undefined): boolean {
+  return Boolean(act && /\bL[234]-/.test(act));
+}
+
+/**
+ * 학생 화면의 '정상 층'(앱이 일부러 아래 화면을 덮는 층): 사건·미니게임·학습지·일시정지·이름 막힘(LayerFrame data-layer),
+ * 편지 패널(data-layer="letter"), 비차단 사건 패널(event-panel), 화면 가운데 창(.st-modal[aria-modal=true] — 라운드 밖 항구 카드 등 → 'modal'). 이 층에 가려 눌리지 않는 것은 정상 흐름이다 — 학생은 층에 먼저 답하거나 닫는다.
+ */
+export const NORMAL_LAYERS = new Set(['event', 'minigame', 'worksheet', 'pause', 'nameBlocked', 'letter', 'event-panel', 'modal']);
+
+export interface CoverInfo {
+  /** 가린 요소가 속한 층(data-layer 또는 'event-panel'), 없으면 null */
+  layer: string | null;
+  /** 누르려던 요소가 inert 안에 있음(앱이 일시정지·이름 막힘 때 아래 화면을 일부러 막음) */
+  inert: boolean;
+  /** 맨 위 요소 설명 */
+  top: string;
+  /** 맨 위 요소부터 조상 몇 단계 */
+  chain: string;
+}
+
+export function isNormalCover(c: CoverInfo): boolean {
+  return c.inert || (c.layer !== null && NORMAL_LAYERS.has(c.layer));
+}
+
+/**
+ * (수정 1) 학생 화면 맨 위 층이 공개 상태와 맞는가(정상 층인가).
+ * true = 지금 떠 있어야 하는 층, false = 공개 상태로는 없어야 하는 층(닫히지 않고 남음), null = 공개 상태로 판단할 수 없음(시간 제한만 적용: 화면 가운데 창 등).
+ */
+export function layerLegit(
+  layer: string | null,
+  screen: { catchup: boolean; minigame: boolean; eventResult: boolean; worksheet: boolean },
+  pub: { event: { closed: boolean; blocking: boolean } | null; worksheetOn: boolean; paused: boolean; phase: string },
+): boolean | null {
+  if (!layer) return true;
+  switch (layer) {
+    case 'worksheet':
+      return pub.worksheetOn;
+    case 'pause':
+      return pub.paused;
+    case 'event':
+    case 'minigame':
+      // 따라잡기(늦게 온·돌아온 학생)·지금 미니게임은 언제든 정상. 그 밖에는 차단형 사건이 떠 있거나(진행·마감 결과) 마감 결과 카드가 보일 때만
+      if (screen.catchup || screen.minigame) return true;
+      if (!pub.event) return false;
+      return pub.event.blocking || screen.eventResult;
+    case 'nameBlocked':
+      return true;
+    default:
+      return null;
+  }
+}

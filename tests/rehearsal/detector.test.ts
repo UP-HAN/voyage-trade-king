@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Collector, Streak, hasRoundGuidance, hasStartConfirmRoundHint, hasTeacherRoundCountdown, parseHudMoney, parseTableMoney } from './detector';
+import { Collector, Streak, isNormalCover, layerLegit, isPreviewAct, hasRoundGuidance, hasStartConfirmRoundHint, hasTeacherRoundCountdown, parseHudMoney, parseTableMoney } from './detector';
 import { relayEnv } from './env';
 
 describe('리허설 탐지기(작업 135)', () => {
@@ -47,5 +47,30 @@ describe('리허설 탐지기(작업 135)', () => {
     expect(e.MSG_RATE).toBe('20');
     expect(e.HOST_MSG_RATE).toBe('120');
     expect(e.PORT).toBeUndefined();
+  });
+
+  it('준비 중(L2~L4) 행동과 정상 층 가림을 가려낸다(보완 1)', () => {
+    expect(isPreviewAct('respondEvent L3-E4')).toBe(true);
+    expect(isPreviewAct('respondEvent L1-E5')).toBe(false);
+    expect(isPreviewAct(undefined)).toBe(false);
+    const base = { top: '<div>', chain: '<div>', inert: false };
+    expect(isNormalCover({ ...base, layer: 'event' })).toBe(true);
+    expect(isNormalCover({ ...base, layer: 'worksheet' })).toBe(true);
+    expect(isNormalCover({ ...base, layer: null, inert: true })).toBe(true);
+    expect(isNormalCover({ ...base, layer: null })).toBe(false);
+    expect(isNormalCover({ ...base, layer: 'toast' })).toBe(false);
+  });
+
+  it('맨 위 층이 공개 상태와 맞는지 본다(수정 1)', () => {
+    const scr = { catchup: false, minigame: false, eventResult: false, worksheet: false };
+    const pub = { event: null, worksheetOn: false, paused: false, phase: 'round' };
+    expect(layerLegit(null, scr, pub)).toBe(true);
+    expect(layerLegit('event', scr, pub)).toBe(false); // 사건 없음인데 사건 층
+    expect(layerLegit('event', scr, { ...pub, event: { closed: false, blocking: false } })).toBe(false); // 비차단 사건인데 가운데 층
+    expect(layerLegit('event', scr, { ...pub, event: { closed: true, blocking: true } })).toBe(true); // 차단형 마감 결과
+    expect(layerLegit('event', { ...scr, catchup: true }, pub)).toBe(true);
+    expect(layerLegit('worksheet', scr, pub)).toBe(false);
+    expect(layerLegit('worksheet', scr, { ...pub, worksheetOn: true })).toBe(true);
+    expect(layerLegit('modal', scr, pub)).toBeNull();
   });
 });

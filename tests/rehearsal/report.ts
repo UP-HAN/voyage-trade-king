@@ -21,6 +21,8 @@ export interface ScenarioResult {
   steps: string[];
   metrics: Record<string, unknown>;
   error?: string;
+  /** 준비 중 기능 등으로 건너뜀(도구 오류 아님) */
+  skipped?: string;
 }
 
 const SEV_ORDER: Severity[] = ['막힘', '문제', '혼란', '참고'];
@@ -28,7 +30,7 @@ const SEV_ORDER: Severity[] = ['막힘', '문제', '혼란', '참고'];
 export function countBy(results: ScenarioResult[]) {
   const all = results.flatMap((r) => r.problems);
   const n = (s: Severity) => all.filter((p) => p.severity === s).length;
-  return { 막힘: n('막힘'), 문제: n('문제'), 혼란: n('혼란'), 참고: n('참고') };
+  return { 막힘: n('막힘'), 문제: n('문제'), 혼란: n('혼란'), 참고: n('참고'), 준비중: all.filter((p) => p.kind === 'preview').length };
 }
 
 export function writeReport(dir: string, o: { startedAt: string; target: string; scenarios: string[]; results: ScenarioResult[]; health: { maxPeers: number; maxConns: number; maxMemMB: number }; cleanup?: Record<string, unknown> }) {
@@ -37,15 +39,15 @@ export function writeReport(dir: string, o: { startedAt: string; target: string;
   const lines: string[] = [];
   lines.push(`# 리허설 보고서 — ${o.startedAt}`);
   lines.push('');
-  lines.push(`**막힘 ${c.막힘} / 문제 ${problemsTotal}** (문제 ${c.문제} · 혼란 ${c.혼란}, 참고 ${c.참고}) · 대상 ${o.target} · 시나리오 ${o.scenarios.join(', ')} · 최대 접속 학생(peers) ${o.health.maxPeers}`);
+  lines.push(`**막힘 ${c.막힘} / 문제 ${problemsTotal}** (문제 ${c.문제} · 혼란 ${c.혼란}, 참고 ${c.참고}${c.준비중 ? ` — 그중 준비 중 기능 ${c.준비중}` : ''}) · 대상 ${o.target} · 시나리오 ${o.scenarios.join(', ')} · 최대 접속 학생(peers) ${o.health.maxPeers}`);
   lines.push('');
   lines.push('| 시나리오 | 결과 | 막힘 | 문제 | 혼란 | 무역 시간(빠른 시계) | 실제 걸린 시간 | 비고 |');
   lines.push('|---|---|---|---|---|---|---|---|');
   for (const r of o.results) {
     const k = (s: Severity) => r.problems.filter((p) => p.severity === s).length;
-    const ok = r.finished && k('막힘') === 0 && k('문제') === 0 ? (k('혼란') ? '통과(혼란 있음)' : '통과') : r.finished ? '문제 있음' : '중단';
+    const ok = r.skipped ? `건너뜀(${r.skipped})` : r.finished && k('막힘') === 0 && k('문제') === 0 ? (k('혼란') ? '통과(혼란 있음)' : '통과') : r.finished ? '문제 있음' : '중단';
     const trade = r.tradeSec === null ? '끝나지 않음' : `${Math.floor(r.tradeSec / 60)}분 ${Math.round(r.tradeSec % 60)}초 (허용 ${r.allowedSec ? Math.round(r.allowedSec / 60) : '?'}분)`;
-    lines.push(`| ${r.id}. ${r.title} | ${ok} | ${k('막힘')} | ${k('문제')} | ${k('혼란')} | ${trade} | ${Math.round(r.realSec)}초 | ${[r.breaks.length ? `고장 플래그: ${r.breaks.join(',')}` : '', r.error ? `도구 오류: ${r.error.slice(0, 80)}` : ''].filter(Boolean).join(' ')} |`);
+    lines.push(`| ${r.id}. ${r.title} | ${ok} | ${k('막힘')} | ${k('문제')} | ${k('혼란')} | ${trade} | ${Math.round(r.realSec)}초 | ${[r.breaks.length ? `고장 플래그: ${r.breaks.join(',')}` : '', r.error ? `도구 오류: ${r.error.slice(0, 80)}` : '', typeof r.metrics.preview === 'string' ? `준비 중 기능: ${r.metrics.preview.slice(0, 90)}` : ''].filter(Boolean).join(' ')} |`);
   }
   lines.push('');
   lines.push('## 문제 목록');
@@ -113,6 +115,7 @@ export function writeReport(dir: string, o: { startedAt: string; target: string;
       realSec: Math.round(r.realSec),
       breaks: r.breaks,
       error: r.error ?? null,
+      skipped: r.skipped ?? null,
       problems: r.problems.map((p) => ({ severity: p.severity, kind: p.kind, title: p.title, detail: p.detail, at: p.at, count: p.count, who: p.who, shots: p.shots })),
     })),
     cleanup: o.cleanup ?? null,

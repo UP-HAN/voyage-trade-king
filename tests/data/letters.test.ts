@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkQuiz, checkQuizFor } from '../../src/data/checkQuiz';
@@ -9,7 +9,11 @@ import { letterCountRule } from '../../src/data/schedule';
 import { textbookArticles } from '../../src/data/text';
 import type { Difficulty, LessonId } from '../../src/data/types';
 
-const TEXTBOOK = readFileSync(join(process.cwd(), 'docs', 'source', 'textbook-text.md'), 'utf8');
+// 교과서 추출본은 저작권 때문에 공개 저장소에 넣지 않는다(.gitignore) — 없으면 원문 대조 시험만 건너뛴다.
+const TEXTBOOK_PATH = join(process.cwd(), 'docs', 'source', 'textbook-text.md');
+const HAS_TEXTBOOK = existsSync(TEXTBOOK_PATH);
+const TEXTBOOK = HAS_TEXTBOOK ? readFileSync(TEXTBOOK_PATH, 'utf8') : '';
+const itTB = it.skipIf(!HAS_TEXTBOOK);
 /** 교과서 추출본의 줄바꿈·공백을 없앤 비교용 문자열 */
 const squash = (s: string) => s.replace(/[\s‘’'"]/g, '');
 const TB = squash(TEXTBOOK);
@@ -70,7 +74,7 @@ describe('편지 문제 은행(PRD 6.7.4, v0.3.1)', () => {
     expect(letters.some((q) => q.format === 'gullNews')).toBe(true);
   });
 
-  it('교과서 기사를 인용한 지문은 교과서 원문에 그대로 있다', () => {
+  itTB('교과서 기사를 인용한 지문은 교과서 원문에 그대로 있다', () => {
     for (const q of letters.filter((x) => x.source)) {
       expect(TB, q.id).toContain(squash(q.passage!.replace(/\.$/, '')));
     }
@@ -92,19 +96,19 @@ describe('확인 퀴즈(PRD 6.7.5)', () => {
 });
 
 describe('컨테이너 OX(p.111)', () => {
-  it('8문장이 교과서 원문과 같고 옳은 문장은 1·5·7·8', () => {
+  itTB('8문장이 교과서 원문과 같고 옳은 문장은 1·5·7·8', () => {
     expect(containerSentences).toHaveLength(8);
     for (const s of containerSentences) expect(TB, `${s.no}`).toContain(squash(s.text));
     expect(CORRECT_CONTAINER_NOS).toEqual([1, 5, 7, 8]);
   });
-  it('자기 평가 3문항이 교과서 원문과 같다', () => {
+  itTB('자기 평가 3문항이 교과서 원문과 같다', () => {
     expect(selfEvaluation).toHaveLength(3);
     for (const s of selfEvaluation) expect(TB).toContain(squash(s.text));
   });
 });
 
 describe('교과서 속 기사 원문(p.106, p.109)', () => {
-  it('기사 본문이 교과서 텍스트와 같다', () => {
+  itTB('기사 본문이 교과서 텍스트와 같다', () => {
     for (const a of Object.values(textbookArticles)) {
       expect(TB, a.id).toContain(squash(a.body));
       for (const t of a.underlineTargets) expect(squash(a.body)).toContain(squash(t.sentence));

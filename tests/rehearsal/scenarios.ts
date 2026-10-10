@@ -32,6 +32,8 @@ export interface Scenario {
   unit: boolean;
   minutes: number;
   manual: boolean;
+  /** (보완 1) 기능 플래그로 꺼 둔 준비 중 기능을 개발용 열쇠(localStorage)로 열어 돌리는 시나리오 — L2~L4 미구현 때문에 생긴 것은 '준비 중 기능(참고)'로 */
+  preview?: { devKey: string; why: string };
   teacher: Timed<TeacherOp>[];
   crowd: Timed<CrowdOp>[];
 }
@@ -79,6 +81,7 @@ export const SCENARIOS: Scenario[] = [
     id: 'c',
     title: '단원 한 판 25분 자동(사건 마감·다른 기기 허락)',
     unit: true,
+    preview: { devKey: 'voyage.dev.fullUnit', why: '단원 한 판·L2~L4는 기능 플래그 FULL_UNIT_READY=false로 준비 중(src/data/schedule.ts)' },
     minutes: 25,
     manual: false,
     teacher: [{ at: 0.3, phase: 'event-open', do: { op: 'closeEvent' } }],
@@ -133,6 +136,11 @@ export const BREAKS = {
   'hide-fire': '(수동 진행) 교사 화면 [발동] 안내를 숨김 → 교사가 눌러야 하는데 안내 없음',
   'bad-rejoin': '끊겼다 돌아오는 봇이 틀린 방 코드로 들어옴 → 재접속 실패',
   'no-end': '라운드 1에서 교사가 일시정지하고 풀지 않음 → 판이 끝나지 않음',
+  // (수정 1) 층·가림 고장 — '보이지만 눌리지 않음'·'닫혀야 할 층이 남음'을 잡는지 확인
+  'stuck-layer': '1번 학생 화면에 닫힌 사건 층(dim, data-layer=event)이 라운드 1부터 남음 → 공개 상태와 맞지 않는 층 [문제]·[막힘]',
+  'stuck-modal': '2번 학생 화면에 닫기 버튼 없는 가운데 창(aria-modal)이 남음 → 창이 닫히지 않음 [막힘]',
+  'click-shield': '3번 학생 아래 막대 위에 투명 층(data-layer 없음) → 핵심 버튼이 가려 눌리지 않음 [문제]·라운드 중 행동 없음 [막힘]',
+  'bar-no-pointer': '4번 학생 아래 막대에 pointer-events:none → 라운드 중 행동 없음 [막힘]',
 } as const;
 
 export type BreakId = keyof typeof BREAKS;

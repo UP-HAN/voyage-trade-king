@@ -12,7 +12,8 @@
  * - 기록: 거절 코드별 수(입장·행동 되돌림), 상태 변화 시각(빠른 시계), 행동 수, '할 수 있는 행동 없음' 시간
  */
 import { botAction, rng } from '../sim/bot';
-import { marketView, type PublicPayload } from '../../src/core';
+import { isBlocking, marketView, type PublicPayload } from '../../src/core';
+import { eventsById } from '../../src/data/events';
 import { mailbox } from '../../src/core/letters';
 import { classForPredict, playerForPredict } from '../../src/student/predict';
 import { createStudentStore, type StudentStore } from '../../src/student/store';
@@ -119,7 +120,8 @@ export interface PubSummary {
   mode: string;
   waiting: string | null;
   timeUp: boolean;
-  event: { id: string; closed: boolean } | null;
+  /** blocking = 화면 가운데를 막는 사건(차단형) — 학생 화면 사건 층이 정상인지 대조용 */
+  event: { id: string; closed: boolean; blocking: boolean } | null;
   worksheet: { current: string[]; during: boolean };
   nextRoundAt: number | null;
   wrapLive: string | null;
@@ -387,7 +389,7 @@ window.__rb = {
         mode: c.schedule.mode,
         waiting: c.schedule.waiting ?? null,
         timeUp: Boolean(c.schedule.timeUp),
-        event: c.currentEvent ? { id: c.currentEvent.id, closed: Boolean(c.currentEvent.closed) } : null,
+        event: c.currentEvent ? { id: c.currentEvent.id, closed: Boolean(c.currentEvent.closed), blocking: eventsById[c.currentEvent.id] ? isBlocking(eventsById[c.currentEvent.id]!, Boolean(c.currentEvent.short)) : false } : null,
         worksheet: { current: [...(c.worksheet.current ?? [])], during: Boolean(c.worksheet.during) },
         nextRoundAt: next ? next.at : null,
         wrapLive: pub.wrapLive ?? null,

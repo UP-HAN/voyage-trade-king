@@ -24,6 +24,8 @@ import {
   hasRoundGuidance,
   hasStartConfirmRoundHint,
   hasTeacherRoundCountdown,
+  isPreviewAct,
+  layerLegit,
   mergeCounts,
   mmss,
   parseHudMoney,
@@ -34,7 +36,10 @@ import {
 import { relayEnv } from './env';
 import type { ScenarioResult } from './report';
 import { NAME_PLAN, type BreakId, type CrowdOp, type Scenario, type TeacherOp, type Timed } from './scenarios';
-import { canTrade, hasTask, probeStudent, studentStep, type StudentProbe } from './student';
+import { canTrade, hasTask, newBrainMem, probeStudent, studentStep, type BrainMem, type StudentProbe } from './student';
+
+/** 준비 중 기능(기능 플래그가 꺼짐) 때문에 시나리오를 더 진행할 수 없음 — 도구 오류가 아니라 '준비 중 기능(참고)' */
+class PreviewBlocked extends Error {}
 
 export interface RunOptions {
   outDir: string;
@@ -70,7 +75,7 @@ interface Slot {
   page: Page | null;
   probe: StudentProbe | null;
   probeAt: number;
-  mem: { seen: Set<string>; delayUntil: Map<string, number>; readyRound: number; fails: Map<string, number>; failWhy: Map<string, string>; failAt: Map<string, number[]> };
+  mem: BrainMem;
   diligence: number;
   /** 지금 떠 있는 학습지 묶음 가운데 이 학생이 본 것 */
   wsSeen: Set<string>;
@@ -78,6 +83,9 @@ interface Slot {
   joinedRound: number;
   idleWait: Streak;
   noAction: Streak;
+  /** (수정 1) 맨 위 층이 공개 상태와 맞지 않는 채 이어진 시간 / 화면 가운데 창이 이어진 시간(빠른 시계) */
+  layerBad: Streak;
+  modalLong: Streak;
   busy: boolean;
   gone: boolean;
 }
@@ -131,6 +139,8 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
   let breaksApplied = false;
   let noEndPause = false;
   let hideFireOn = false;
+  /** (수정 1) 층·가림 고장 플래그를 넣은 학생 자리 — 그 학생의 '도구 문제' 참고는 빼고 탐지 결과만 남긴다 */
+  const breakSeats = new Set<number>();
   const wsEpisode = { key: '', startReal: 0, startRound: 0 };
   const results: ScenarioResult = {
     id: sc.id,
@@ -196,13 +206,14 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     const fr = frames.get(label) ?? { sent: 0, recv: 0, buckets: new Map<number, number>() };
     frames.set(label, fr);
     p.on('websocket', (ws) => {
+      // 이 연결이 보낸 마지막 행동(되돌림 응답과 짝지어 보고서에 적는다 — 봇 페이지는 봇마다 연결이 따로라 연결 단위로 기억)
+      const wsKey = `${label}#${ws.url()}#${Math.random()}`;
       ws.on('framesent', (f) => {
         fr.sent++;
-        // 실제 학생 화면이 보낸 마지막 행동(되돌림 응답과 짝지어 보고서에 적는다)
-        if (label.startsWith('학생') && typeof f.payload === 'string' && f.payload.includes('act')) {
+        if (typeof f.payload === 'string' && f.payload.includes('act')) {
           const ty = /type\\?":\\?"(\w+)/.exec(f.payload)?.[1];
           const ev = /(?:eventId|qid|slotId)\\?":\\?"([\w-]+)/.exec(f.payload)?.[1];
-          if (ty) lastAct.set(label, ev ? `${ty} ${ev}` : ty);
+          if (ty) lastAct.set(wsKey, ev ? `${ty} ${ev}` : ty);
         }
         const sec = Math.floor(Date.now() / 1000);
         fr.buckets.set(sec, (fr.buckets.get(sec) ?? 0) + 1);
@@ -213,7 +224,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         if (s.length > 20000 || !/ok\\?":false|t\\?":\\?"error|reject|denied/.test(s)) return;
         for (const m of s.matchAll(/(?:error|reason|code)\\?"\s*:\s*\\?"([A-Z][A-Z_]{2,})/g)) {
           const dir = /reject|denied/.test(s) ? '입장' : /t\\?":\\?"error/.test(s) ? '서버' : '행동';
-          const act = dir === '행동' ? lastAct.get(label) : undefined;
+          const act = dir === '행동' ? lastAct.get(wsKey) : undefined;
           codes.push({ at: Date.now(), who: label, code: m[1]!, dir, ...(act ? { act } : {}) });
         }
       });
@@ -278,8 +289,25 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     await t.goto('./#/teacher');
     await t.getByTestId('teacher-start').waitFor({ timeout: 30_000 });
     await t.getByTestId('btn-new').click();
-    if (sc.unit) await t.getByTestId('unit-unit').click();
-    else {
+    if (sc.unit) {
+      // (보완 1) 단원 한 판은 기능 플래그 FULL_UNIT_READY=false로 '준비 중'(선택 불가). 시나리오에 preview가 있으면 개발용 열쇠로 이 교사 브라우저에서만 연다
+      const unitBtn = t.getByTestId('unit-unit');
+      const soon = await t.getByTestId('unit-soon').innerText({ timeout: 2000 }).catch(() => '');
+      const disabled = await unitBtn.isDisabled().catch(() => false);
+      if (disabled && sc.preview) {
+        step(`단원 한 판 '준비 중'(${soon.replace(/\s+/g, ' ').slice(0, 60) || 'unit-unit 비활성'}) → 개발용 열쇠 ${sc.preview.devKey}로 이 교사 브라우저에서만 엶`);
+        await t.evaluate((k) => localStorage.setItem(k, '1'), sc.preview.devKey);
+        await t.reload();
+        await t.getByTestId('teacher-start').waitFor({ timeout: 30_000 });
+        await t.getByTestId('btn-new').click();
+        metrics.preview = `${sc.preview.why} — 개발용 열쇠 ${sc.preview.devKey}로 열어 돌림`;
+      } else if (!disabled && sc.preview) metrics.preview = '단원 한 판이 이미 열려 있음(FULL_UNIT_READY=true?) — 열쇠 없이 돌림';
+      if (await unitBtn.isDisabled().catch(() => false)) {
+        col.add({ kind: 'preview', severity: '참고', key: 'preview-blocked', title: `[준비 중 기능] 단원 한 판을 고를 수 없어 시나리오 ${sc.id}를 건너뜀`, detail: `판 설정 화면의 [단원 한 판]이 비활성이에요(기능 플래그 FULL_UNIT_READY=false${sc.preview ? `, 개발용 열쇠 ${sc.preview.devKey}로도 열리지 않음` : ''}). 안내: "${soon.replace(/\s+/g, ' ').slice(0, 80)}". 앱 문제가 아니라 준비 중 기능이에요.`, at: '시작 전', shots: await snap(t, 'unit-soon') });
+        throw new PreviewBlocked('단원 한 판 준비 중');
+      }
+      await unitBtn.click();
+    } else {
       await t.getByTestId('unit-lesson').click();
       await t.getByTestId('lesson-L1').click();
     }
@@ -335,12 +363,14 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         page,
         probe: null,
         probeAt: 0,
-        mem: { seen: new Set(), delayUntil: new Map(), readyRound: 0, fails: new Map(), failWhy: new Map(), failAt: new Map() },
+        mem: newBrainMem(),
         diligence: seat === 4 ? 0.3 : seat === 3 ? 0.6 : 0.9,
         wsSeen: new Set(),
         wsProbes: new Map(),
         joinedRound: pub?.round ?? 0,
         idleWait: new Streak(),
+        layerBad: new Streak(),
+        modalLong: new Streak(),
         noAction: new Streak(),
         busy: false,
         gone: false,
@@ -426,9 +456,19 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
             slot.wsProbes.set(k, (slot.wsProbes.get(k) ?? 0) + 1);
             if (pr.worksheet) slot.wsSeen.add(k);
           }
-          await studentStep(p, pr, { label: slot.label, diligence: slot.diligence, rand, ports: () => (pub?.openPorts ?? []).filter((x) => x), phase: () => pub?.phase ?? null, log: (s) => step(s) }, slot.mem);
+          await studentStep(p, pr, { label: slot.label, diligence: slot.diligence, rand, ports: () => (pub?.openPorts ?? []).filter((x) => x), phase: () => pub?.phase ?? null, log: (s) => step(s), shot: (name) => snap(p, `${slot.label}-${name}`), now: () => env.clock.now(), blockedClick: (id, top, shots) => void blocked(slot, id, top, shots) }, slot.mem);
         }
         await sleep(250);
+      }
+    };
+    // (수정 1) 핵심 버튼(거래·출항·학습지)이 정상 층이 아닌 것에 가려 눌리지 않음 — 횟수와 상관없이 [문제](고장 플래그 대상이어도 그대로 — 탐지 확인용)
+    const blocked = async (slot: Slot, id: string, top: string, shots: string[]) => {
+      const key = `blocked-click-${slot.seat}-${id.replace(/ .*/, '')}`;
+      const fresh = !col.has(key);
+      const pr = col.add({ kind: 'blocked-click', severity: '문제', key, title: `${slot.label}: [${id.replace(/ .*/, '')}]가 정상 층이 아닌 것에 가려 눌리지 않음`, detail: `단계 ${pub?.phase ?? '-'}${pub?.phase === 'round' ? ` ${pub.round}` : ''}. 맨 위 요소: ${top}. 사건·학습지·창 같은 정상 층이 아닌데 버튼을 덮고 있어요(투명 층·남은 요소·pointer-events 등).`, at: at(), who: [slot.label], logs: [`${slot.label}: ${top}`] });
+      if (fresh) {
+        step(`탐지: [문제] ${pr.title}`);
+        pr.shots.push(...shots);
       }
     };
     for (const s of slots.values()) loops.push(brain(s));
@@ -629,6 +669,30 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         await s4.addStyleTag({ content: '[data-testid="worksheet-popup"]{display:none!important}' }).catch(() => undefined);
         step('고장 플래그 hide-worksheet: 4번 학생 학습지 팝업 숨김');
       }
+      // (수정 1) 층·가림 고장 — 200ms마다 다시 넣고(앱이 지워도), 새로 고침 뒤에도 남게 init script로도 넣는다
+      const stick = async (pg: Page | null | undefined, js: string, why: string) => {
+        if (!pg) return;
+        const loop = `setInterval(() => { try { if (document.body) { ${js} } } catch (e) {} }, 200);`;
+        await pg.addInitScript({ content: loop }).catch(() => undefined);
+        await pg.evaluate(loop).catch(() => undefined);
+        step(why);
+      };
+      if (breaks.has('stuck-layer')) {
+        breakSeats.add(1);
+        await stick(s1, `if (!document.getElementById('rb-stuck')) { const d = document.createElement('div'); d.id = 'rb-stuck'; d.className = 'st-layer st-layer--dim'; d.setAttribute('data-layer', 'event'); d.style.cssText = 'position:fixed;inset:0;z-index:60'; document.body.appendChild(d); }`, '고장 플래그 stuck-layer: 1번 학생 화면에 닫힌 사건 층(dim, data-layer=event)이 남음');
+      }
+      if (breaks.has('stuck-modal')) {
+        breakSeats.add(2);
+        await stick(s2, `if (!document.getElementById('rb-modal')) { const d = document.createElement('div'); d.id = 'rb-modal'; d.className = 'st-modal'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.style.cssText = 'position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center'; d.innerHTML = '<div class="st-modal__box">고장 플래그: 닫기 없는 창</div>'; document.body.appendChild(d); }`, '고장 플래그 stuck-modal: 2번 학생 화면에 닫기 없는 가운데 창(aria-modal)이 남음');
+      }
+      if (breaks.has('click-shield')) {
+        breakSeats.add(3);
+        await stick(s3, `if (!document.getElementById('rb-shield')) { const d = document.createElement('div'); d.id = 'rb-shield'; d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:200px;z-index:45;background:transparent'; document.body.appendChild(d); }`, '고장 플래그 click-shield: 3번 학생 아래 막대 위에 투명 층(data-layer 없음)');
+      }
+      if (breaks.has('bar-no-pointer')) {
+        breakSeats.add(4);
+        await stick(s4, `if (!document.getElementById('rb-nopointer')) { const st = document.createElement('style'); st.id = 'rb-nopointer'; st.textContent = '[data-testid="bottom-bar"],[data-testid="bottom-bar"] *{pointer-events:none!important}'; document.head.appendChild(st); }`, '고장 플래그 bar-no-pointer: 4번 학생 아래 막대 pointer-events:none');
+      }
       if (breaks.has('no-end')) {
         await t!.getByTestId('btn-pause').click().catch(() => undefined);
         noEndPause = true;
@@ -800,14 +864,30 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
             if (!pr || s.gone || Date.now() - s.probeAt > 4000 || !pr.inGame || pr.tradeOver || pr.paused || pr.hostWait || P.paused) {
               s.idleWait.update(false, n);
               s.noAction.update(false, n);
+              s.layerBad.update(false, n);
+              s.modalLong.update(false, n);
               continue;
             }
-            // 1. 라운드 중 할 수 있는 행동 없음
-            const noAct = P.phase === 'round' && !hasTask(pr) && !canTrade(pr) && !pr.worksheet;
+            // 1c. (수정 1) 맨 위 층이 공개 상태와 맞지 않음(닫혀야 할 층이 남음) → 30초 [문제], 60초 [막힘] / 화면 가운데 창이 30초 넘게 안 닫힘 → [막힘]
+            const legit = layerLegit(pr.topLayer, { catchup: pr.catchup, minigame: Boolean(pr.minigame), eventResult: pr.eventResult, worksheet: pr.worksheet }, { event: P.event, worksheetOn: P.worksheet.current.length > 0, paused: P.paused, phase: P.phase });
+            const lb = s.layerBad.update(legit === false, n);
+            if (lb > 30_000 && !col.has(`layer-mismatch-${s.seat}`))
+              await problem({ kind: 'blocked-click', severity: '문제', key: `layer-mismatch-${s.seat}`, title: `${s.label}: 공개 상태로는 없어야 할 '${pr.topLayer}' 층이 화면을 덮고 있음`, detail: `${Math.round(lb / 1000)}초(빠른 시계) 동안 '${pr.topLayer}' 층이 떠 있는데 학급 상태는 단계 ${P.phase}${P.phase === 'round' ? ` ${P.round}` : ''}, 사건 ${P.event ? `${P.event.id}(${P.event.closed ? '마감' : '진행'}·${P.event.blocking ? '차단형' : '비차단'})` : '없음'}, 학습지 ${P.worksheet.current.join('+') || '없음'}이에요. 닫혀야 할 층이 남은 것으로 보여요. 덮인 버튼 위 맨 위 요소: ${pr.blockedTop ?? '-'}`, who: [s.label], page: s.page });
+            if (lb > 60_000 && !s.layerBad.reported) {
+              s.layerBad.reported = true;
+              await problem({ kind: 'blocked-click', severity: '막힘', key: `layer-stuck-${s.seat}`, title: `${s.label}: '${pr.topLayer}' 층이 닫히지 않아 ${Math.round(lb / 1000)}초 넘게 아무것도 누를 수 없음`, detail: `학급 상태와 맞지 않는 층이 화면 전체를 덮은 채 남아 있어요(단계 ${P.phase}, 사건 ${P.event?.id ?? '없음'}). 덮인 버튼 위 맨 위 요소: ${pr.blockedTop ?? '-'}`, who: [s.label], page: s.page });
+            }
+            const ml = s.modalLong.update(pr.topLayer === 'modal', n);
+            if (ml > 30_000 && !s.modalLong.reported) {
+              s.modalLong.reported = true;
+              await problem({ kind: 'blocked-click', severity: '막힘', key: `modal-stuck-${s.seat}`, title: `${s.label}: 화면 가운데 창이 ${Math.round(ml / 1000)}초 넘게 닫히지 않음`, detail: `aria-modal 창이 화면을 덮고 있고 학생 봇이 [확인]·[닫기]를 눌러도(또는 그 버튼이 없어) 닫히지 않아요. 덮인 버튼 위 맨 위 요소: ${pr.blockedTop ?? '-'}`, who: [s.label], page: s.page });
+            }
+            // 1. 라운드 중 할 수 있는 행동 없음(거래 버튼은 '보이고 실제로 눌리는' 것만 — 수정 1). 정상 층이 덮은 동안은 층 판정(1c)에 맡긴다
+            const noAct = P.phase === 'round' && !hasTask(pr) && !canTrade(pr) && !pr.worksheet && !(pr.topLayer && legit !== false);
             const na = s.noAction.update(noAct, n);
             if (na > 20_000 && !s.noAction.reported) {
               s.noAction.reported = true;
-              await problem({ kind: 'no-action', severity: '막힘', key: `no-action-${s.seat}`, title: `${s.label}: 라운드 중 ${Math.round(na / 1000)}초 넘게 할 수 있는 행동이 없음`, detail: `라운드 ${P.round} 중인데 항구 들어가기·출항 준비·활동 어느 것도 화면에 없어요. 아래 글: "${pr.bottomStatus}"`, who: [s.label], page: s.page });
+              await problem({ kind: 'no-action', severity: '막힘', key: `no-action-${s.seat}`, title: `${s.label}: 라운드 중 ${Math.round(na / 1000)}초 넘게 할 수 있는 행동이 없음`, detail: `라운드 ${P.round} 중인데 항구 들어가기·출항 준비·활동 어느 것도 화면에 없거나 눌리지 않아요. 아래 글: "${pr.bottomStatus}"${pr.blockedTop ? `. 버튼 위 맨 위 요소: ${pr.blockedTop}` : ''}`, who: [s.label], page: s.page });
             }
             // 1b. 라운드 밖 대기: 할 일이 없는데 남은 시간·할 일 안내도 없음
             const waiting = P.phase !== 'round' && !hasTask(pr) && !pr.worksheet && !pr.minigame;
@@ -823,7 +903,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
                 severity: '혼란',
                 key: `wait-guidance-${pre ? 'pre' : 'between'}-${P.mode}`,
                 title: pre ? `라운드 1 전 사전 활동 동안 학생이 할 일·남은 시간 안내 없음${P.mode === 'manual' ? '(수동 진행)' : ''}` : `라운드 사이 대기 중 할 일·다음 라운드까지 남은 시간 안내 없음${P.mode === 'manual' ? '(수동 진행)' : ''}`,
-                detail: `학생 화면에 활동·카드·팝업이 없는 채로 ${Math.round(w / 1000)}초(빠른 시계) 넘게 기다렸는데 '라운드까지 m:ss'·'선생님이 시작하면' 같은 안내가 없어요. 단계 ${P.phase}${P.event ? `(사건 ${P.event.id}${P.event.closed ? ' 마감' : ''})` : ''}${nextIn !== null ? `, 배치표상 다음 라운드까지 약 ${mmss(nextIn)}` : ''}. 아래 글: "${pr.bottomStatus}"${mis ? `. 보이는 버튼: ${mis} — 누르면 "선생님 활동이 끝나면 이어서 해요"만 나와요` : ''}.`,
+                detail: `학생 화면에 활동·카드·팝업이 없는 채로 ${Math.round(w / 1000)}초(빠른 시계) 넘게 기다렸는데 '라운드까지 m:ss'·'선생님이 시작하면' 같은 안내가 없어요. 단계 ${P.phase}${P.event ? `(사건 ${P.event.id}${P.event.closed ? ' 마감' : ''})` : ''}${nextIn !== null ? `, 배치표상 다음 라운드까지 약 ${mmss(nextIn)}` : ''}. 아래 글: "${pr.bottomStatus}", 상태 카드: ${pr.roundWaitLine === null ? '안 보임' : `"${pr.roundWaitLine}"`}${mis ? `. 보이는 버튼: ${mis} — 누르면 "선생님 활동이 끝나면 이어서 해요"만 나와요` : ''}.`,
                 who: [s.label],
                 page: s.page,
                 logs: [],
@@ -993,12 +1073,22 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         noActionMaxSec: Math.round(Math.max(0, ...bsEnd.map((b) => b.noActionMaxMs)) / 1000),
       };
       for (const b of bsEnd.filter((x) => x.noActionMaxMs > 20_000)) await problem({ kind: 'no-action', severity: '막힘', key: `bot-no-action-${b.seat}`, title: `${b.seat}번(봇): 라운드 중 ${Math.round(b.noActionMaxMs / 1000)}초 할 수 있는 행동 없음`, detail: '갈 수 있는 항구·살 수 있는 물건·팔 수 있는 짐이 모두 없었어요.', who: [`${b.seat}번(봇)`] });
-      // 학생 화면에서 같은 버튼이 계속 눌리지 않음(가려짐 등) — 고장 플래그로 숨긴 것은 빼고 참고로
+      // 학생 화면에서 같은 버튼이 계속 눌리지 않음 — 정상 층(사건·학습지·편지 등)에 가린 것은 층을 먼저 처리했으므로 빼고(metrics.layerFirst),
+      // 정상 층이 아닌 것에 가렸거나 다른 이유로 실패한 것만 참고로(맨 위 요소·스크린숏 첨부). 고장 플래그로 숨긴 것은 뺀다
       for (const s of slots.values())
         for (const [id, n] of s.mem.fails) {
-          if (n < 3 || (breaks.has('no-actions') && s.seat === 2) || (breaks.has('hide-worksheet') && s.seat === 4)) continue;
-          col.add({ kind: 'harness', severity: '참고', key: `fail-${id}`, title: `학생 화면 [${id}] 조작이 여러 번 실패`, detail: `${s.label} ${n}번. 마지막 이유: ${s.mem.failWhy.get(id) ?? '?'} — 버튼이 보이는데 눌리지 않으면 앱 문제일 수 있어요(확인 필요).`, at: '-', who: [s.label] });
+          if (n < 3 || (breaks.has('no-actions') && s.seat === 2) || (breaks.has('hide-worksheet') && s.seat === 4) || breakSeats.has(s.seat)) continue;
+          if (s.mem.coverTop.has(id) && /^(enter-port|set-ready|pick-confirm|worksheet-done|항구 )/.test(id)) continue; // 이미 [문제]로 올림
+          const top = s.mem.coverTop.get(id);
+          const pr = col.add({ kind: 'harness', severity: '참고', key: `fail-${id}`, title: `학생 화면 [${id}] 조작이 여러 번 실패${top ? '(정상 층이 아닌 것에 가림)' : ''}`, detail: `${s.label} ${n}번. 마지막 이유: ${s.mem.failWhy.get(id) ?? '?'}${top ? ` — 맨 위 요소: ${top}` : ''} — 버튼이 보이는데 눌리지 않으면 앱 문제일 수 있어요(확인 필요).`, at: '-', who: [s.label] });
+          for (const f of s.mem.coverShots.get(id) ?? []) if (!pr.shots.includes(f)) pr.shots.push(f);
+          if (top && !pr.logs.some((l) => l.startsWith(s.label))) pr.logs.push(`${s.label}: ${top}`);
         }
+      // 정상 층에 가려 같은 버튼을 10번 넘게 못 누름 — 층이 정상이어도 비정상으로 오래 덮음
+      for (const s of slots.values())
+        for (const [k, n] of s.mem.layerFirst)
+          if (n >= 10 && !k.includes('화면 밖')) col.add({ kind: 'blocked-click', severity: '문제', key: `layer-first-${s.seat}-${k}`, title: `${s.label}: 정상 층에 가려 [${k.split('@')[0]}]를 ${n}번 못 누름(${k.split('@')[1]} 층)`, detail: '층이 정상 층이어도 같은 버튼을 이렇게 여러 번 가렸다면 층이 너무 오래 남아 있는 것일 수 있어요.', at: '-', who: [s.label] });
+      metrics.layerFirst = Object.fromEntries([...slots.values()].map((s) => [s.label, Object.fromEntries(s.mem.layerFirst)]));
       // ── 판 끝내기·방 닫기 ──
       ended = await endRoom(t!);
       step(ended ? '교사: 판 끝내기·방 닫기' : '교사: 방 닫기 실패');
@@ -1014,8 +1104,13 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     metrics.startRoundNow = startRoundNowUsed;
     metrics.idleWaitSecByStudents = Object.fromEntries([...idleTotals].map(([k, v]) => [k, Math.round(v / 1000)]));
   } catch (e) {
-    results.error = String(e).split('\n').slice(0, 3).join(' ');
-    col.add({ kind: 'harness', severity: '참고', key: 'harness-error', title: '리허설 도구 오류로 시나리오 중단', detail: results.error, at: '진행 중' });
+    if (e instanceof PreviewBlocked) {
+      results.skipped = '준비 중 기능';
+      step('준비 중 기능이라 시나리오를 건너뜀');
+    } else {
+      results.error = String(e).split('\n').slice(0, 3).join(' ');
+      col.add({ kind: 'harness', severity: '참고', key: 'harness-error', title: '리허설 도구 오류로 시나리오 중단', detail: results.error, at: '진행 중' });
+    }
   } finally {
     stop = true;
     await Promise.race([Promise.allSettled(loops), sleep(15_000)]);
@@ -1050,12 +1145,17 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       const breakErr = norm.includes('리허설 고장 플래그');
       col.add({ kind: 'page-error', severity: g.expected ? '참고' : '문제', key: `err-${norm}`, title: `${g.expected ? '(재시작·새로 고침 중 의도된 끊김) ' : ''}${breakErr ? '[고장 플래그] ' : ''}화면 오류: ${g.sample.slice(0, 90)}`, detail: `${g.n}번, 화면: ${[...g.label].join(', ')}`, at: '-', who: [...g.label], logs: [g.sample] });
     }
-    if (missingImgs.size)
+    if (missingImgs.size && sc.preview)
+      col.add({ kind: 'preview', severity: '참고', key: 'missing-images', title: `[준비 중 기능] 단원 판에서 그림 파일 ${missingImgs.size}개가 없음(404)`, detail: `단원 판(L2~L4 포함)이 요청한 빌드본에 없는 그림: ${[...missingImgs.keys()].map((x) => x.replace(/^.*\/assets\/images\//, '')).join(', ')}. L1에서도 쓰는 그림이 없으면 차시 L1 시나리오(a·b·d·e)에서 [문제]로 따로 잡혀요.`, at: '-', who: [], logs: [...missingImgs.keys()] });
+    else if (missingImgs.size)
       col.add({ kind: 'page-error', severity: '문제', key: 'missing-images', title: `그림 파일 ${missingImgs.size}개가 없음(404)`, detail: `화면이 요청했지만 빌드본에 없는 그림: ${[...missingImgs.keys()].map((x) => x.replace(/^.*\/assets\/images\//, '')).join(', ')} — 화면: ${[...new Set([...missingImgs.values()].flatMap((x) => [...x]))].join(', ')}`, at: '-', who: [], logs: [...missingImgs.keys()] });
     // 거절 응답 표
     const rej: Record<string, number> = {};
+    // (보완 1) 준비 중 기능 시나리오(단원 판)에서 L2~L4 사건·활동에 대한 행동이 되돌려진 것은 따로 센다(미구현 때문 — 참고)
+    const PV = '(준비 중 L2~L4)';
+    const pvOf = (c: (typeof codes)[number]) => Boolean(sc.preview && isPreviewAct(c.act));
     for (const c of codes) {
-      const k = `${c.dir}:${c.code}${inWin(c.at) ? '(재시작·새로 고침 중)' : ''}`;
+      const k = `${c.dir}:${c.code}${inWin(c.at) ? '(재시작·새로 고침 중)' : pvOf(c) ? PV : ''}`;
       rej[k] = (rej[k] ?? 0) + 1;
     }
     const bsFinal = await (async () => {
@@ -1075,9 +1175,17 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     for (const [k, n] of Object.entries(rej)) {
       const codeOnly = k.split(':')[1]!.replace(/\(.*$/, '');
       if (EXPECTED_REJECTS.test(codeOnly) || k.includes('재시작')) continue;
+      const isPv = k.endsWith(PV);
+      const mine = codes.filter((c) => `${c.dir}:${c.code}` === k.replace(/\(.*$/, '') && pvOf(c) === isPv && !inWin(c.at));
+      if (isPv) {
+        const acts: Record<string, number> = {};
+        for (const c of mine) if (c.act) acts[c.act] = (acts[c.act] ?? 0) + 1;
+        const actText = Object.entries(acts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([a, x]) => `${a} ×${x}`).join(', ');
+        col.add({ kind: 'preview', severity: '참고', key: `rej-${k}`, title: `[준비 중 기능] 거절 응답 ${k.replace(PV, '')} ×${n} — L2~L4 사건·활동`, detail: `기능 플래그로 꺼 둔 L2~L4 사건에 대한 응답이 되돌려졌어요(받은 쪽: ${[...new Set(mine.map((c) => c.who))].join(', ')}). 행동: ${actText || '알 수 없음'}. L2~L4 본편(115~118) 구현 때 확인할 것 — 지금 수업(L1)에는 영향 없음.`, at: '-', who: [] });
+        continue;
+      }
       const serious = /RATE_LIMITED|TOO_LARGE|SERVER_FULL|ROOM_FULL|BAD_HELLO|TOO_MANY_TRIES|INTERNAL|BAD_MSG/.test(codeOnly);
-      const fromBrowser = codes.some((c) => c.code === codeOnly && /^학생/.test(c.who) && c.dir === '행동');
-      const mine = codes.filter((c) => `${c.dir}:${c.code}` === k.replace(/\(.*$/, ''));
+      const fromBrowser = mine.some((c) => /^학생/.test(c.who) && c.dir === '행동');
       const acts: Record<string, number> = {};
       for (const c of mine) if (c.act && /^학생/.test(c.who)) acts[c.act] = (acts[c.act] ?? 0) + 1;
       const actText = Object.entries(acts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([a, x]) => `${a} ×${x}`).join(', ');
@@ -1096,7 +1204,16 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     if (tr && tr.peakSentPerSec > hostRate * 0.8)
       col.add({ kind: 'health', severity: '문제', key: 'host-rate', title: `교사(호스트) 보내는 메시지 최고 ${tr.peakSentPerSec}개/초(상한 ${hostRate}의 80% 넘음)`, detail: `빨리 감기 ${o.speed}배라 실제 수업보다 많을 수 있어요(실제 수업 환산 약 ${Math.round(tr.peakSentPerSec / Math.max(1, o.speed))}개/초).`, at: '-', who: ['교사'] });
     if (relay) {
-      const rl = relay.logs.filter((l) => /RATE_LIMITED|core\.error|slowClosed/.test(l));
+      // 서버 재시작·교사 새로 고침 구간(및 그 뒤 1분 통계)의 속도 제한은 재접속 몰림 — 화면 쪽 거절 표와 같이 참고로 가른다
+      const logAt = (l: string) => Date.parse(/"time":"([^"]+)"/.exec(l)?.[1] ?? '') || 0;
+      const inRelayWin = (l: string) => {
+        const x = logAt(l);
+        return x > 0 && windows.some((w) => x >= w.from - 2000 && x <= w.to + 120_000);
+      };
+      const rlAll = relay.logs.filter((l) => /RATE_LIMITED|core\.error|slowClosed/.test(l));
+      const rlWin = rlAll.filter((l) => inRelayWin(l) && !/core\.error/.test(l));
+      const rl = rlAll.filter((l) => !rlWin.includes(l));
+      if (rlWin.length) col.add({ kind: 'health', severity: '참고', key: 'relay-log-win', title: `(재시작·새로 고침 중 재접속 몰림) 중계 서버 로그에 속도 제한 ${rlWin.length}줄`, detail: rlWin.slice(0, 3).join(' | ').slice(0, 400), at: '-', who: [], logs: rlWin.slice(0, 10) });
       if (rl.length) col.add({ kind: 'health', severity: '문제', key: 'relay-log', title: `중계 서버 로그에 속도 제한·오류 ${rl.length}줄`, detail: rl.slice(0, 3).join(' | ').slice(0, 400), at: '-', who: [], logs: rl.slice(0, 10) });
       metrics.relayStats = relay.logs.filter((l) => /"stats"/.test(l)).slice(-3);
     }
@@ -1109,7 +1226,8 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       lastMemMB: healthSamples.at(-1)?.memMB ?? null,
     };
     const hp = metrics.health as { maxPeers: number };
-    if (healthSamples.length && hp.maxPeers < 25) col.add({ kind: 'health', severity: '문제', key: 'peers-low', title: `/health peers 최대 ${hp.maxPeers}(25 미만)`, detail: '학생 25명이 동시에 중계 서버에 붙지 않았어요.', at: '-', who: [] });
+    // 학생 입장·무역 시작까지 간 판만 본다(설정 단계에서 멈추거나 준비 중 기능으로 건너뛴 판은 학생이 붙을 기회가 없었음)
+    if (healthSamples.length && tradeStartFast !== null && hp.maxPeers < 25) col.add({ kind: 'health', severity: '문제', key: 'peers-low', title: `/health peers 최대 ${hp.maxPeers}(25 미만)`, detail: '학생 25명이 동시에 중계 서버에 붙지 않았어요.', at: '-', who: [] });
     metrics.reconnects = reconnects.map((r) => ({ who: r.who, ok: r.done }));
     if (web) await web.close().catch(() => undefined);
     if (relay) await relay.stop().catch(() => undefined);
