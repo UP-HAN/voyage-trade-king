@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>항해 일지 디자인 시스템 — 견본</title>
+<link rel="stylesheet" href="worksheet.css">
+<style>
+  /* 견본 전용 배치. 값은 토큰만 쓴다. */
+  .spec h3 { font-size: var(--fs-aux); font-weight: var(--fw-bold); color: var(--muted); letter-spacing: var(--ls-none); margin-bottom: var(--in-2); }
+  .spec section + section { margin-top: var(--sp-1); }
+  .spec .cols { display: flex; gap: var(--sp-1); }
+  .spec .cols > * { flex: 1 1 0; }
+  .spec .small { font-size: var(--fs-aux); }
+  .spec .small .bl { width: var(--sp-6); }
+  .spec .small .bl.l { width: var(--blank-m); }
+  .ts div { display: flex; align-items: baseline; gap: var(--sp-1); line-height: var(--lh-tight); padding-bottom: var(--in-1); }
+  .ts code { font-size: var(--fs-note); color: var(--muted); font-family: inherit; flex: 0 0 var(--sp-6); }
+  .grid { display: flex; align-items: flex-end; gap: var(--sp-1); }
+  .grid i { display: block; background: var(--c-l1); width: var(--sp-1); }
+  .grid span { font-size: var(--fs-note); color: var(--muted); display: block; text-align: center; }
+  .sw { display: flex; gap: var(--in-2); }
+  .sw div { flex: 1 1 0; height: var(--sp-3); border-radius: var(--r-s); color: var(--paper); font-size: var(--fs-note); font-weight: var(--fw-bold); display: flex; align-items: center; justify-content: center; }
+  .anat { border: var(--st) dashed var(--line); border-radius: var(--r-s); padding: var(--in-2); font-size: var(--fs-note); line-height: var(--lh-body); display: flex; flex-direction: column; gap: var(--in-1); }
+  .anat div { border: var(--st) solid var(--line); border-radius: var(--r-s); padding: 0 var(--in-2); background: var(--paper); }
+  .anat .m { background: var(--sky); }
+  .anat .b { background: var(--c-l1); color: var(--paper); }
+  .anat .g { color: var(--muted); border-style: dashed; }
+</style>
+</head>
+<body>
+<div class="page" data-sheet="L1" data-label="디자인 시스템">
+  <div class="body spec">
+    <section>
+      <h3>1. 글자 크기 5단계 · 굵기 3개 (400 / 700 / 900) · 줄 간격 1.5 · 자간 −0.01em</h3>
+      <div class="ts">
+        <div><code>--fs-title 20pt</code><span style="font-size:var(--fs-title);font-weight:var(--fw-black)">대항해 무역왕 항해 일지 ⑳</span></div>
+        <div><code>--fs-head 15pt</code><span style="font-size:var(--fs-head);font-weight:var(--fw-bold)">활동 제목 · 벽란도 시장</span></div>
+        <div><code>--fs-body 13pt</code><span style="font-size:var(--fs-body)">질문 문장 · 다른 나라 상인이 판 물건을 써요.</span></div>
+        <div><code>--fs-aux 11pt</code><span style="font-size:var(--fs-aux)">표 머리·표 안 글자 · 꼬리표 · 한마디 · 쪽수 꼬리표</span></div>
+        <div><code>--fs-note 9pt</code><span style="font-size:var(--fs-note)">꼬리말 · 쪽 번호 · 작은 안내(힌트) · 초성 힌트</span></div>
+      </div>
+    </section>
+    <section class="cols">
+      <div>
+        <h3>2. 간격 격자 — 4mm 단위만</h3>
+        <div class="grid">
+          <div><i style="height:var(--sp-1)"></i><span>4</span></div>
+          <div><i style="height:var(--sp-2)"></i><span>8</span></div>
+          <div><i style="height:var(--sp-3)"></i><span>12</span></div>
+          <div><i style="height:var(--sp-4)"></i><span>16</span></div>
+          <div><i style="height:var(--sp-6)"></i><span>24</span></div>
+        </div>
+        <p class="hint">질문 ↔ 답 칸 4 · 블록 ↔ 블록 8(+남는 공간) · 번호 칸 8 · 여백 15</p>
+      </div>
+      <div>
+        <h3>6. 차시 강조색 + 회색조</h3>
+        <div class="sw">
+          <div style="background:var(--c-l1)">L1</div><div style="background:var(--c-l2)">L2</div><div style="background:var(--c-l3)">L3</div><div style="background:var(--c-l4)">L4</div><div style="background:var(--c-opt)">선택</div>
+        </div>
+        <p class="hint">흑백 회색 밝기 72 · 140 · 116 · 97 — 머리띠 차시 꼬리표 글자로도 구분</p>
+      </div>
+    </section>
+    <section>
+      <h3>3. 답 칸 3종 — 모두 본문 정렬선(번호 칸 8mm 오른쪽)에서 오른쪽 끝까지 같은 폭, 한 줄 = 10mm</h3>
+      <div class="q">
+        <p class="q-text"><span class="q-no">①</span>한 줄 쓰기(밑줄): 항목 이름 + 오른쪽 끝까지 밑줄</p>
+        <div class="a-line">우리 회사 이름 <span class="f"></span></div>
+      </div>
+      <div class="q">
+        <p class="q-text"><span class="q-no">②</span>여러 줄 쓰기 상자: 줄 수 지정, 연한 점선 안내줄 ([내 기록]은 점선 테두리)</p>
+        <div class="a-box" data-lines="1"></div>
+      </div>
+      <div class="q">
+        <p class="q-text"><span class="q-no">③</span>표 칸: 머리 11pt 굵게, 칸 높이 10mm × 줄 수</p>
+        <table class="a-table"><colgroup><col style="width:30%"><col><col></colgroup>
+          <thead><tr><th></th><th>교과서 칸(실선)</th><th class="rc">[내 기록] 칸(점선)</th></tr></thead>
+          <tbody><tr><th>행 머리</th><td class="w" data-lines="1"></td><td class="w rc" data-lines="1"></td></tr></tbody></table>
+      </div>
+    </section>
+    <section class="cols small">
+      <div>
+        <h3>빈칸 3가지 길이(mm, 축소 표시)</h3>
+        <p class="choice-line nw">짧게 (<i class="bl s"></i>) 20</p><p class="choice-line nw">보통 (<i class="bl"></i>) 32</p><p class="choice-line nw">길게 (<i class="bl l"></i>) 48</p>
+      </div>
+      <div>
+        <h3>4. 꼬리표 — 질문 맨 앞</h3>
+        <p class="choice-line"><span class="tag rec">[내 기록]</span>옮겨 써요</p>
+        <p class="choice-line"><span class="tag now">★ 지금 써요</span>바로 써요</p>
+        <p class="choice-line"><span class="tag opt">선택</span><span class="choices"><span><i class="cb"></i>체크 4mm</span></span></p>
+      </div>
+      <div>
+        <h3>5. 쪽 구성 고정 틀</h3>
+        <div class="anat">
+          <div class="m">머리띠 24 / 16mm</div>
+          <div class="g">학생 정보(첫 쪽) 10mm/줄</div>
+          <div class="b">제목 띠 12mm</div>
+          <div class="g">한바다의 한마디(선택)</div>
+          <div>질문 블록 ↕ 8mm</div>
+          <div class="g">남는 공간: 줄·간격·그림</div>
+          <div>꼬리말 8mm</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="common.js"></script>
+</body>
+</html>

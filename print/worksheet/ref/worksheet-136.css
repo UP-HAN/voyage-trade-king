@@ -1,0 +1,470 @@
+/* 대항해 무역왕 — 인쇄용 학습지 '항해 일지' (작업 136)
+   기준: docs/worksheet.md v1.1 1장 인쇄 규칙. A4 세로, 여백 15mm, 단면.
+   본문 글꼴: Noto Sans KR(시스템 설치, OFL) → 없으면 프로젝트 동봉 Gowun Dodum. */
+
+@font-face {
+  font-family: 'WS Fallback';
+  src: url('../../src/styles/fonts/GowunDodum-Regular.woff2') format('woff2');
+  font-weight: 100 900;
+}
+@font-face {
+  font-family: 'WS Title';
+  src: url('../../src/styles/fonts/SongMyung-Regular.woff2') format('woff2');
+}
+
+@page { size: A4; margin: 15mm; }
+
+:root {
+  --ink: #23364d;        /* 본문 진한 남색 */
+  --ink-2: #4a5d72;
+  --muted: #7a8899;
+  --line: #8fb3cf;       /* 표·칸 테두리 연한 파랑 */
+  --line-dark: #5f8fb5;
+  --guide: #9bb7cc;      /* 쓰기 점선 */
+  --head: #dcecf6;       /* 표 머리줄 */
+  --rowhead: #f2f8fc;
+  --sky: #e4f2fa;
+  --sky-2: #c5e3f2;
+  --sea: #8cc3df;
+  --sea-2: #5ea6cb;
+  --note: #fff3d3;       /* 한마디 연노랑 */
+  --note-2: #e7f2f9;     /* 한마디 연하늘 */
+  --accent: #c0582f;     /* 한마디 이름 */
+  --c-blue: #4c7fab;
+  --c-ochre: #a87a1f;
+  --c-orange: #bd5f3b;
+  --c-teal: #377f79;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #fff; }
+body {
+  font-family: 'Noto Sans KR', 'WS Fallback', sans-serif;
+  color: var(--ink);
+  font-size: 12pt;
+  line-height: 1.4;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+b, strong { font-weight: 700; }
+
+/* ---------- 쪽 ---------- */
+.page {
+  width: 180mm;
+  height: 267mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  break-after: page;
+  page-break-after: always;
+  overflow: hidden;
+}
+.page:last-child { break-after: auto; page-break-after: auto; }
+@media screen {
+  body { background: #d9dee4; }
+  .page {
+    box-sizing: content-box;
+    padding: 15mm;
+    margin: 6mm auto;
+    background: #fff;
+    box-shadow: 0 1mm 4mm rgba(0,0,0,.18);
+  }
+  body.shot .page { margin: 0; box-shadow: none; }
+}
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding-top: 1.2mm;
+}
+.foot {
+  flex: 0 0 auto;
+  height: 6mm;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2.5mm;
+  font-size: 8pt;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.foot b { font-size: 11pt; color: var(--ink-2); font-weight: 700; }
+
+/* ---------- 머리띠 ---------- */
+.mast {
+  position: relative;
+  flex: 0 0 auto;
+  border: 0.55mm solid var(--ink);
+  border-radius: 5mm;
+  background: var(--sky);
+  overflow: hidden;
+  height: 29mm;
+}
+.mast.slim { height: 21mm; border-radius: 4mm; }
+.mast .waves { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 9mm; }
+.mast.slim .waves { height: 6.5mm; }
+.mast .deco { position: absolute; }
+.mast .t {
+  position: absolute; left: 0; right: 0; top: 2.6mm;
+  text-align: center;
+}
+.mast h1 {
+  font-size: 25pt; line-height: 1.15; font-weight: 900; letter-spacing: -.01em;
+  color: var(--ink);
+}
+.mast .sub { font-size: 10.5pt; font-weight: 700; color: var(--ink-2); margin-top: .6mm; }
+.mast.slim .t { top: 1.8mm; }
+.mast.slim h1 { font-size: 17pt; }
+.mast.slim .sub { font-size: 9.5pt; margin-top: .2mm; }
+.mast .lesson {
+  display: inline-block;
+  background: var(--ink); color: #fff;
+  border-radius: 1.2mm; padding: 0 1.8mm;
+  font-size: 9pt; font-weight: 700; margin-right: 1.5mm;
+  vertical-align: .3mm;
+}
+
+/* L1 학생 정보 (높이 약 40mm) */
+.info1 {
+  flex: 0 0 auto; margin-top: 2.2mm;
+  display: flex; gap: 3mm; align-items: stretch;
+}
+.info1 .rows {
+  flex: 1 1 auto;
+  border: 0.3mm solid var(--line); border-radius: 1.2mm; overflow: hidden;
+}
+.info1 .r {
+  height: 7.5mm; display: flex; align-items: center; gap: 1.2mm;
+  padding: 0 2.6mm; font-size: 11pt; font-weight: 700; color: var(--ink-2);
+  background: var(--rowhead);
+}
+.info1 .r + .r { border-top: 0.3mm solid var(--line); }
+.info1 .r .sp { display: inline-block; height: 6mm; background: #fff; border: 0.25mm solid var(--line); border-radius: .8mm; }
+.info1 .r small { font-size: 8.5pt; font-weight: 400; color: var(--muted); }
+.info1 .r .ck { font-weight: 400; color: var(--ink); font-size: 10.5pt; margin-right: 1.2mm; }
+.flagbox {
+  flex: 0 0 40mm; height: 30mm;
+  border: 0.35mm solid var(--line-dark); border-radius: 1.2mm;
+  position: relative; background: #fff;
+}
+.flagbox span {
+  position: absolute; left: 0; right: 0; top: 1.2mm; text-align: center;
+  font-size: 8.5pt; color: var(--muted); font-weight: 700;
+}
+.flagbox svg { position: absolute; left: 2mm; bottom: 2mm; width: 6mm; height: 26mm; opacity: .35; }
+
+/* ---------- 문항 ---------- */
+.q { display: flex; flex-direction: column; gap: 1.3mm; }
+.qh { display: flex; align-items: center; gap: 1.6mm; padding-top: 1mm; }
+.qicon { flex: 0 0 11mm; display: flex; align-items: center; justify-content: center; }
+.qicon svg { width: 10.5mm; height: 10.5mm; }
+.band {
+  flex: 1 1 auto; min-height: 9.6mm;
+  display: flex; align-items: center; gap: 2.6mm;
+  padding: 0 1.6mm 0 0;
+  border-radius: 1.4mm;
+  color: #fff;
+  background: var(--qc);
+}
+.num {
+  flex: 0 0 12mm; width: 12mm; height: 12mm; border-radius: 50%;
+  background: #fff; border: 0.7mm solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28pt; font-weight: 900; line-height: 1; color: var(--ink);
+  letter-spacing: -0.06em; padding-bottom: .4mm;
+  margin: -1.2mm 0 -1.2mm -.2mm; position: relative;
+}
+.num, .num > span { white-space: nowrap; overflow-wrap: normal; word-break: keep-all; }
+/* 두 자리 번호: 28pt 굵게를 지키고 가로만 좁혀 원 안 여백 확보 */
+.num.two { letter-spacing: 0; }
+.num.two > span { display: inline-block; transform: scaleX(.68); letter-spacing: -0.03em; }
+.tt { flex: 1 1 auto; display: flex; flex-direction: row; align-items: baseline; gap: 2mm; }
+.tt small { font-size: 8pt; font-weight: 700; opacity: .9; letter-spacing: .02em; line-height: 1.2; white-space: nowrap; }
+.tt b { font-size: 14pt; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+.pg {
+  flex: 0 0 auto;
+  font-size: 10pt; font-weight: 700; color: var(--ink);
+  background: #fff; border: 0.35mm solid var(--ink);
+  padding: .3mm 2mm; border-radius: .6mm; white-space: nowrap;
+}
+.c-blue   { --qc: var(--c-blue); }
+.c-ochre  { --qc: var(--c-ochre); }
+.c-orange { --qc: var(--c-orange); }
+.c-teal   { --qc: var(--c-teal); }
+
+.qb { display: flex; flex-direction: column; gap: .8mm; padding-left: 0; }
+.qb.full { padding-left: 0; }
+.it { display: flex; gap: 1.6mm; align-items: baseline; }
+.it > .n { flex: 0 0 auto; font-weight: 700; min-width: 4.2mm; }
+.it > .tx { flex: 1 1 auto; }
+.lead { font-size: 12pt; }
+.opt {
+  display: inline-block; font-size: 10pt; font-weight: 700; color: var(--ink-2);
+  border: 0.3mm solid var(--ink-2); border-radius: 3mm; padding: 0 1.6mm; margin-right: 1mm;
+  line-height: 1.35; vertical-align: .2mm;
+}
+.hint { font-size: 9.5pt; color: var(--muted); }
+.term { font-size: 10.5pt; color: var(--ink-2); }
+
+/* ★ 지금 써요 — 검은 바탕 흰 글씨 10pt 굵게 */
+.now {
+  display: inline-block; background: #111; color: #fff;
+  font-size: 10pt; font-weight: 700; line-height: 1.3;
+  padding: .3mm 1.8mm; border-radius: .6mm; margin-right: 1.4mm; vertical-align: .3mm;
+  letter-spacing: .02em;
+}
+/* [내 기록] 글자 */
+.rec-tag {
+  display: inline-block; font-size: 9.5pt; font-weight: 700; color: var(--ink);
+  border: 0.35mm dashed var(--ink); border-radius: .6mm; padding: 0 1.3mm; line-height: 1.35;
+  margin-right: 1.2mm; vertical-align: .3mm; background: #fff;
+}
+
+/* 쓰기 칸: 교과서 칸 = 실선, [내 기록] 칸 = 점선 */
+.wbox {
+  border: 0.35mm solid var(--line-dark); border-radius: 1mm;
+  padding: 0 3mm; background: #fff;
+}
+.wbox .ln { height: 9mm; border-bottom: 0.3mm dotted var(--guide); }
+.wbox .ln:last-child { border-bottom: none; }
+.wbox.rec { border: 0.45mm dashed var(--ink-2); position: relative; padding-top: 1mm; }
+
+.recbox {
+  position: relative;
+  border: 0.45mm dashed var(--ink-2); border-radius: 1mm;
+  padding: 3.6mm 3mm 1.6mm;
+}
+.recbox > .rec-tag.abs { position: absolute; left: 2mm; top: -2.4mm; margin: 0; }
+
+/* 빈칸 ( ) = 가로 30mm 밑줄 */
+.bl {
+  display: inline-block; position: relative; width: 30mm; height: 6.4mm;
+  border-bottom: 0.35mm solid var(--ink); vertical-align: -1.2mm; margin: 0 1mm;
+}
+.bl.s { width: 18mm; }
+.bl.m { width: 24mm; }
+.bl.l { width: 42mm; }
+.bl[data-h]::before {
+  content: attr(data-h); position: absolute; left: 0; right: 0; top: -1.6mm; text-align: center;
+  font-size: 9pt; color: var(--ink-2); letter-spacing: .25em; font-weight: 700;
+}
+.bl.rec { border-bottom: 0.45mm dashed var(--ink); }
+.blank-line { line-height: 8.6mm; }
+
+/* 체크 네모 5mm */
+.cb {
+  display: inline-block; width: 4.6mm; height: 4.6mm; border: 0.35mm solid var(--ink);
+  border-radius: .5mm; vertical-align: -0.7mm; margin: 0 .9mm 0 2.2mm; background: #fff;
+}
+.cb:first-child { margin-left: 0; }
+
+/* ---------- 표 ---------- */
+table.t {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+  font-size: 11pt;
+}
+table.t th, table.t td {
+  border: 0.3mm solid var(--line); padding: 1mm 2mm; vertical-align: middle;
+}
+table.t thead th {
+  background: var(--head); font-size: 10.5pt; font-weight: 700; text-align: center; line-height: 1.3;
+  padding: .7mm 1.5mm;
+}
+table.t tbody th { background: var(--rowhead); font-weight: 700; text-align: left; font-size: 11pt; line-height: 1.22; }
+table.t tbody th small { font-size: 8.5pt; font-weight: 400; }
+table.t td.w { height: 9mm; }
+table.t td.w2 { height: 18mm; }
+table.t .rc { border: 0.45mm dashed var(--ink-2) !important; }
+table.t thead th.rc { background: #fff; }
+table.t td.gray { color: var(--muted); font-size: 9.5pt; text-align: center; background: repeating-linear-gradient(135deg, #fff 0 2mm, #f3f5f7 2mm 4mm); }
+table.t .c { text-align: center; }
+
+/* ---------- 한마디 ---------- */
+.say {
+  display: flex; align-items: center; gap: 2.6mm;
+  background: var(--note); border-radius: 1.4mm; padding: 1.6mm 3mm 1.6mm 2mm;
+  font-size: 10pt; line-height: 1.5; color: var(--ink);
+  border: 0.3mm solid #eedcae;
+}
+.say.sky { background: var(--note-2); border-color: #c9e0ee; }
+.say img { flex: 0 0 10.5mm; width: 10.5mm; height: 10.5mm; border-radius: 50%; border: 0.4mm solid var(--ink-2); object-fit: cover; background: #f4ead0; }
+.say .who { color: var(--accent); font-weight: 700; margin-right: 1.4mm; }
+
+/* 화살표 흐름 칸 */
+.flow { display: flex; align-items: stretch; gap: 1.4mm; }
+.flow .fbox { flex: 1 1 0; }
+.flow .arr { flex: 0 0 4mm; display: flex; align-items: center; justify-content: center; font-size: 15pt; font-weight: 700; color: var(--ink-2); }
+.fbox .lab { font-size: 10pt; font-weight: 700; color: var(--ink-2); }
+.fbox .ln { height: 9.5mm; border-bottom: 0.35mm dashed var(--ink); }
+
+.chain { display: flex; flex-wrap: wrap; align-items: center; row-gap: 2mm; column-gap: 1.2mm; font-size: 12pt; }
+.chain .chip { border: 0.35mm solid var(--line-dark); border-radius: 5mm; padding: 1.2mm 3mm; background: var(--rowhead); white-space: nowrap; }
+.chain .ar { font-weight: 700; color: var(--ink-2); font-size: 14pt; }
+.chain .bl { vertical-align: -1.4mm; }
+
+/* 별 칠하기 */
+.stars { display: inline-flex; gap: 1.2mm; }
+.stars svg { width: 6.2mm; height: 6.2mm; }
+
+/* 두 칸 나란히 */
+.cols { display: flex; gap: 4mm; align-items: stretch; }
+.cols > * { flex: 1 1 0; min-width: 0; }
+
+/* 맺음 */
+.bye {
+  display: flex; align-items: center; justify-content: center; gap: 3mm;
+  font-size: 13pt; font-weight: 700; color: var(--ink);
+}
+.bye img { height: 12mm; }
+
+/* 반쪽 장 */
+.half { height: 133.5mm; display: flex; flex-direction: column; position: relative; }
+.half .body { padding-top: 2mm; }
+.cut {
+  position: absolute; left: -15mm; right: -15mm; top: calc(133.5mm - 0.2mm);
+  border-top: 0.4mm dashed #777; height: 0;
+}
+.cut span {
+  position: absolute; left: 50%; top: -2.6mm; transform: translateX(-50%);
+  background: #fff; padding: 0 2mm; font-size: 8pt; color: #555; white-space: nowrap;
+}
+.half.top { padding-bottom: 6mm; }
+.half.bottom { padding-top: 6mm; }
+.half .foot { height: 4mm; }
+
+/* ---------- 교사용 ---------- */
+.tpage .body { justify-content: flex-start; gap: 3mm; }
+.tsec h2 {
+  font-size: 12.5pt; font-weight: 700; color: #fff; background: var(--c-blue);
+  border-radius: 1.2mm; padding: 1mm 3mm; margin-bottom: 1.6mm;
+}
+.tsec ol, .tsec ul { padding-left: 5mm; font-size: 9.8pt; line-height: 1.55; }
+.tsec li + li { margin-top: .6mm; }
+table.ans { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.3pt; line-height: 1.45; }
+table.ans th, table.ans td { border: 0.3mm solid var(--line); padding: 1.2mm 1.8mm; vertical-align: top; }
+table.ans thead th { background: var(--head); text-align: center; font-size: 9.5pt; }
+table.ans td.no { text-align: center; vertical-align: middle; }
+table.ans td.no span {
+  display: inline-flex; width: 8mm; height: 8mm; border-radius: 50%; border: 0.5mm solid var(--ink);
+  align-items: center; justify-content: center; font-weight: 900; font-size: 14pt; letter-spacing: -0.06em;
+}
+table.ans td.goal { text-align: center; font-size: 9pt; }
+
+/* 칸 안 2줄 안내선 */
+table.t td.lines2 { position: relative; }
+table.t td.lines2::after {
+  content: ''; position: absolute; left: 2mm; right: 2mm; top: 50%;
+  border-top: 0.3mm dotted var(--guide);
+}
+table.t.compact td, table.t.compact th { padding: .6mm 1.6mm; }
+table.t.self td { font-size: 10pt; line-height: 1.25; letter-spacing: -.02em; white-space: nowrap; }
+table.t.self td.c { padding: .4mm 1mm; }
+
+/* ---------- 머리띠 변형 ---------- */
+/* L1: 큰 제목 + 부제 + 차시 줄 */
+.mast.mid { height: 24.5mm; }
+.mast.mid .waves { height: 5mm; }
+.mast.mid .t { top: 1.4mm; }
+.mast.mid h1 { font-size: 20pt; }
+.mast.mid .sub { font-size: 10pt; margin-top: 0; }
+/* L2~·선택 활동: 제목 + 이름·회사 칸을 한 띠에 */
+.mast.cmp { height: 22mm; border-radius: 4mm; }
+.mast.cmp .waves { height: 3.6mm; }
+.mast.cmp .t { left: 23mm; right: 70mm; top: 1.6mm; text-align: left; }
+.mast.cmp h1 { font-size: 15pt; }
+.mast.cmp .sub { font-size: 9pt; margin-top: .3mm; line-height: 1.35; }
+.mast.cmp .who-box {
+  position: absolute; right: 3mm; top: 2.4mm; width: 64mm;
+  display: flex; flex-direction: column; gap: 1.2mm;
+}
+.who-box > div {
+  height: 6.6mm; display: flex; align-items: center; gap: 1.5mm;
+  background: #fff; border: 0.3mm solid var(--line-dark); border-radius: 1mm;
+  padding: 0 2mm; font-size: 9.5pt; font-weight: 700; color: var(--ink-2);
+}
+
+/* ---------- 배치 도우미 ---------- */
+.row2 { display: flex; gap: 4mm; align-items: flex-start; }
+.row2 > * { flex: 1 1 0; min-width: 0; }
+.inline-w { display: flex; align-items: flex-end; gap: 2mm; }
+.inline-w > .wbox { flex: 1 1 auto; }
+.qa3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+.qa3 .card { display: flex; flex-direction: column; justify-content: space-between; gap: 1mm; }
+.pg-line { display: flex; justify-content: flex-end; margin: -.4mm 0; }
+.tt b.wrap { white-space: normal; }
+.bl.xs { width: 12mm; }
+.chain .grp { white-space: nowrap; display: inline-flex; align-items: center; gap: 1.2mm; }
+
+/* 머리말이 안에 든 1줄 칸(⑬-3) */
+.lbox { display: flex; align-items: center; gap: 2mm; border: 0.35mm solid var(--line-dark); border-radius: 1mm; height: 9.5mm; padding: 0 2.4mm; background: #fff; }
+.lbox > b { font-size: 10.5pt; color: var(--ink-2); white-space: nowrap; }
+
+/* 체크 줄: [내 기록] 줄은 점선 테두리, 교과서 줄은 테두리 없음 */
+.chk2 { display: flex; flex-direction: column; gap: .8mm; }
+.recline { border: 0.45mm dashed var(--ink-2); border-radius: 1mm; padding: .6mm 2mm; align-self: flex-start; }
+.recline.wide { display: block; align-self: stretch; }
+.solline { padding: .2mm 2.4mm; }
+
+/* 화살표 흐름 칸(⑥): 칸 이름은 테두리 위에 */
+.flow.tight { margin-top: 1.6mm; }
+.flow.tight .recbox { position: relative; display: block; padding: 2.2mm 2.4mm .3mm; }
+.flow.tight .lab {
+  position: absolute; left: 2mm; top: -2.4mm; background: #fff; padding: 0 1mm;
+  line-height: 1.3; font-size: 9.5pt; white-space: nowrap;
+}
+.flow.tight .ln { height: 9mm; }
+
+/* 한마디 한 줄짜리 */
+.say.one { padding: .6mm 3mm .6mm 2mm; white-space: nowrap; }
+.say.one img { flex-basis: 8mm; width: 8mm; height: 8mm; }
+
+/* ---------- L4-2 표지 밑그림 ---------- */
+.cover-wrap { display: flex; gap: 4mm; align-items: stretch; }
+.cover {
+  flex: 0 0 120mm; height: 90mm; border: 0.45mm solid var(--line-dark); border-radius: 1mm;
+  position: relative; background: #fff;
+}
+.cover span {
+  position: absolute; left: 0; right: 0; top: 2mm; text-align: center;
+  font-size: 9.5pt; color: var(--muted); font-weight: 700;
+}
+.cover-side { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2mm; justify-content: space-between; }
+.cover-side .say { font-size: 9.5pt; line-height: 1.4; padding: 1.4mm 2.4mm; }
+.cover-side .ex {
+  font-size: 9pt; line-height: 1.45; color: var(--ink-2);
+  border: 0.3mm solid var(--line); border-radius: 1mm; padding: 1.4mm 2mm; background: var(--rowhead);
+}
+.bye.col { flex-direction: column; gap: 1mm; text-align: center; font-size: 12pt; line-height: 1.35; }
+.bye.col img { height: 11mm; }
+
+/* ---------- 선택 활동 반쪽 ---------- */
+.half .cols { gap: 5mm; }
+.half .band { min-height: 13mm; }
+.half .pg { font-size: 9pt; padding: .2mm 1.2mm; }
+.opt-w { border: 0.25mm solid #fff; border-radius: 2mm; padding: 0 1.2mm; }
+.half .opt-w { font-size: 9pt; vertical-align: 1mm; font-weight: 700; }
+@media screen { .cut { top: calc(148.5mm - 0.2mm); } } /* 화면 미리보기는 .page 안쪽 여백이 있어 종이 기준 중앙으로 */
+
+/* ---------- L4-1(.dense): 문항 5개가 한 장에 들어가도록 ----------
+   쓰는 줄 9mm·번호 28pt·칸 제목 14pt는 그대로 두고 질문 글자 11pt, 여백만 줄임 */
+.dense .mast.cmp { height: 20.5mm; }
+.dense .mast.cmp h1 { font-size: 13.5pt; }
+.dense .mast.cmp .t { top: 1.2mm; }
+.dense .mast.cmp .sub { font-size: 8.8pt; line-height: 1.3; }
+.dense .mast.cmp .who-box { top: 1.8mm; gap: .8mm; }
+.dense .mast.cmp .waves { height: 2.6mm; }
+.dense .who-box > div { height: 6.2mm; }
+.dense .q { gap: 1mm; }
+.dense .qh { padding-top: .8mm; }
+.dense .qb { gap: .6mm; }
+.dense .qb, .dense .qa3, .dense .lead { font-size: 11pt; line-height: 1.3; }
+.dense .recline.wide { font-size: 10pt; }
+.dense .blank-line { line-height: 8mm; }
+.dense .stars svg { width: 5.4mm; height: 5.4mm; }
+.dense table.t.self td { padding-top: .25mm; padding-bottom: .25mm; }
+.dense .qa3 { grid-template-columns: 1.3fr 1fr 1fr; }

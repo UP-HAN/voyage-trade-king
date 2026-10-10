@@ -1,5 +1,5 @@
-// 학습지 공통 장식: 아이콘 모음(SVG symbol)과 머리띠 그림을 각 쪽에 채워 넣는다.
-// 인쇄 전 브라우저(Playwright chromium)에서 실행된다. 문항 내용은 HTML에 그대로 있다.
+// 학습지 공통 스크립트 (작업 139): 아이콘 모음, 쪽 틀(머리띠·학생 정보·꼬리말), 쓰기 줄, 남는 공간 채우기, 교사용 쪽 나누기.
+// 인쇄 전 브라우저(Playwright chromium)에서 실행된다. 문항 문구는 HTML에 그대로 있다.
 (function () {
   const S = 'stroke="#23364d" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"';
   const sprite = `
@@ -152,24 +152,27 @@
 </svg>`;
   document.body.insertAdjacentHTML('afterbegin', sprite);
 
-  // 머리띠 장식: 나침반·구름·물결·배·해·갈매기
-  const deco = (slim, cmp) => {
-    const k = cmp ? 0.82 : slim ? 0.72 : 1;
+  // ---------- 단위 ----------
+  const MM = 96 / 25.4; // CSS px / mm
+  const COURSE = '대항해 무역왕 항해 일지 · 6학년 사회 세계 속의 무역';
+
+  // ---------- 머리띠 그림(136 그림 유지): 나침반·구름·물결·배·해·갈매기 ----------
+  const deco = (lead) => {
+    const k = lead ? 0.82 : 0.6;
     const mm = (v) => (v * k).toFixed(2) + 'mm';
-    return `
-<svg class="deco" style="left:${mm(6)};top:${mm(5)};width:${mm(15)};height:${mm(15)}" viewBox="0 0 40 40">
+    const compass = `<svg class="deco" style="left:${mm(6)};top:${lead ? mm(4) : mm(3)};width:${mm(15)};height:${mm(15)}" viewBox="0 0 40 40">
   <circle cx="20" cy="20" r="17" fill="#f3c65d" stroke="#23364d" stroke-width="2"/>
   <circle cx="20" cy="20" r="12" fill="#fff" stroke="#23364d" stroke-width="1.6"/>
   <path d="M20 9 L23 20 L20 31 L17 20 Z" fill="#e98a6a" stroke="#23364d" stroke-width="1.4" stroke-linejoin="round"/>
   <path d="M20 20 L23 20 L20 31 L17 20 Z" fill="#7fb6d6" stroke="#23364d" stroke-width="1.4" stroke-linejoin="round"/>
-</svg>
-${cmp ? '' : `<svg class="deco" style="left:${mm(24)};top:${mm(3.5)};width:${mm(14)};height:${mm(6)}" viewBox="0 0 56 24">
+</svg>`;
+    const rest = lead ? `<svg class="deco" style="left:${mm(26)};top:${mm(4)};width:${mm(14)};height:${mm(6)}" viewBox="0 0 56 24">
   <path d="M8 20 Q2 20 3 14 Q4 9 10 10 Q12 3 20 4 Q27 1 31 8 Q38 6 40 12 Q46 12 46 17 Q46 20 41 20 Z" fill="#fff" stroke="#23364d" stroke-width="1.8" stroke-linejoin="round"/>
-</svg>`}
-${cmp ? '' : `<svg class="deco" style="right:${mm(7)};top:${mm(4)};width:${mm(11)};height:${mm(11)}" viewBox="0 0 30 30">
+</svg>
+<svg class="deco" style="right:${mm(7)};top:${mm(3)};width:${mm(11)};height:${mm(11)}" viewBox="0 0 30 30">
   <circle cx="15" cy="15" r="12" fill="#f3c65d" stroke="#23364d" stroke-width="1.8"/>
 </svg>
-<svg class="deco" style="right:${mm(22)};top:${mm(5)};width:${mm(12)};height:${mm(5)}" viewBox="0 0 48 20">
+<svg class="deco" style="right:${mm(22)};top:${mm(4)};width:${mm(12)};height:${mm(5)}" viewBox="0 0 48 20">
   <path d="M2 10 Q7 4 12 10 Q17 4 22 10 M28 14 Q32 9 36 14 Q40 9 44 14" fill="none" stroke="#23364d" stroke-width="1.8" stroke-linecap="round"/>
 </svg>
 <svg class="deco" style="right:${mm(12)};bottom:${mm(5)};width:${mm(17)};height:${mm(16)}" viewBox="0 0 48 44">
@@ -179,28 +182,249 @@ ${cmp ? '' : `<svg class="deco" style="right:${mm(7)};top:${mm(4)};width:${mm(11
   <path d="M24 3 L31 5 L24 7" fill="#e98a6a" stroke="#23364d" stroke-width="1.4" stroke-linejoin="round"/>
   <path d="M5 32 H43 L37 41 H11 Z" fill="#e98a6a" stroke="#23364d" stroke-width="1.8" stroke-linejoin="round"/>
   <circle cx="18" cy="36" r="1.6" fill="#fff"/><circle cx="24" cy="36" r="1.6" fill="#fff"/><circle cx="30" cy="36" r="1.6" fill="#fff"/>
-</svg>`}
+</svg>` : '';
+    return `${compass}${rest}
 <svg class="waves" viewBox="0 0 400 30" preserveAspectRatio="none">
   <path d="M0 10 Q12.5 2 25 10 T50 10 T75 10 T100 10 T125 10 T150 10 T175 10 T200 10 T225 10 T250 10 T275 10 T300 10 T325 10 T350 10 T375 10 T400 10 V30 H0 Z" fill="#8cc3df"/>
   <path d="M0 10 Q12.5 2 25 10 T50 10 T75 10 T100 10 T125 10 T150 10 T175 10 T200 10 T225 10 T250 10 T275 10 T300 10 T325 10 T350 10 T375 10 T400 10" fill="none" stroke="#23364d" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
   <path d="M0 21 Q15 15 30 21 T60 21 T90 21 T120 21 T150 21 T180 21 T210 21 T240 21 T270 21 T300 21 T330 21 T360 21 T390 21 T420 21" fill="none" stroke="#5ea6cb" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
 </svg>`;
   };
-  document.querySelectorAll('.mast').forEach((m) => m.insertAdjacentHTML('afterbegin', deco(m.classList.contains('slim'), m.classList.contains('cmp'))));
 
-  // <i data-ic="market"> → 아이콘
+  // ---------- 쪽 틀: 머리띠 → (학생 정보) → 본문 → 꼬리말 ----------
+  function frame(page) {
+    const lead = page.hasAttribute('data-lead');
+    const teacher = page.classList.contains('tpage');
+    const label = page.dataset.label || (page.dataset.sheet === '선택활동' ? '선택 활동' : page.dataset.sheet);
+    const h = document.createElement('header');
+    h.className = `mast ${lead ? 'lead' : 'slim'}`;
+    h.innerHTML = deco(lead) + (lead
+      ? `<div class="t"><h1>대항해 무역왕 항해 일지</h1><div class="sub"><span class="pill">${label}</span>${page.dataset.title || ''} <span class="pages">${page.dataset.pages ? `(${page.dataset.pages})` : ''}</span></div></div>`
+      : `<div class="t"><h1>대항해 무역왕 항해 일지</h1><span class="pill">${label}</span></div>${teacher ? '' : '<div class="namebox">이름</div>'}`);
+    page.prepend(h);
+    const info = page.querySelector('.info[data-auto]');
+    if (info) {
+      info.innerHTML = `<div class="rows">
+  <div class="a-line">6학년 <span class="f s"></span> 반 <span class="f s"></span> 번 <span>이름</span> <span class="f"></span></div>
+  <div class="a-line">우리 회사 이름 <span class="f"></span></div>
+</div><div class="flag"><span>깃발 그리기</span></div>`;
+    }
+    const f = document.createElement('footer');
+    f.className = 'foot';
+    f.innerHTML = `<span>${teacher ? '대항해 무역왕 항해 일지 · 교사용 예시 답' : COURSE}</span><b></b>`;
+    page.append(f);
+  }
+  function numberPages() {
+    const pages = [...document.querySelectorAll('.page')];
+    const bySheet = {};
+    pages.forEach((p) => { (bySheet[p.dataset.sheet] ||= []).push(p); });
+    pages.forEach((p) => {
+      const list = bySheet[p.dataset.sheet];
+      const i = list.indexOf(p) + 1;
+      const name = p.classList.contains('tpage') ? '' : `${p.dataset.sheet === '선택활동' ? '선택 활동' : p.dataset.sheet} · `;
+      p.querySelector('.foot b').textContent = `${name}${i} / ${list.length}`;
+    });
+  }
+
+  // ---------- 쓰기 줄 ----------
+  function setLines(el, n) {
+    el.dataset.lines = String(n);
+    if (el.matches('.steps')) { el.style.setProperty('--lines', String(n)); return; }
+    const targets = el.matches('.a-box, td.w') ? [el] : [...el.querySelectorAll('.a-box, td.w:not(.has-text):not(.gray)')];
+    targets.forEach((t) => {
+      t.querySelectorAll(':scope > .ln').forEach((x) => x.remove());
+      t.insertAdjacentHTML('beforeend', '<div class="ln"></div>'.repeat(n));
+    });
+  }
+
+  // ---------- 남는 공간 채우기: ① 답 칸 줄 늘리기 → ② 블록 간격 늘리기 → ③ 그래도 크게 남으면 바다 그림 ----------
+  const seaArt = (tall) => `<svg class="sea" viewBox="0 0 400 60" preserveAspectRatio="none">
+  <path d="M0 22 Q12.5 14 25 22 T50 22 T75 22 T100 22 T125 22 T150 22 T175 22 T200 22 T225 22 T250 22 T275 22 T300 22 T325 22 T350 22 T375 22 T400 22 V60 H0 Z" fill="#e4f2fa"/>
+  <path d="M0 22 Q12.5 14 25 22 T50 22 T75 22 T100 22 T125 22 T150 22 T175 22 T200 22 T225 22 T250 22 T275 22 T300 22 T325 22 T350 22 T375 22 T400 22" fill="none" stroke="#8cc3df" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+  <path d="M0 38 Q15 32 30 38 T60 38 T90 38 T120 38 T150 38 T180 38 T210 38 T240 38 T270 38 T300 38 T330 38 T360 38 T390 38 T400 38" fill="none" stroke="#b9dcee" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+</svg><img class="ship" src="img/ship.png" alt="">${tall ? `<img class="gull" src="img/seagull.png" alt="">
+<svg class="cloud" style="left:20%;top:12%" viewBox="0 0 56 24"><path d="M8 20 Q2 20 3 14 Q4 9 10 10 Q12 3 20 4 Q27 1 31 8 Q38 6 40 12 Q46 12 46 17 Q46 20 41 20 Z" fill="#fff" stroke="#b9dcee" stroke-width="1.8" stroke-linejoin="round"/></svg>
+<svg class="cloud" style="right:32%;top:4%" viewBox="0 0 56 24"><path d="M8 20 Q2 20 3 14 Q4 9 10 10 Q12 3 20 4 Q27 1 31 8 Q38 6 40 12 Q46 12 46 17 Q46 20 41 20 Z" fill="#fff" stroke="#b9dcee" stroke-width="1.8" stroke-linejoin="round"/></svg>` : ''}`;
+
+  // 쪽 채움 규칙(DESIGN.md 7장) — 질문 블록 사이 간격은 늘 8mm. 남는 공간은 답 칸 줄 수가 흡수한다.
+  //  ① 답 칸 줄을 고르게 늘린다(data-max까지).
+  //  ② 그래도 60mm 넘게 비면(내용이 쪽의 절반이 안 되는 쪽) 줄 수를 처음으로 되돌리고, 질문 블록 아래에
+  //     '자유 메모 · 그림 칸 (선택)' 상자(여러 줄 쓰기 상자)를 넣는다. 다른 답 칸은 처음보다 2줄까지만 늘리고,
+  //     메모 상자가 바다 띠(24mm) 위까지 채운다. 구름·갈매기는 넣지 않는다.
+  //  ③ 그 밖의 쪽은 상한을 6줄 더 풀어 남은 공간을 마저 흡수한다. 그래도 30mm 넘게 남으면 바다 그림.
+  const SEA_STRIP = 24; // 메모 상자 아래 바다 띠 높이(mm, --sp-6)
+  const SPARSE = 90;    // 칸 상한까지 늘려도 이만큼(mm) 넘게 비면(쪽의 약 1/3) 메모 상자를 넣는다
+  const EXTRA = 6;      // ③에서 더 풀어 주는 줄 수
+  function fill(page) {
+    const body = page.querySelector('.body');
+    const act = body && body.querySelector('.act');
+    if (!act) return;
+    const main = act.querySelector('.act-main');
+    const free = () => (body.getBoundingClientRect().bottom - main.getBoundingClientRect().bottom) / MM;
+    // 늘릴 수 있는 칸 묶음: 같은 표의 행(tr[data-grow])은 한 묶음으로 함께 늘린다(행 높이가 같게).
+    // 칸 종류별 상한(CAP): 질문에 비해 칸이 지나치게 커지지 않게 한다. 남는 공간은 쪽 아래 자투리로.
+    const CAP = (el) => (el.matches('tr') ? 4 : el.matches('.steps') ? 3 : 6);
+    const growers = () => {
+      const list = [];
+      const byTable = new Map();
+      act.querySelectorAll('[data-grow]').forEach((el) => {
+        const base = Number(el.dataset.base || el.dataset.lines || 1);
+        el.dataset.base = String(base);
+        const t = el.matches('tr') ? el.closest('table') : null;
+        if (t && byTable.has(t)) { byTable.get(t).els.push(el); return; }
+        const g = { els: [el], base, n: Number(el.dataset.lines || base), cap: CAP(el), done: false };
+        g.max = Math.min(Number(el.dataset.max || base + 3), g.cap);
+        if (t) byTable.set(t, g);
+        list.push(g);
+      });
+      return list;
+    };
+    const setG = (g, n) => g.els.forEach((el) => setLines(el, n));
+    const grow = (gs, reserve) => {
+      for (let guard = 0; guard < 400; guard++) {
+        if (free() < 10.5 + reserve) break;
+        const open = gs.filter((g) => !g.done && g.n < g.max);
+        const pool = open.some((g) => !g.last) ? open.filter((g) => !g.last) : open;
+        const c = pool.sort((a, b) => (a.n - a.base) - (b.n - b.base) || a.n - b.n)[0];
+        if (!c) break;
+        setG(c, c.n + 1); // 묶음 전체(모든 행)에 1줄씩 — 자리가 없으면 되돌린다
+        if (free() < reserve) { setG(c, c.n); c.done = true; continue; }
+        c.n++;
+      }
+    };
+    grow(growers(), 0);
+    page.dataset.empty = free().toFixed(0);
+    const noart = page.hasAttribute('data-noart');
+    const sparse = !noart && free() >= SPARSE;
+    if (sparse) {
+      const reserve = SEA_STRIP + 4; // 바다 띠 + 띠 위 간격 4mm
+      const gs = growers();
+      gs.forEach((g) => { setG(g, g.base); g.n = g.base; g.max = Math.min(g.max, g.base + 2); });
+      const memo = document.createElement('div');
+      memo.className = 'q memo';
+      memo.innerHTML = '<p class="q-text memo-title"><span class="tag opt">선택</span>자유 메모 · 그림 칸</p><div class="a-box"></div>';
+      main.append(memo);
+      const box = memo.querySelector('.a-box');
+      setLines(box, 2);
+      gs.push({ els: [box], base: 2, n: 2, max: 99, done: false, last: true });
+      grow(gs, reserve);
+      const art = document.createElement('div');
+      art.className = 'sea-art strip';
+      art.innerHTML = seaArt(false);
+      act.append(art);
+    } else {
+      const gs = growers();
+      gs.forEach((g) => { g.max = Math.min(g.max + EXTRA, g.cap); });
+      grow(gs, 0);
+      if (!noart && free() >= 30) {
+        const art = document.createElement('div');
+        art.className = 'sea-art';
+        art.innerHTML = seaArt(free() > 70);
+        act.append(art);
+      }
+    }
+    page.dataset.free = free().toFixed(1);
+  }
+
+  // 두 자리 번호 원: 자간을 좁혀 원 안쪽 여백 2mm 이상
+  function numbers() {
+    document.querySelectorAll('.act-num').forEach((el) => {
+      const t = el.textContent.trim();
+      el.innerHTML = `<span>${t}</span>`;
+      if (t.length > 1) el.classList.add('two');
+    });
+  }
+
+  // ---------- 교사용: 흐름(#flow)을 쪽으로 나누기 ----------
+  function paginate() {
+    const flow = document.getElementById('flow');
+    if (!flow) return;
+    const secs = [...flow.children];
+    let page; let body; let first = true;
+    const over = () => body.scrollHeight > body.clientHeight + 1;
+    const newPage = () => {
+      page = document.createElement('div');
+      page.className = 'page tpage';
+      page.dataset.sheet = '교사용';
+      page.dataset.label = '교사용';
+      if (first) {
+        page.setAttribute('data-lead', '');
+        page.dataset.title = flow.dataset.title;
+        page.dataset.pages = flow.dataset.pages;
+      }
+      first = false;
+      body = document.createElement('div');
+      body.className = 'body';
+      page.append(body);
+      flow.before(page);
+      frame(page);
+    };
+    newPage();
+    for (const sec of secs) {
+      const h2 = sec.querySelector('h2');
+      const list = sec.querySelector('ol, ul, table');
+      const items = list.matches('table') ? [...list.tBodies[0].rows] : [...list.children];
+      let shell; let box; let started = 0;
+      const openShell = (cont) => {
+        shell = document.createElement('section');
+        shell.className = sec.className;
+        const t = h2.cloneNode(true);
+        if (cont) t.insertAdjacentText('beforeend', ' (이어서)');
+        shell.append(t);
+        const l = list.cloneNode(false);
+        if (list.matches('table')) {
+          [...list.children].forEach((c) => { if (c.tagName !== 'TBODY') l.append(c.cloneNode(true)); });
+          box = document.createElement('tbody');
+          l.append(box);
+        } else {
+          box = l;
+          if (list.tagName === 'OL') l.setAttribute('start', String(started + 1));
+        }
+        shell.append(l);
+        body.append(shell);
+      };
+      openShell(false);
+      if (over()) { shell.remove(); newPage(); openShell(false); }
+      for (const it of items) {
+        box.append(it);
+        if (over()) {
+          it.remove();
+          if (!box.children.length) { shell.remove(); newPage(); openShell(false); box.append(it); started++; continue; }
+          newPage(); openShell(true); box.append(it);
+        }
+        started++;
+      }
+    }
+    flow.remove();
+  }
+
+  // ---------- 실행 ----------
+  document.querySelectorAll('.page').forEach(frame);
   document.querySelectorAll('[data-ic]').forEach((el) => {
     el.innerHTML = `<svg viewBox="0 0 48 48"><use href="#i-${el.dataset.ic}"/></svg>`;
   });
-  // <span class="stars"> → 별 3개
   document.querySelectorAll('.stars').forEach((el) => {
     el.innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-star"/></svg>'.repeat(3);
   });
-  // 두 자리 번호
-  document.querySelectorAll('.num').forEach((el) => { const t = el.textContent.trim(); if (t.length > 1) { el.classList.add('two'); el.innerHTML = `<span>${t}</span>`; } });
-  // 쓰기 줄: <div class="wbox" data-lines="2">
-  document.querySelectorAll('[data-lines]').forEach((el) => {
-    el.insertAdjacentHTML('beforeend', '<div class="ln"></div>'.repeat(Number(el.dataset.lines)));
+  document.querySelectorAll('[data-lines]').forEach((el) => setLines(el, Number(el.dataset.lines)));
+  numbers();
+  // 빈칸 '( ___ )조사'가 줄 끝에서 갈라지지 않게 한 덩어리로 묶는다(글자는 그대로)
+  document.querySelectorAll('.bl').forEach((bl) => {
+    const prev = bl.previousSibling; const next = bl.nextSibling;
+    if (!prev || prev.nodeType !== 3 || !prev.data.endsWith('(')) return;
+    if (!next || next.nodeType !== 3 || !next.data.startsWith(')')) return;
+    const wrap = document.createElement('span');
+    wrap.className = 'nw';
+    prev.data = prev.data.slice(0, -1);
+    const m = next.data.match(/^\)[^\s,.]*[,.]?/)[0];
+    next.data = next.data.slice(m.length);
+    bl.replaceWith(wrap);
+    wrap.append('(', bl, m);
   });
-  document.documentElement.dataset.ready = '1';
+  document.fonts.ready.then(() => {
+    paginate();
+    numberPages();
+    document.querySelectorAll('.page').forEach(fill);
+    document.documentElement.dataset.ready = '1';
+  });
 })();
