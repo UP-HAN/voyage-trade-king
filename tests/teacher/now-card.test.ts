@@ -8,7 +8,8 @@ import type { SessionInput } from '../../src/sync/host-session';
 import { autoStartWrap, firstWrapStep, teacherReducer, type TeacherGame } from '../../src/teacher/game';
 import { endRoundConfirm, nowCard, NOW_PRIORITY, type NowCard, type NowUi, type NowView } from '../../src/teacher/now-card';
 import { teacherWarningText } from '../../src/teacher/notice-text';
-import { MANUAL_HINT, OLD_TEACHER_TERMS } from '../../src/teacher/teacher-terms';
+import { MANUAL_HINT, OLD_TEACHER_TERMS, teacherTitle } from '../../src/teacher/teacher-terms';
+import { itemLabel } from '../../src/teacher/schedule-view';
 import { gameWith } from './helpers';
 
 const T0 = 1_000_000;
@@ -254,7 +255,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     k = endRoundConfirm(p.h.get(), 3, p.now());
     expect(k.needed).toBe(true);
     expect(k.title).toBe('마지막 라운드를 끝낼까요?');
-    expect(k.body).toBe("마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간 1:10는 쓰지 않아요. 아직 결정하지 않은 학생은 '응답 없음'이 돼요(3명).");
+    expect(k.body).toBe("마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간(1:10)은 쓰지 않아요. 아직 결정하지 않은 학생은 '응답 없음'이 돼요(3명).");
     // 실제로 그렇게 된다
     p.teacher({ type: 'endRound' });
     p.to(532);
@@ -568,5 +569,42 @@ describe('(수정 1회차) core 배치 경고 → 교사 쉬운 말', () => {
   it("'L2'·'구간' → '2차시'·'차시'", () => {
     expect(teacherWarningText('L2 활동이 많아 무역 시간을 넘겨요')).toBe('2차시 활동이 많아 무역 시간을 넘겨요');
     expect(teacherWarningText('시간이 짧아 ⑭ 지금 쓰기를 넣지 못했어요(구간 끝에 써요)')).toBe('시간이 짧아 ⑭ 지금 쓰기를 넣지 못했어요(차시 끝에 모아서 써요)');
+  });
+});
+
+describe('다듬기(141 촬영 전)', () => {
+  it("라운드 중 결정을 '오늘 순서'에서 [TV에 결과 보여 주기] 하면 카드 보조 줄에 'TV에 결과 보여 주는 중'", () => {
+    const p = play();
+    p.to(520);
+    expect(p.card().sub.find((x) => x.testId === 'tl-resp-count')!.text).toBe('흑연을 어디서 살까요? 학생 0/3 응답');
+    p.teacher({ type: 'revealEvent' });
+    expect(p.card().sub.find((x) => x.testId === 'tl-resp-count')!.text).toBe('흑연을 어디서 살까요? 학생 0/3 응답 · TV에 결과 보여 주는 중');
+  });
+
+  it('수동 진행: 라운드 뒤 [다음으로]로 연 소식은 다음 항목을 열 때까지 카드에 "○○ 소식이 떠 있어요"', () => {
+    const p = play({ manual: true });
+    p.to(2);
+    for (const id of ['cover:L1', 'ev:L1-E1', 'ev:L1-E2', 'r:1']) p.teacher({ type: 'fireNow', id, clear: true });
+    p.teacher({ type: 'endRound' });
+    expect(p.card().line).toBe('다음: 부산에 강추위, 천연가스가 필요해요');
+    p.teacher({ type: 'fireNow', id: 'ev:L1-E6', clear: true });
+    let c = p.card();
+    expect(c.state).toBe('waiting');
+    expect(c.line).toBe('다음: 두 섬 이야기');
+    expect(c.sub[0]).toMatchObject({ text: "학생 화면에 '부산에 강추위, 천연가스가 필요해요' 소식이 떠 있어요", testId: 'now-news' });
+    p.to(20);
+    expect(p.card().sub[0]!.testId).toBe('now-news');
+    p.teacher({ type: 'fireNow', id: 'ev:L1-E5', clear: true });
+    c = p.card();
+    expect(c.sub.some((x) => x.testId === 'now-news')).toBe(false);
+  });
+
+  it("데이터 제목의 'L1'은 교사 화면에서 '1차시'(L1 확인 퀴즈 → 1차시 확인 퀴즈)", () => {
+    expect(teacherTitle('L1 확인 퀴즈')).toBe('1차시 확인 퀴즈');
+    expect(teacherTitle('L2. 자원을 사 와서 만들어 팔아요')).toBe('2차시: 자원을 사 와서 만들어 팔아요');
+    expect(teacherTitle('벽란도 시장')).toBe('벽란도 시장');
+    const p = play();
+    const q = p.h.get().class.schedule.items.find((it) => it.refId === 'L1-E8')!;
+    expect(itemLabel(q)).toBe('1차시 확인 퀴즈');
   });
 });

@@ -49,6 +49,14 @@ export function lessonText(stage: LessonId | string): string {
   return m ? `${m[1]}차시` : stage;
 }
 
+/**
+ * (다듬기) 데이터 제목의 'L1'을 교사 화면에서 '1차시'로: "L1 확인 퀴즈" → "1차시 확인 퀴즈", "L1. 물건은…" → "1차시: 물건은…".
+ * 데이터·학생 화면은 그대로(교사 화면 표시에만 쓴다).
+ */
+export function teacherTitle(title: string): string {
+  return title.replace(/\bL([1-4])\b(\.)?/g, (_m, n: string, dot?: string) => `${n}차시${dot ? ':' : ''}`);
+}
+
 /** 받침 있는 낱말인가(을/를·이/가 고르기). 한글이 아니면 숫자·영문 끝 받침 규칙을 대충 따른다 */
 export function hasBatchim(word: string): boolean {
   const ch = word.trim().slice(-1);

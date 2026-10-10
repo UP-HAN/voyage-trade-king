@@ -319,7 +319,7 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
         title: '지금 마무리로 갈까요?',
         body: rest
           ? `무역 시간이 ${mmss(left)} 남았어요. 지금 마무리로 가면 남은 라운드와 활동은 하지 않아요.`
-          : `남은 순서는 없어요. 지금 마무리로 가면 남은 무역 시간 ${mmss(left)}는 쓰지 않아요.`,
+          : `남은 순서는 없어요. 지금 마무리로 가면 남은 무역 시간(${mmss(left)})은 쓰지 않아요.`,
         ok: '지금 마무리로',
         danger: true,
         testId: 'confirm-finish',

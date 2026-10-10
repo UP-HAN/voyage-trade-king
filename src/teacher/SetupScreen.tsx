@@ -36,6 +36,7 @@ import {
 import { duringPreviewLine, worksheetNo } from './schedule-view';
 import { WorksheetPdfMenu } from './WorksheetPdfMenu';
 import { teacherWarningText } from './notice-text';
+import { teacherTitle } from './teacher-terms';
 
 export interface OpenError {
   code: string;
@@ -201,7 +202,7 @@ function PreviewPanel({
             {preview.activities.map((a) => (
               <tr key={a.id} class={a.form === 'dropped' ? 't-acts--dropped' : ''} data-testid={`act-${a.id}`}>
                 <td>
-                  <span class="t-acts__stage">{lessonName(a.stage)}</span> {a.title}
+                  <span class="t-acts__stage">{lessonName(a.stage)}</span> {teacherTitle(a.title)}
                 </td>
                 <td>
                   <span class={`t-tier t-tier--${a.tier}`}>{TIER_TEXT[a.tier]}</span>

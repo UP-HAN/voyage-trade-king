@@ -12,6 +12,7 @@ import type { LessonId } from '../data/types';
 import { DURING_MARK } from '../data/worksheet';
 import { canOpenRoom, type RoomStatus } from '../ui/common/server-status';
 import { eventDefOf, worksheetNo } from './schedule-view';
+import { teacherTitle } from './teacher-terms';
 
 export const PREFS_KEY = 'voyage.teacher.prefs';
 export const ALL_LESSONS: readonly LessonId[] = ['L1', 'L2', 'L3', 'L4'];
@@ -161,7 +162,7 @@ function orderLabel(it: ScheduleItem, playUnit: PlayUnit): string | null {
       return playUnit === 'lesson' ? '차시 표지' : `${lessonName(it.stage)} 표지`;
     case 'event': {
       const d = eventDefOf(it);
-      return d ? d.title : null;
+      return d ? teacherTitle(d.title) : null;
     }
     case 'round':
       return `라운드 ${it.round ?? it.refId}`;

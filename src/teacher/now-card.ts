@@ -19,7 +19,7 @@ import type { HostView } from '../sync/host-session';
 import { liveWrapStep, publicView, screenView, type TeacherGame } from './game';
 import { eventDefOf, isTier1, itemLabel, minSecText, mmss, ROUND_NOW_BLOCK_TEXT, worksheetNo } from './schedule-view';
 import { respondedToCurrent } from './table';
-import { eul, lessonText, MANUAL_HINT, SCENE_CHOICE_TEXT } from './teacher-terms';
+import { eul, lessonText, MANUAL_HINT, SCENE_CHOICE_TEXT, teacherTitle } from './teacher-terms';
 
 // ─────────────────────────── 타입 ───────────────────────────
 
@@ -185,7 +185,7 @@ function eventTitle(c: ClassState, id: string): string {
   const live = liveItemOf(c, id);
   if (live) return itemLabel(live);
   const def = eventsById[id];
-  return def?.title ?? id;
+  return def ? teacherTitle(def.title) : id;
 }
 
 /** 라운드 앞 사전 활동(표지·편지·라운드 안 비차단 활동 제외) */
@@ -558,7 +558,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       // 라운드에 붙은 결정(응답 받는 활동) 진행
       if (ce && !ce.closed && needsResponse(ce.id)) {
         const responded = players.filter((p) => respondedToCurrent(c, p) === true).length;
-        sub.push({ text: `${eventTitle(c, ce.id)} 학생 ${responded}/${players.length} 응답`, testId: 'tl-resp-count', eventId: ce.id, strong: true });
+        sub.push({ text: `${eventTitle(c, ce.id)} 학생 ${responded}/${players.length} 응답${ce.revealed ? ' · TV에 결과 보여 주는 중' : ''}`, testId: 'tl-resp-count', eventId: ce.id, strong: true });
         secondary = { label: '응답 받기 끝내기', kind: 'closeEvent', testId: 'btn-close-event' };
       } else if (ce && resultShowing(c, now)) {
         sub.push({ text: `${eventTitle(c, ce.id)} 결과를 TV에 보여 주는 중 · ${leftText((ce.resultUntil! - now) / 1000)}`, testId: 'tl-result', eventId: ce.id, strong: true });
@@ -587,6 +587,8 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       };
     }
     // 11. 다음 항목을 기다림
+    // (다듬기) 라운드 밖에서 응답 없는 소식 패널이 떠 있으면(수동 진행에서 라운드 뒤 [다음으로]로 연 소식 등) 그것도 보인다 — 다음 항목을 열 때까지
+    const news: NowSub[] = ce && !ce.closed && !needsResponse(ce.id) ? [{ text: `학생 화면에 '${eventTitle(c, ce.id)}' 소식이 떠 있어요`, testId: 'now-news' }] : [];
     if (next) {
       const wait = Math.max(0, next.at - e);
       const isRound = next.kind === 'round';
@@ -595,7 +597,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         return {
           state: 'waiting', tag: focus,
           line: `다음: ${itemLabel(next)}`, lineTestId: 'tl-waiting',
-          sub: [{ text: MANUAL_HINT }, ...(wait > 0 ? [{ text: `계획 시각까지 ${mmss(wait)}` }] : [])],
+          sub: [...news, { text: MANUAL_HINT }, ...(wait > 0 ? [{ text: `계획 시각까지 ${mmss(wait)}` }] : [])],
           primary: manualNext(next), secondary: null, keyExtra: next.id,
         };
       }
@@ -603,7 +605,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       const laterRound = !isRound && c.schedule.items.some((it) => it.kind === 'round' && firable(it));
       return {
         state: 'waiting', tag: focus, line,
-        sub: [{ text: '학생 화면에는 남은 시간이 보여요' }],
+        sub: [...news, { text: '학생 화면에는 남은 시간이 보여요' }],
         primary: isRound
           ? roundNowButton(c, now, '라운드 지금 시작', 'btn-round-now', 'primary')
           : { label: '지금 시작', kind: 'startItem', testId: 'now-start', itemId: next.id, tone: 'primary' },
@@ -702,7 +704,7 @@ export function endRoundConfirm(g: TeacherGame, joined: number, now: number): { 
   if (last) {
     lines.push(
       c.schedule.mode === 'auto'
-        ? `마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간 ${mmss(tradeLeft)}는 쓰지 않아요.`
+        ? `마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간(${mmss(tradeLeft)})은 쓰지 않아요.`
         : `마지막 라운드예요. 지금 끝내면 학생들의 거래가 멈추고, 남은 순서가 없어 [지금 마무리로]를 누르면 마무리로 넘어가요.`,
     );
   } else lines.push(`라운드가 ${mmss(left)} 남았어요. 지금 끝내면 학생들의 거래가 멈추고 다음 순서로 넘어가요.`);

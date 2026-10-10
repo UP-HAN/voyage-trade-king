@@ -12,6 +12,7 @@ import { eventsById } from '../data/events';
 import type { TeacherActions } from './actions';
 import type { TeacherGame } from './game';
 import { isMust } from './now-card';
+import { teacherTitle } from './teacher-terms';
 import { eventDefOf, groupTimeline, isTier1, itemLabel, mmss } from './schedule-view';
 import type { ConfirmOptions } from './ui';
 
@@ -30,7 +31,7 @@ export async function skipWithConfirm(it: ScheduleItem, actions: TeacherActions,
     const d = eventDefOf(it);
     const yes = await ask({
       title: '꼭 할 활동을 뺄까요?',
-      body: `「${d?.title ?? itemLabel(it)}」은(는) 이 차시의 꼭 할 활동이에요. 빼고 넘어갈까요?`,
+      body: `「${d ? teacherTitle(d.title) : itemLabel(it)}」은(는) 이 차시의 꼭 할 활동이에요. 빼고 넘어갈까요?`,
       ok: '이번엔 빼기',
       danger: true,
       testId: 'confirm-skip-tier1',
@@ -128,7 +129,7 @@ export function Timeline({ game, now, actions, ask, onRoundNow }: TimelineProps)
       {late && late.lateSec >= 60 && (
         <p class="t-alert" data-testid="late-note">
           계획보다 {Math.floor(late.lateSec / 60)}분 늦어요
-          {late.wouldDrop.length > 0 && ` — 빠질 수 있는 활동: ${late.wouldDrop.map((id) => eventsById[id]?.title ?? id).join(', ')}`}
+          {late.wouldDrop.length > 0 && ` — 빠질 수 있는 활동: ${late.wouldDrop.map((id) => (eventsById[id] ? teacherTitle(eventsById[id]!.title) : id)).join(', ')}`}
         </p>
       )}
       {g.done.length > 0 && (

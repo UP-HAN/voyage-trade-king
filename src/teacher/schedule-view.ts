@@ -10,7 +10,7 @@ import { eventsById } from '../data/events';
 import { lessonsById } from '../data/lessons';
 import type { LessonId } from '../data/types';
 import { DURING_MARK } from '../data/worksheet';
-import { lessonText } from './teacher-terms';
+import { lessonText, teacherTitle } from './teacher-terms';
 
 /** 사건 정의(연결 사건 L3-E5 → L3-E2 앞 사건 기준) */
 export function eventDefOf(item: Pick<ScheduleItem, 'kind' | 'refId'>) {
@@ -25,7 +25,7 @@ export function itemLabel(it: ScheduleItem): string {
       return `라운드 ${it.round ?? it.refId}`;
     case 'event': {
       const d = eventDefOf(it);
-      return d ? d.title : it.refId;
+      return d ? teacherTitle(d.title) : it.refId;
     }
     case 'worksheet': {
       if (it.placement === 'during') return `학습지 ${worksheetNo(it.refId)}${DURING_MARK} 지금 바로 쓰기`;
@@ -209,7 +209,7 @@ export const ROUND_NOW_BLOCK_TEXT: Readonly<Record<RoundNowBlock, string>> = {
 
 /** [지금 라운드 시작] 1등급 확인 창 본문(무엇이 빠지는지 이름으로) */
 export function roundNowConfirmBody(plan: RoundNowPlan): string {
-  const tier1 = plan.tier1.map((x) => (x.live ? `「${x.title}」(진행 중 — 지금 닫혀요)` : `「${x.title}」`));
+  const tier1 = plan.tier1.map((x) => (x.live ? `「${teacherTitle(x.title)}」(진행 중 — 지금 닫혀요)` : `「${teacherTitle(x.title)}」`));
   const others = plan.skip.filter((it) => it.kind !== 'worksheet' || it.placement === 'during').filter((it) => !(it.kind === 'event' && plan.tier1.some((x) => x.id === it.refId))).map(itemLabel);
   const ws = plan.movedWorksheets.map(worksheetNo).join('');
   // (작업 137, PRD 7.5.2.6) 쉬운 말: "「두 섬 이야기」는 이 차시의 꼭 할 활동이에요. 빼고 넘어갈까요?"
@@ -217,7 +217,7 @@ export function roundNowConfirmBody(plan: RoundNowPlan): string {
   if (ws) lines.push(`뺀 학습지 ${ws}은(는) 끝나고 써요.`);
   if (others.length) lines.push(`함께 빠지는 활동: ${joinNames(others)}.`);
   const cur = plan.closing ? eventsById[plan.closing] : undefined;
-  if (cur && !cur.isCover && !plan.tier1.some((x) => x.id === plan.closing)) lines.push(`지금 하던 「${cur.title}」은(는) 닫혀요.`);
+  if (cur && !cur.isCover && !plan.tier1.some((x) => x.id === plan.closing)) lines.push(`지금 하던 「${teacherTitle(cur.title)}」은(는) 닫혀요.`);
   return lines.join(' ');
 }
 
@@ -240,7 +240,7 @@ export function shortenDrops(cs: ClassState, playUnit: PlayUnit, scope: readonly
   for (const it of r.schedule.items) {
     if (it.kind !== 'event' || it.form !== 'dropped' || it.status !== 'pending' || before.has(it.refId)) continue;
     const d = eventDefOf(it);
-    if (d && !d.isCover) names.push(d.title);
+    if (d && !d.isCover) names.push(teacherTitle(d.title));
   }
   return [...new Set(names)];
 }

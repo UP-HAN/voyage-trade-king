@@ -18,6 +18,7 @@ import type { TeacherActions } from './actions';
 import type { TeacherGame } from './game';
 import { moneyText } from './table';
 import { trapTab, type ConfirmOptions } from './ui';
+import { teacherTitle } from './teacher-terms';
 
 const NAME_ERR: Record<string, string> = {
   NAME_FORMAT: '회사 이름은 2~10자(한글·영문·숫자)로 지어요.',
@@ -234,7 +235,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
               <select data-testid="resend-select" aria-label="다시 보낼 활동" value={resendSel} onChange={(e) => setResendId((e.currentTarget as HTMLSelectElement).value)}>
                 {resendable.map((id) => (
                   <option key={id} value={id}>
-                    {eventsById[id]?.title ?? id}
+                    {eventsById[id] ? teacherTitle(eventsById[id]!.title) : id}
                   </option>
                 ))}
               </select>
@@ -245,7 +246,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
                 title="이 학생 기기의 따라잡기 큐에 활동을 넣어요"
                 onClick={() => {
                   // 호스트가 거절할 경우(번호 없음·발동 전 사건)를 먼저 걸러 거절 이유를 보인다(수정 1회차)
-                  const title = eventsById[resendSel]?.title ?? resendSel;
+                  const title = eventsById[resendSel] ? teacherTitle(eventsById[resendSel]!.title) : resendSel;
                   if (!game?.players[seatKey(seat)]) return toast('이 번호의 회사를 찾지 못해 보내지 못했어요.');
                   if (!game.class.firedEvents.includes(resendSel)) return toast(`'${title}'은(는) 아직 열리지 않은 활동이라 보낼 수 없어요.`);
                   actions.dispatch({ type: 'resendEvent', seat, id: resendSel });
