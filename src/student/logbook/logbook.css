@@ -1,0 +1,233 @@
+/* 항해 기록장(S26, 작업 112). 화면은 양피지 톤, 인쇄는 흰 바탕·검은 글자(흑백에서도 읽힘).
+   v0.3.4(작업 132): A4 단면 기준 — 한 장을 넘으면 2쪽 이상으로 넘어가고 쪽마다 머리띠(thead)를 되풀이. 양면·홀짝 쪽 규칙 없음. */
+
+.lb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  /* 위쪽 HUD·토스트(약 150px까지)를 피한다(수정 1회차) */
+  padding: 150px 12px 12px;
+  background: rgba(12, 34, 48, 0.7);
+}
+.lb-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(820px, 100%);
+  max-height: 100%;
+}
+.lb-sheet {
+  overflow-y: auto;
+  padding: 18px 22px;
+  border: 2px solid var(--brass-dark);
+  border-radius: var(--radius);
+  background: var(--parchment-light);
+  color: var(--ink);
+}
+.lb-head {
+  margin-bottom: 8px;
+}
+.lb-title {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+.lb-sub {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+.lb-empty {
+  color: var(--ink-soft);
+}
+.lb-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+/* 머리띠는 인쇄 때만(화면에서는 위 제목) */
+.lb-band {
+  display: none;
+}
+.lb-stage {
+  padding: 12px 0 4px;
+  font-size: 19px;
+  text-align: left;
+  border-bottom: 1.5px solid var(--ink-soft);
+}
+.lb-row > td {
+  padding: 8px 4px;
+  vertical-align: top;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+.lb-no {
+  width: 2.2em;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 700;
+}
+.lb-mark {
+  width: 4.5em;
+  text-align: right;
+}
+.lb-body p + p {
+  margin-top: 2px;
+}
+.lb-during {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.lb-body p {
+  margin: 0;
+}
+.lb-prompt {
+  line-height: 1.45;
+}
+.lb-pages {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.lb-helper {
+  font-weight: 700;
+}
+.lb-helper.is-empty {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.lb-done {
+  flex: none;
+  padding: 2px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.lb-actions {
+  /* 시트 안 맨 아래(수정 1회차: 시트 밖 버튼이 아래 목록과 겹침) */
+  position: sticky;
+  bottom: -18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px -22px -18px;
+  padding: 10px 22px 12px;
+  background: var(--parchment-light);
+  border-top: 1px solid var(--parchment-land);
+}
+.lb-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(560px, 100%);
+  padding: 20px;
+  border: 2px solid var(--brass-dark);
+  border-radius: var(--radius);
+  background: var(--parchment-light);
+  color: var(--ink);
+}
+.lb-picker h2 {
+  margin: 0;
+}
+.lb-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lb-picker__btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* 인쇄: 기록장 시트만 A4 단면. 넘치면 다음 쪽으로(쪽마다 머리띠 되풀이, 번호 한 줄은 쪽 사이에서 자르지 않음) */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html.lb-printing,
+  html.lb-printing body {
+    background: #fff !important;
+  }
+  html.lb-printing body * {
+    visibility: hidden !important;
+  }
+  /* (작업 132) 여러 쪽으로 넘어가게: 고정·스크롤 틀을 풀어 시트가 문서 흐름의 높이를 갖게 한다(고정 틀 안이면 첫 쪽에서 잘림) */
+  html.lb-printing,
+  html.lb-printing body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  html.lb-printing .lb-overlay,
+  html.lb-printing .lb-wrap {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0;
+    background: none !important;
+  }
+  html.lb-printing .lb-sheet,
+  html.lb-printing .lb-sheet * {
+    visibility: visible !important;
+  }
+  html.lb-printing .lb-actions {
+    display: none !important;
+  }
+  html.lb-printing .lb-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border: none;
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+  html.lb-printing .lb-title {
+    /* 제목은 쪽마다 되풀이되는 머리띠가 대신한다 */
+    display: none;
+  }
+  html.lb-printing .lb-band {
+    display: table-header-group;
+  }
+  html.lb-printing .lb-band__cell {
+    padding: 0 0 4pt;
+    border-bottom: 1pt solid #000;
+    text-align: left;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+  html.lb-printing .lb-stage {
+    break-after: avoid;
+    font-size: 13pt;
+    color: #000 !important;
+  }
+  html.lb-printing .lb-sub,
+  html.lb-printing .lb-pages,
+  html.lb-printing .lb-helper.is-empty {
+    color: #333 !important;
+  }
+  html.lb-printing .lb-row {
+    break-inside: avoid;
+  }
+  html.lb-printing .lb-row > td {
+    padding: 4px 0;
+    border-bottom: 0.5pt solid #000;
+  }
+  html.lb-printing .lb-during {
+    color: #000 !important;
+  }
+  html.lb-printing .lb-no {
+    font-size: 16pt;
+  }
+}

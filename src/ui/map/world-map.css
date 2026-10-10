@@ -1,0 +1,413 @@
+/*
+ * 세계 해도 (작업 106). 팔레트: docs/art-style.md 3.1 — 육지 #D6C497, 해안 음영 #8E7849, 잉크 #2B2318, 놋쇠 #DCAA48.
+ * 카메라: 루트의 --k(배율), --tx, --ty(이동 px)만 바뀐다.
+ */
+.world-map {
+  --k: 0.5;
+  --tx: 0px;
+  --ty: 0px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  background: var(--sea-deep, #0c2230);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  contain: strict;
+}
+
+.world-map--student {
+  touch-action: none;
+  cursor: grab;
+}
+
+.world-map--student:active {
+  cursor: grabbing;
+}
+
+/* ①②③ 지도 단위 레이어 */
+.wm-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: translate(var(--tx), var(--ty)) scale(var(--k));
+  background: var(--sea, #123448); /* 바다 이미지 불러오는 동안 */
+  pointer-events: none;
+}
+
+.wm-sea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.wm-sea.is-loaded {
+  opacity: 1;
+}
+
+.wm-land,
+.wm-routes {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.wm-land-base {
+  fill: var(--parchment-land, #d6c497);
+  fill-rule: evenodd;
+}
+
+.wm-land-tex {
+  fill-rule: evenodd;
+  opacity: 0.9;
+}
+
+.wm-coast-glow {
+  fill: none;
+  stroke: var(--land-shadow, #8e7849);
+  stroke-width: 2.2;
+  stroke-opacity: 0.45;
+  stroke-linejoin: round;
+}
+
+.wm-coast-glow--wide {
+  stroke-width: 5;
+  stroke-opacity: 0.16;
+}
+
+.wm-coast {
+  fill: none;
+  stroke: var(--ink, #2b2318);
+  stroke-width: 0.9;
+  stroke-opacity: 0.85;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.wm-canal {
+  fill: none;
+  stroke: var(--sea-light, #1f4e6b);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.world-map.is-moving .wm-world {
+  will-change: transform;
+}
+
+/* ③ 항로 점선: 화면 두께가 일정하도록 배율로 나눈다 */
+.wm-route-under,
+.wm-route {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wm-route-under {
+  stroke: rgba(12, 34, 48, 0.55);
+  stroke-width: calc(7px / var(--k));
+}
+
+.wm-route {
+  stroke: var(--brass, #dcaa48);
+  stroke-width: calc(3.5px / var(--k));
+  stroke-dasharray: calc(12px / var(--k)) calc(8px / var(--k));
+}
+
+/* ④⑤ 화면 크기가 일정한 덧그림 */
+.wm-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wm-overlay > *,
+.wm-fleet > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.wm-port {
+  pointer-events: none;
+}
+
+.wm-port-hit {
+  pointer-events: auto;
+  position: absolute;
+  left: -24px;
+  top: -24px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.wm-port-hit:disabled {
+  cursor: default;
+}
+
+.world-map--screen .wm-port-hit {
+  pointer-events: none;
+}
+
+.wm-port-mark {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.wm-port.is-selected .wm-port-mark,
+.wm-port.is-ring .wm-port-mark {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--sea-deep, #0c2230),
+    0 0 0 6px var(--sunset, #f2b66d);
+}
+
+.wm-port-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8b8676;
+  border: 2px solid rgba(43, 35, 24, 0.6);
+  opacity: 0.7;
+}
+
+.wm-port-badge {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+}
+
+.wm-port-label {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.2;
+  padding: 2px 8px 3px;
+  border-radius: 6px;
+  color: var(--ink, #2b2318);
+  background: rgba(239, 226, 191, 0.92);
+  border: 1px solid rgba(43, 35, 24, 0.45);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.wm-port-label--left {
+  top: -14px;
+  left: -22px;
+  transform: translateX(-100%);
+}
+
+.wm-port-label--right {
+  top: -14px;
+  left: 22px;
+  transform: none;
+}
+
+.wm-label-anchor {
+  pointer-events: none;
+}
+
+.wm-label-anchor.is-locked .wm-port-label {
+  opacity: 0.55;
+  background: rgba(200, 194, 176, 0.75);
+  color: #4a443a;
+}
+
+.wm-label-anchor.is-here .wm-port-label {
+  font-weight: 700;
+}
+
+.world-map--screen .wm-port-label {
+  font-size: 20px;
+}
+
+/* 배 */
+.wm-ship {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+}
+
+.wm-ship--other {
+  pointer-events: auto;
+  margin: -13px 0 0 -13px;
+  width: 26px;
+  height: 26px;
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+/* 터치 대상 넓히기(겹치는 배 사이에서도 누르기 쉽게) */
+.wm-ship--other::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.wm-ship--other:disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+.wm-ship--mine {
+  margin: -23px 0 0 -23px;
+  width: 46px;
+  height: 46px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+
+.wm-fleet {
+  position: absolute;
+  inset: 0;
+}
+
+.wm-fleet-more {
+  pointer-events: auto;
+  margin: -14px 0 0 -22px;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  border: 1.5px solid var(--brass, #dcaa48);
+  background: rgba(12, 34, 48, 0.85);
+  color: var(--parchment-light, #efe2bf);
+  font: 700 16px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.wm-fleet-more:disabled {
+  pointer-events: none;
+}
+
+/* 말풍선(회사 이름만) */
+.wm-bubble {
+  pointer-events: auto;
+  margin-left: -110px;
+  width: 220px;
+  padding: 10px 36px 10px 14px;
+  border-radius: 10px;
+  background: var(--parchment-light, #efe2bf);
+  border: 2px solid var(--brass-dark, #8d6c2c);
+  color: var(--ink, #2b2318);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  font-size: 18px;
+  line-height: 1.4;
+  cursor: default;
+  z-index: 3;
+}
+
+.wm-bubble::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  margin-left: -8px;
+  border: 8px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--brass-dark, #8d6c2c);
+}
+
+.wm-bubble-names {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wm-bubble-more {
+  margin: 4px 0 0;
+  color: var(--ink-soft, #6b5a3f);
+}
+
+.wm-bubble-close {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ink, #2b2318);
+  cursor: pointer;
+}
+
+/* 확대 버튼 */
+.wm-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: var(--gap-touch, 8px);
+  z-index: 4;
+}
+
+.wm-btn {
+  min-width: var(--touch-min, 48px);
+  min-height: var(--touch-min, 48px);
+  padding: 8px 16px;
+  border-radius: var(--radius, 10px);
+  border: 2px solid var(--brass, #dcaa48);
+  background: rgba(12, 34, 48, 0.88);
+  color: var(--parchment-light, #efe2bf);
+  font: 18px/1.2 var(--font-body);
+  cursor: pointer;
+}
+
+.wm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wm-sea {
+    transition: none;
+  }
+}
+
+/* (107) 멀리 본 보기(학생 '전체 보기' 등, 1366px에서 동아시아 이름표 겹침 처리):
+   나라 이름을 빼고 짧게, 잠긴 항구 이름표는 숨기고(점만), 내 배는 항구 왼쪽 대신 위로 */
+.world-map--student.is-far .wm-port-label__country {
+  display: none;
+}
+
+.world-map--student.is-far .wm-label-anchor.is-locked {
+  display: none;
+}
+
+.world-map--student.is-far .wm-port-label {
+  font-size: 18px;
+  padding: 1px 6px 2px;
+}
+
+.world-map--student.is-far .wm-port-label--left {
+  left: -16px;
+}
+
+.world-map--student.is-far .wm-port-label--right {
+  left: 16px;
+}
+
+.world-map--student.is-far .wm-ship--mine {
+  margin: -59px 0 0 15px;
+}

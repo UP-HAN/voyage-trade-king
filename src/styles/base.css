@@ -1,0 +1,350 @@
+/*
+ * 기본 스타일 — 대항해 무역왕
+ * 팔레트: docs/art-style.md 3.1(기본), 3.2(컨테이너·모둠 색)
+ * 가독성: docs/PRD.md 8.1 (본문 18px 이상, 터치 대상 48×48px 이상, 버튼 사이 8px 이상, reduced-motion)
+ */
+
+/* ---------- 글꼴 (OFL, src/styles/fonts/OFL.txt) ---------- */
+@font-face {
+  font-family: 'Song Myung';
+  src: url('./fonts/SongMyung-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gowun Dodum';
+  src: url('./fonts/GowunDodum-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- 팔레트·토큰 ---------- */
+:root {
+  /* 3.1 기본 팔레트 */
+  --parchment-light: #EFE2BF; /* 양피지 밝음 — 카드 바탕 */
+  --parchment-mid: #E4D3A8; /* 양피지 중간 — 카드 안쪽 칸 */
+  --parchment-land: #D6C497; /* 양피지 육지 — 지도 육지 */
+  --land-shadow: #8E7849; /* 육지 그림자 */
+  --ink: #2B2318; /* 잉크 진함 — 윤곽선, 본문 글자 */
+  --ink-soft: #6B5A3F; /* 잉크 흐림 — 보조 선, 보조 글자 */
+  --sea-deep: #0C2230; /* 심해 — 바다 가장 어두운 곳, 배경 */
+  --sea: #123448; /* 바다 — 지도 바다 기본 */
+  --sea-light: #1F4E6B; /* 바다 밝음 — 연안, 물결 하이라이트 */
+  --sea-teal: #2E7D8C; /* 청록 바다 — 얕은 바다 */
+  --brass: #DCAA48; /* 놋쇠 — 강조, 버튼 테두리 */
+  --brass-dark: #8D6C2C; /* 놋쇠 어두움 */
+  --stamp-red: #C0623F; /* 도장 빨강 — 관세 도장, 경고 */
+  --sunset: #F2B66D; /* 노을 — 하이라이트 */
+
+  /* 3.2 컨테이너·모둠 색 */
+  --team-1: #B5523B; /* 홍 */
+  --team-2: #3B6E8F; /* 청 */
+  --team-3: #6C8F4E; /* 녹 */
+  --team-4: #D9A441; /* 황 */
+  --team-5: #7A5C8E; /* 자 */
+  --team-6: #2E7D8C; /* 청록 */
+
+  /* 글꼴 — 시스템 글꼴을 대체로 둔다 */
+  --font-title: 'Song Myung', 'Nanum Myeongjo', 'Noto Serif KR', 'Batang', serif;
+  --font-body: 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+
+  /* 크기 (PRD 8.1-1, 8.1-6) */
+  --text-body: 18px;
+  --text-small: 16px;
+  --text-big-number: 40px;
+  --touch-min: 48px;
+  --gap-touch: 8px;
+  --radius: 10px;
+
+  /* 연출 시간 — reduced-motion 이면 0 에 가깝게 */
+  --dur-fast: 150ms;
+  --dur-base: 300ms;
+}
+
+/* ---------- 기본 ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--sea-deep);
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+.title-font {
+  font-family: var(--font-title);
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+img {
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+}
+
+/* ---------- 버튼 (최소 48×48px, 사이 8px) ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 10px 22px;
+  border: 2px solid var(--brass);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn--primary {
+  background: var(--sea);
+  color: var(--parchment-light);
+}
+
+.btn--primary:hover {
+  background: var(--sea-light);
+}
+
+.btn--secondary {
+  background: var(--parchment-light);
+  color: var(--ink);
+  border-color: var(--brass-dark);
+}
+
+.btn--secondary:hover {
+  background: var(--parchment-mid);
+}
+
+.btn--large {
+  min-height: 72px;
+  padding: 14px 40px;
+  font-size: 26px;
+}
+
+.link-small {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-small);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 이미지가 없을 때 글자 꼬리표(PRD 8.1-9) */
+.img-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 4px 10px;
+  border: 2px dashed var(--ink-soft);
+  border-radius: var(--radius);
+  background: var(--parchment-mid);
+  color: var(--ink);
+}
+
+/* ---------- 타이틀(S01) ---------- */
+.title-screen {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  padding: 4vh 5vw;
+  background-color: var(--sea-deep);
+  background-size: cover;
+  background-position: 70% center;
+  background-repeat: no-repeat;
+}
+
+/* (작업 133) 키아트 <img>: 예전 CSS 배경(cover, 25% center)과 같은 자리·크기. 글자·패널 뒤(isolation 으로 바탕색 위·내용 아래) */
+.title-screen {
+  isolation: isolate;
+}
+
+.title-screen__art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.title-screen__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: 25% center;
+}
+
+.title-screen__panel {
+  max-width: 520px;
+  padding: 32px 36px 20px;
+  border: 2px solid var(--brass);
+  border-radius: 14px;
+  background: rgba(239, 226, 191, 0.92); /* --parchment-light */
+  box-shadow: 0 8px 28px rgba(12, 34, 48, 0.35);
+}
+
+.title-screen__name {
+  margin: 0;
+  font-size: clamp(44px, 6vw, 76px);
+  color: var(--ink);
+}
+
+.title-screen__sub {
+  margin: 8px 0 28px;
+  font-size: 22px;
+  color: var(--ink-soft);
+}
+
+.title-screen__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.title-screen__conn {
+  margin: 0 0 8px;
+  font-size: var(--text-small);
+  color: var(--ink-soft);
+}
+
+.title-screen__version {
+  position: absolute;
+  right: 12px;
+  bottom: 4px;
+  margin: 0;
+  font-size: 12px;
+  color: rgba(239, 226, 191, 0.85);
+  text-shadow: 0 0 3px rgba(12, 34, 48, 0.9);
+}
+
+/* ---------- 자리표시 화면 ---------- */
+.placeholder {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+  background: var(--parchment-light);
+}
+
+.placeholder h1 {
+  margin: 0;
+  font-size: 48px;
+}
+
+.placeholder__status {
+  display: inline-block;
+  margin: 8px 0;
+  padding: 4px 16px;
+  border: 2px solid var(--stamp-red);
+  border-radius: 6px;
+  color: var(--stamp-red);
+  font-size: 22px;
+}
+
+.route-loading {
+  margin: 0;
+  padding: 24px;
+  color: var(--parchment-light);
+}
+
+/* ---------- 세로 화면 안내(학생 라우트, PRD 8.1-10) ---------- */
+.rotate-notice {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 1024px) {
+  .rotate-notice {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--sea-deep);
+    color: var(--parchment-light);
+    text-align: center;
+  }
+
+  .rotate-notice__title {
+    margin: 0 0 8px;
+    font-family: var(--font-title);
+    font-size: 36px;
+  }
+}
+
+/* ---------- 연출 축소 (PRD 8.1-8) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

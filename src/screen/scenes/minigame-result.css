@@ -1,0 +1,62 @@
+/* 미니게임 결과 장면(작업 113): 벽란도 맞힌 수 분포 — 세로 막대(0~9장이 한 화면에), 이름 없음. 크기는 110의 비례 단위 --u */
+
+.scr-mg__hist {
+  width: min(100%, calc(var(--u) * 84));
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: calc(var(--u) * 0.9);
+  align-items: end;
+  padding: calc(var(--u) * 1.2) calc(var(--u) * 2) calc(var(--u) * 1);
+}
+
+.scr-mg__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.4);
+}
+
+.scr-mg__val {
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.scr-mg__val small {
+  font-size: var(--scr-small);
+  font-weight: 400;
+  margin-left: 0.15em;
+}
+
+.scr-mg__track {
+  position: relative;
+  width: 100%;
+  height: calc(var(--u) * 20);
+  background: var(--parchment-mid);
+  border: 2px solid var(--ink);
+  border-radius: calc(var(--u) * 0.4);
+  overflow: hidden;
+}
+
+.scr-mg__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(0deg, var(--brass-dark), var(--brass));
+  transition: height 0.6s ease-out;
+}
+
+.scr-mg__label {
+  font-size: var(--scr-body);
+  white-space: nowrap;
+}
+
+.scr-mg__note {
+  margin: 0;
+  font-size: var(--scr-small);
+  color: var(--parchment-mid);
+  text-align: center;
+}

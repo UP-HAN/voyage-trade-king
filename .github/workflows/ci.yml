@@ -1,0 +1,24 @@
+# 검사·테스트·빌드만 한다. 배포·외부 업로드 단계는 두지 않는다(PRD 10.11, 배포는 작업 128의 npm run deploy).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check:data
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:server

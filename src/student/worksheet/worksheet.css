@@ -1,0 +1,236 @@
+/* 학습지 "잠깐!" 팝업(S22, 작업 112) + 마무리 '끝나고 쓰기' 목록 */
+
+.ws-modal {
+  /* 위쪽 HUD·토스트(약 150px까지)를 피해 그 아래 공간 가운데에 둔다(수정 1회차: 토스트가 묶음 머리를 가림) */
+  position: absolute;
+  top: 150px;
+  bottom: 12px;
+  left: 50%;
+  margin: auto 0;
+  height: fit-content;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(640px, calc(100% - 32px));
+  max-height: calc(100% - 162px);
+  overflow-y: auto;
+  padding: 20px 24px;
+  border: 3px solid var(--brass);
+  border-radius: 14px;
+  background: var(--parchment-light);
+  color: var(--ink);
+  box-shadow: 0 10px 30px rgba(12, 34, 48, 0.55);
+}
+.ws-head {
+  margin: 0;
+  text-align: center;
+  font-size: 44px;
+  line-height: 1.1;
+  color: var(--stamp-red);
+}
+.ws-tag {
+  align-self: center;
+  margin: 0;
+  padding: 2px 12px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 14px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+.ws-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ws-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px 4px;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+.ws-row:last-child {
+  border-bottom: none;
+}
+.ws-no {
+  flex: none;
+  font-size: 56px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--ink);
+}
+.ws-modal--bundle .ws-no {
+  font-size: 34px;
+}
+.ws-no--small {
+  font-size: 22px;
+}
+.ws-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ws-row__body p {
+  margin: 0;
+}
+.ws-prompt {
+  font-size: 20px;
+  line-height: 1.5;
+}
+.ws-pages {
+  font-weight: 700;
+  color: var(--brass-dark);
+}
+.ws-helper {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--parchment-mid);
+  font-size: 17px;
+}
+.ws-helper.is-empty {
+  color: var(--ink-soft);
+}
+.ws-late {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(220, 170, 72, 0.25);
+  text-align: center;
+  font-weight: 700;
+}
+/* (작업 132) 지금 쓰기 팝업 아래 작은 글씨 "나머지 칸은 끝나고 써요" */
+.ws-during-rest {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  color: var(--ink-soft);
+}
+.ws-done {
+  align-self: center;
+  min-width: 240px;
+}
+.ws-done[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ws-wait {
+  text-align: center;
+}
+.ws-wait p {
+  margin: 4px 0;
+}
+.ws-wait__title {
+  font-size: 30px;
+}
+.ws-foot {
+  /* 묶음 팝업이 길어도 [다 썼어요]가 늘 보이게 아래에 붙인다 */
+  position: sticky;
+  bottom: -20px;
+  margin: 0 -24px -20px;
+  padding: 10px 24px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: var(--parchment-light);
+  border-top: 1px solid var(--parchment-land);
+  box-shadow: 0 -6px 12px rgba(239, 226, 191, 0.9);
+}
+.ws-tools {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* 묶음(번호 여러 개)은 한 화면에 들어가게 촘촘히 */
+.ws-modal--bundle {
+  gap: 6px;
+  padding-top: 14px;
+}
+.ws-modal--bundle .ws-head {
+  font-size: 36px;
+}
+.ws-modal--bundle .ws-rows {
+  gap: 2px;
+}
+.ws-modal--bundle .ws-row {
+  padding: 4px 2px;
+  gap: 10px;
+}
+.ws-modal--bundle .ws-prompt {
+  font-size: 18px;
+  line-height: 1.4;
+}
+.ws-modal--bundle .ws-helper {
+  font-size: 16px;
+  padding: 2px 8px;
+}
+.ws-letters {
+  z-index: 2;
+}
+
+/* 마무리 '끝나고 쓰기' 목록(모달 아님) */
+.ws-after {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(720px, calc(100% - 24px));
+  max-height: 60%;
+  overflow-y: auto;
+  padding: 16px 20px;
+  border: 3px solid var(--brass);
+  border-radius: 14px;
+  background: var(--parchment-light);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgba(12, 34, 48, 0.5);
+}
+.ws-after .ws-tag {
+  align-self: flex-start;
+}
+.ws-after__title {
+  margin: 0;
+  font-size: 28px;
+}
+.ws-after__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ws-after__rows small {
+  color: var(--brass-dark);
+  font-weight: 700;
+}
+.ws-after__hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+.ws-after__btns {
+  display: flex;
+  gap: 8px;
+}
+.ws-after-pill {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 70;
+}
+.ws-personal {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--brass-dark);
+}

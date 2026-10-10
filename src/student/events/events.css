@@ -1,0 +1,298 @@
+/* 학생 사건 층(작업 111): 가운데 카드, 오른쪽 패널(비차단), 기다리기, 따라잡기, 첫 항해 튜토리얼, 자리표시 */
+
+.ev-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ev-center--scroll {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.ev-center > .vc,
+.ev-center > .ev-catchup {
+  width: min(880px, 100%);
+  margin: auto;
+}
+
+/* 비차단 사건: 오른쪽 패널 — 아래 화면(해도·항구·하단 바)을 막지 않는다 */
+.ev-panel {
+  position: absolute;
+  top: 96px;
+  right: 12px;
+  width: min(380px, 34vw);
+  /* 아래쪽 지도 단추([전체 보기]·[내 배로])와 하단 바를 가리지 않게 */
+  max-height: calc(100% - 96px - 170px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.ev-panel > .vc {
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+/* 패널 안에서는 안내 항해사 말을 튜토리얼 말풍선이 대신한다 */
+.ev-panel .vc__guide {
+  display: none;
+}
+
+.ev-panel__fold {
+  align-self: flex-end;
+  min-height: var(--touch-min);
+  padding: 0 10px;
+  color: var(--parchment-light);
+  background: rgba(12, 34, 48, 0.75);
+  border-radius: 8px;
+}
+
+.ev-panel--folded {
+  /* 항구 화면에서는 장면 띠(그림) 오른쪽 아래 — 이름표·사기/팔기 버튼을 가리지 않는 자리 */
+  top: 146px;
+  width: auto;
+  max-width: 46vw;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ev-panel__unfold {
+  min-height: var(--touch-min);
+}
+
+.ev-panel__note {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--ink-soft);
+}
+
+/* 기다리기 */
+.ev-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(560px, 100%);
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--parchment-light);
+  border: 3px solid var(--brass-dark);
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+
+.ev-wait__kicker {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.ev-wait__text {
+  margin: 0;
+  font-size: 26px;
+}
+
+.ev-inline-wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 2px dashed var(--sea-light);
+  border-radius: 8px;
+}
+
+/* 따라잡기 */
+.ev-catchup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ev-catchup__kicker {
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--sea);
+  color: var(--parchment-light);
+  font-weight: 700;
+}
+
+.ev-catchup > .vc__foot {
+  padding: 4px 0;
+}
+
+.ev-summary {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ev-summary__fake {
+  color: var(--stamp-red);
+  font-size: var(--text-small);
+}
+
+.ev-summary__pages {
+  color: var(--sea);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+/* 첫 항해 튜토리얼: 말풍선(왼쪽 아래)과 손가락만 누를 수 있고 나머지는 아래 화면으로 */
+.ev-tut {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+}
+
+.ev-tut__bubble {
+  position: absolute;
+  /* 목적지 확인 창(.st-pick, 왼쪽 아래 380px)과 겹치지 않게 그 오른쪽 */
+  left: 404px;
+  bottom: 104px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  max-width: max(300px, min(440px, calc(100vw - 404px - 400px)));
+  pointer-events: auto;
+}
+
+.ev-tut__bubble--port {
+  /* 항구 화면(하단 바 없음): 오른쪽 아래 구석 */
+  left: auto;
+  right: 12px;
+  bottom: 12px;
+}
+
+.ev-tut__bubble--top {
+  bottom: auto;
+  top: 92px;
+}
+
+.ev-tut__guide {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 10px;
+  border: 2px solid var(--brass-dark);
+  background: var(--parchment-mid);
+  flex: 0 0 auto;
+}
+
+.ev-tut__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #fff8e6;
+  border: 2px solid var(--brass);
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.ev-tut__kicker {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--ink-soft);
+}
+
+.ev-tut__msg {
+  margin: 0;
+  font-size: 18px;
+}
+
+.ev-tut__btns {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ev-tut__finger {
+  position: fixed;
+  width: 40px;
+  height: 48px;
+  margin-left: -20px;
+  pointer-events: none;
+  animation: ev-tap 1s ease-in-out infinite;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes ev-tap {
+  0%,
+  100% {
+    transform: translateY(4px);
+  }
+  50% {
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-tut__finger {
+    animation: none;
+  }
+}
+
+/* 미니게임·학습지 자리표시 */
+.st-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(560px, calc(100% - 32px));
+  margin: auto;
+  padding: 24px;
+  text-align: center;
+  background: var(--parchment-light);
+  border: 3px solid var(--brass-dark);
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+
+.st-layer--worksheet > .st-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.st-placeholder p {
+  margin: 0;
+}
+
+.st-placeholder__kicker {
+  color: var(--ink-soft);
+}
+
+.st-placeholder__title {
+  font-size: 28px;
+}
+
+/* 하단 임무 막대: 완료 */
+.st-mission.is-complete .st-mission__done {
+  color: #3c6a28;
+  font-weight: 700;
+}
+
+/* (수정 1회차) 마감 뒤 결과 표시 */
+.ev-result-note {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #e8f1ef;
+  border: 2px solid var(--sea-teal);
+  font-weight: 700;
+}

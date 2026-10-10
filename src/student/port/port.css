@@ -1,0 +1,597 @@
+/*
+ * 항구 화면 S08 — 작업 108. 1366×768 / 1180×820 기준, 가로 스크롤 없음, 본문 18px 이상, 터치 48px, 버튼 사이 8px(PRD 8.1).
+ * 팔레트는 base.css 토큰(art-style 3.1).
+ */
+.pt {
+  position: relative;
+  min-height: 100%;
+  background: var(--parchment-mid);
+  color: var(--ink);
+}
+
+/* ---------- 머리: 장면 띠 + 이름표 + 탭 ---------- */
+.pt-head {
+  position: relative;
+  height: clamp(104px, 16vh, 150px);
+  overflow: hidden;
+  border-bottom: 3px solid var(--brass);
+  background: var(--sea);
+}
+
+.pt-scene {
+  position: relative;
+  overflow: hidden;
+  background: var(--sea);
+}
+
+.pt-scene__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  /* 16:9 장면의 세로 중앙 21:9 안전 영역(art-style 8장)을 가운데에 둔다 */
+  object-position: center;
+}
+
+.pt-scene--strip {
+  position: absolute;
+  inset: 0;
+}
+
+.pt-scene--card {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  margin-bottom: 12px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 10px;
+}
+
+/* 이미지가 없을 때: 해도를 그 항구 쪽으로 크게 + 이름 띠 */
+.pt-scene--fallback {
+  background-color: var(--sea);
+  background-repeat: no-repeat;
+  background-size: 900% auto;
+}
+
+.pt-scene__pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border: 4px solid var(--stamp-red);
+  border-radius: 50%;
+  background: var(--parchment-light);
+  transform: translate(-50%, -50%);
+}
+
+.pt-scene__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12%;
+  padding: 6px 12px;
+  background: rgba(239, 226, 191, 0.92);
+  color: var(--ink);
+  font-size: 26px;
+  text-align: center;
+}
+
+.pt-head__bar {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-touch);
+}
+
+.pt-back {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.pt-tabs {
+  display: flex;
+  gap: var(--gap-touch);
+}
+
+.pt-tab {
+  min-width: 88px;
+  min-height: var(--touch-min);
+  padding: 4px 18px;
+  border: 2px solid var(--brass-dark);
+  border-radius: var(--radius);
+  background: var(--parchment-light);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.pt-tab.is-on {
+  border-color: var(--brass);
+  background: var(--sea);
+  color: var(--parchment-light);
+}
+
+.pt-name {
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  margin: 0;
+  padding: 4px 16px;
+  border: 2px solid var(--brass);
+  border-radius: 10px;
+  background: rgba(239, 226, 191, 0.94);
+  color: var(--ink);
+  font-size: 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.pt-notice {
+  margin: 0;
+  padding: 8px 16px;
+  background: var(--sunset);
+  color: var(--ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---------- 본문 ---------- */
+.pt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px 16px;
+}
+
+.pt-body--story {
+  max-width: 920px;
+  margin: 0 auto;
+  padding-top: 16px;
+}
+
+.pt-sec {
+  padding: 8px 12px 10px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 12px;
+  background: var(--parchment-light);
+}
+
+.pt-sec__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-bottom: 6px;
+}
+
+.pt-sec__title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.pt-sec__help {
+  color: var(--ink-soft);
+}
+
+.pt-sec__note {
+  margin: 0 0 6px;
+}
+
+.pt-rule-tag {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pt-hold {
+  margin-left: auto;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--parchment-mid);
+  font-weight: 700;
+}
+
+.pt-empty {
+  margin: 4px 0;
+  color: var(--ink-soft);
+}
+
+.pt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: 8px;
+}
+
+/* ---------- 상품 카드 ---------- */
+.pt-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 2px solid var(--ink-soft);
+  border-radius: var(--radius);
+  background: #f6ecd0;
+}
+
+.pt-card.is-hot {
+  border-color: #c77a1a;
+}
+
+.pt-card.is-off {
+  background: var(--parchment-mid);
+}
+
+/* 서비스 = 계약서 카드: 접힌 모서리 + 점선 테두리 */
+.pt-card--service {
+  border-style: dashed;
+  background: linear-gradient(225deg, var(--parchment-mid) 0 14px, #fbf4df 14px);
+}
+
+.pt-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pt-card__title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pt-card__name {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.pt-card__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.pt-card__price b {
+  font-size: 26px;
+}
+
+.pt-card__reason {
+  margin: 2px 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.pt-card__over {
+  margin: 0;
+  color: #8a3c1e;
+  font-weight: 700;
+}
+
+.pt-card__cost {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+.pt-card--buy .pt-card__cost {
+  display: none;
+}
+
+.pt-card__act {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-touch);
+  margin-top: 2px;
+}
+
+.pt-card__btn {
+  flex: 1 1 auto;
+  min-width: 72px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.pt-goodicon {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.pt-goodicon--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  font-family: var(--font-title);
+  font-weight: 700;
+}
+
+.pt-hot {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border: 1.5px solid #c77a1a;
+  border-radius: 999px;
+  background: #f8d8a8;
+  color: #6a3a08;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pt-tag {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pt-tag--green {
+  border: 1.5px solid #4f7338;
+  background: #dfe9cf;
+  color: #2f4a1f;
+}
+
+.pt-tag--blue {
+  border: 1.5px solid #3b6e8f;
+  background: #d6e4ee;
+  color: #1d3d52;
+}
+
+.pt-tag--gray {
+  border: 1.5px solid #6b6459;
+  background: #e6e1d6;
+  color: #3a352d;
+}
+
+.pt-contract {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 16px;
+  cursor: help;
+}
+
+/* 한도 게이지(숫자 없이 막대) */
+.pt-gauge {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 999px;
+  background: #fbf4df;
+}
+
+.pt-gauge__fill,
+.pt-gauge__preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.pt-gauge__preview {
+  background: rgba(46, 125, 140, 0.35);
+}
+
+.pt-gauge__fill {
+  background: var(--sea-teal);
+}
+
+.pt-gauge.is-over .pt-gauge__preview {
+  background: repeating-linear-gradient(45deg, #c0623f 0 6px, #e8a58a 6px 12px);
+}
+
+.pt-limit {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+}
+
+/* 수량 [−][n][+] */
+.pt-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pt-stepper__btn {
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border: 2px solid var(--brass-dark);
+  border-radius: var(--radius);
+  background: var(--parchment-light);
+  color: var(--ink);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pt-stepper__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pt-stepper__val {
+  min-width: 46px;
+  white-space: nowrap;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pt-stepper__unit {
+  margin-left: 2px;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.pt-wanted-btn {
+  margin-top: 4px;
+}
+
+.pt-wanted {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-wanted li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 10px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 999px;
+  background: #fbf4df;
+}
+
+.pt-wanted li.is-hot {
+  border-color: #c77a1a;
+  font-weight: 700;
+}
+
+/* ---------- 판매 결과 띠 ---------- */
+.pt-result {
+  position: fixed;
+  left: 50%;
+  /* 토스트(위쪽 92px부터 최대 3개) 아래, 화면 가운데쯤 */
+  top: 58%;
+  z-index: 55;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 24px;
+  border: 3px solid var(--brass);
+  border-radius: 16px;
+  background: var(--parchment-light);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.pt-result__profit {
+  font-family: var(--font-title);
+  font-size: 32px;
+  font-weight: 700;
+  color: #2f4a1f;
+}
+
+.pt-result__profit.is-loss {
+  color: #8a3c1e;
+}
+
+.pt-result__sub {
+  flex-basis: 100%;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---------- 첫 도장 개념 카드 ---------- */
+.pt-concept {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 56;
+  width: min(380px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border: 3px solid var(--brass);
+  border-radius: 14px;
+  background: var(--parchment-light);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.pt-concept__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+}
+
+.pt-concept p {
+  margin: 6px 0;
+}
+
+.pt-pages {
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+/* ---------- 이야기(항구 카드) ---------- */
+.pt-story {
+  color: var(--ink);
+}
+
+.pt-story__lines {
+  margin: 0 0 10px;
+  padding-left: 22px;
+  line-height: 1.5;
+}
+
+.pt-story__rule {
+  margin: 0 0 10px;
+}
+
+.pt-reasons__title {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.pt-reasons__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.pt-reasons__note {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.pt-body--story .pt-story {
+  padding: 14px 18px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 12px;
+  background: var(--parchment-light);
+}
+
+@media (max-width: 1200px) {
+  .pt-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.pt-card__tariff {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

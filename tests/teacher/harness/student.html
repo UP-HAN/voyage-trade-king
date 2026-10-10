@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>학생 테스트 하네스(작업 109 e2e 전용)</title>
+  </head>
+  <body>
+    <!-- 작업 107 학생 화면이 생기기 전, 교사 대시보드 e2e(LocalAdapter)에서 학생 탭을 흉내 내는 최소 하네스. 개발 서버에서만 열린다. -->
+    <main id="root">
+      <p>상태: <b id="status">idle</b> <span id="error"></span></p>
+      <p>회사: <span id="company"></span> · 번호 <span id="seat"></span></p>
+      <p>남은 시간(초): <span id="remaining"></span></p>
+      <p id="paused" hidden>선생님을 보세요</p>
+    </main>
+    <script type="module" src="./student-harness.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "name": "voyage-trade-king",
+  "private": true,
+  "version": "0.1.0",
+  "description": "대항해 무역왕 — 초등 6학년 사회 「세계 속의 무역」 수업용 웹 게임",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "build:server": "npm run build --workspace server",
+    "loadtest": "npm run loadtest --workspace server --",
+    "deploy": "node scripts/deploy.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:l1": "playwright test -c tests/lesson1-full.playwright.config.ts",
+    "e2e:all": "playwright test && playwright test -c tests/e2e-preview.playwright.config.ts && playwright test -c tests/teacher/playwright.config.ts && playwright test -c tests/screen/playwright.config.ts",
+    "test:sim": "vitest run tests/sim",
+    "rehearsal": "node scripts/rehearsal.mjs",
+    "size:report": "npm run build && npm run build:server && node scripts/run-ts.mjs scripts/size-report.ts",
+    "check:data": "node scripts/run-ts.mjs scripts/check-data.ts",
+    "build:land": "node scripts/run-ts.mjs scripts/build-land.ts",
+    "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
+    "worksheet:pdf": "node scripts/build-worksheet-pdf.mjs"
+  },
+  "dependencies": {
+    "preact": "^11.0.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@playwright/test": "^1.64.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^24.19.1",
+    "sharp": "^0.35.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

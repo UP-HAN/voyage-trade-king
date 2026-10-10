@@ -1,0 +1,54 @@
+# 의존성
+node_modules/
+
+# 빌드 결과
+dist/
+server/dist/
+*.tsbuildinfo
+
+# 테스트 결과 (Playwright·Vitest)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+
+# 로컬 확인용 임시 폴더
+.tmp-*/
+
+# 비밀값·개인 설정 (서버 주소·SSH 키·토큰 금지 — PRD 10.11)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.voyage-deploy.json
+**/.voyage-deploy.json
+.voyage-deploy*.json
+**/.voyage-deploy*.json
+
+# 편집기·OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# 공개 저장소 제외 (작업 130 — 교과서 원본·작업 기록·서버 전용 스크립트)
+사회_2-3_단원_무역.pdf
+docs/source/
+.orch/
+.claude/
+CLAUDE.md
+tmp/
+assets/images/**/_candidates/
+assets/images/**/_check/
+deploy/install-lab-ches.sh
+
+# 빌드 캐시(작업 133 이미지 사본 변환 결과)
+.cache/
+
+# 인쇄용 학습지 PDF는 공개(136)
+!print/dist/

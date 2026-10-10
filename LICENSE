@@ -1,0 +1,38 @@
+대항해 무역왕 — 라이선스 안내
+
+1) 코드 (src/, shared/, server/, scripts/, tests/, e2e/, deploy/ 및 설정 파일)
+   MIT License
+
+   Copyright (c) 2026 hanuipyo
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+2) 그림 (assets/images/) 과 문서·학습지 (docs/)
+   Creative Commons 저작자표시-비영리 4.0 국제 (CC BY-NC 4.0)
+   https://creativecommons.org/licenses/by-nc/4.0/deed.ko
+   저작자 표시: hanuipyo (Instagram @hanuipyo)
+   수업·연수 등 비영리 목적으로 자유롭게 쓰고 고칠 수 있습니다. 판매 등 영리 목적 사용은 안 됩니다.
+   그림은 AI 이미지 생성 도구로 만들었습니다.
+
+3) 글꼴 (src/styles/fonts/)
+   Song Myung, Gowun Dodum — SIL Open Font License 1.1 (같은 폴더의 OFL.txt)
+
+4) 교과서 인용
+   게임 속 교과서 관련 내용은 수업에 필요한 만큼 쪽수를 밝혀 인용했습니다.
+   교과서 원본 파일은 이 저장소에 포함하지 않습니다.

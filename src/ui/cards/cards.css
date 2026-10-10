@@ -1,0 +1,558 @@
+/*
+ * 사건·결정 카드(작업 111). 학생용 .vc--student(본문 18px), 공용 화면용 .vc--screen(본문 32px 이상, 화면 비례 --u).
+ * 띠: 가상 뉴스(도장 빨강) / 교과서 속 기사(바다) / 개념(놋쇠) / 돌발 사건(기상도 틀 — 126이 채움).
+ */
+.vc {
+  --vc-fs: 18px;
+  --vc-fs-small: 16px;
+  --vc-fs-title: 26px;
+  --vc-gap: 12px;
+  --vc-pad: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vc-gap);
+  background: var(--parchment-light);
+  color: var(--ink);
+  border: 3px solid var(--brass-dark);
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px var(--brass) inset, 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: var(--vc-pad);
+  font-size: var(--vc-fs);
+  line-height: 1.55;
+  max-width: 100%;
+  animation: vc-in var(--dur-base, 300ms) ease;
+}
+
+@keyframes vc-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vc {
+    animation: none;
+  }
+}
+
+.vc--screen {
+  /* 1920×1080: 본문 33.6px, 작은 글자 32.6px, 제목 57.6px(공용 화면 110과 같은 비례 단위 — 1280×720에서도 잘리지 않게 함께 줄어듦) */
+  --vc-fs: calc(var(--u, 19.2px) * 1.75);
+  --vc-fs-small: calc(var(--u, 19.2px) * 1.7);
+  --vc-fs-title: calc(var(--u, 19.2px) * 3);
+  --vc-gap: calc(var(--u, 19.2px) * 0.9);
+  --vc-pad: calc(var(--u, 19.2px) * 1.4) calc(var(--u, 19.2px) * 2);
+  border-width: calc(var(--u, 19.2px) * 0.35);
+  line-height: 1.4;
+}
+
+/* ── 띠 ── */
+.vc__band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: calc(var(--vc-gap) * -0.3) 0 0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: var(--vc-fs-small);
+  font-weight: 700;
+  color: var(--parchment-light);
+  background: var(--brass-dark);
+}
+
+.vc__band--news,
+.vc__band--incident {
+  background: var(--stamp-red);
+}
+
+.vc__band--article {
+  background: var(--sea);
+}
+
+.vc__band--concept {
+  background: var(--brass-dark);
+}
+
+.vc__kind {
+  padding: 0 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 400;
+}
+
+.vc__band-pages {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+/* 돌발 사건(P1, 126): 차분한 기상도 틀 */
+.vc--incident {
+  border-style: double;
+  border-color: var(--sea-light);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 22px, rgba(31, 78, 107, 0.07) 22px 23px),
+    var(--parchment-light);
+}
+
+/* ── 본문 ── */
+.vc__main {
+  display: flex;
+  gap: calc(var(--vc-gap) * 1.4);
+  min-height: 0;
+}
+
+.vc__art {
+  flex: 0 0 30%;
+  max-width: 280px;
+  min-height: 140px;
+  border-radius: 8px;
+  border: 2px solid var(--brass-dark);
+  overflow: hidden;
+  background: var(--parchment-mid);
+}
+
+.vc--screen .vc__art {
+  max-width: none;
+  flex-basis: 32%;
+  min-height: calc(var(--u, 19.2px) * 16);
+  max-height: calc(var(--u, 19.2px) * 24);
+}
+
+.vc__art-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 삽화가 없으면 양피지 무늬 */
+.vc__art--pattern {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(220, 170, 72, 0.25), transparent 40%),
+    repeating-linear-gradient(45deg, rgba(142, 120, 73, 0.18) 0 2px, transparent 2px 14px),
+    repeating-linear-gradient(-45deg, rgba(142, 120, 73, 0.12) 0 2px, transparent 2px 14px),
+    var(--parchment-mid);
+}
+
+.vc__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--vc-gap) * 0.7);
+}
+
+.vc__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--vc-fs-title);
+  line-height: 1.25;
+}
+
+.vc__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vc__p {
+  margin: 0;
+}
+
+.vc__ask {
+  margin: 0;
+  font-weight: 700;
+}
+
+.vc__unit-note {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 4px solid var(--sea-teal);
+  background: rgba(46, 125, 140, 0.1);
+}
+
+/* ── 교과서 인용 상자 ── */
+.vc__quote {
+  margin: 0;
+  padding: 8px 12px;
+  border: 2px solid var(--sea-light);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vc__quote-tag {
+  font-size: var(--vc-fs-small);
+  font-weight: 700;
+  color: var(--sea);
+}
+
+/* 교과서 인용 문장은 본문(PRD 8.1 학생 18px 이상 — 작업 114). 꼬리표·쪽수만 작은 글자 */
+.vc__quote-text {
+  font-size: var(--vc-fs);
+}
+
+.vc--screen .vc__quote-text {
+  font-size: var(--vc-fs-small);
+}
+
+/* ── 상황 카드 ── */
+.vc__situations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--vc-gap);
+}
+
+.vc--screen .vc__situations {
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--u, 19.2px) * 30), 1fr));
+}
+
+.vc__situation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px dashed var(--brass-dark);
+  border-radius: 8px;
+  background: rgba(228, 211, 168, 0.6);
+}
+
+.vc__situation-title {
+  font-family: var(--font-title);
+  font-size: calc(var(--vc-fs) * 1.15);
+}
+
+/* ── 효과 요약 ── */
+.vc__effects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vc__effects li {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--sea);
+  color: var(--parchment-light);
+  font-size: var(--vc-fs); /* 효과 문장(작업 114: 18px 이상) */
+}
+
+/* ── 안내 항해사 ── */
+.vc__guide {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vc__guide-img {
+  width: 56px;
+  height: 72px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 8px;
+  border: 2px solid var(--brass-dark);
+  background: var(--parchment-mid);
+}
+
+.vc--screen .vc__guide-img {
+  width: calc(var(--u, 19.2px) * 5);
+  height: calc(var(--u, 19.2px) * 6.4);
+}
+
+.vc__guide-text {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: #fff8e6;
+  border: 2px solid var(--brass);
+}
+
+.vc__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-touch, 8px);
+}
+
+.vc__confirm {
+  min-width: 140px;
+  min-height: var(--touch-min, 48px);
+}
+
+/* ── 결정 카드 ── */
+.vc__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--vc-gap);
+}
+
+.vc--screen .vc__options {
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--u, 19.2px) * 22), 1fr));
+}
+
+.vc__opt {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-height: var(--touch-min, 48px);
+  padding: 10px 12px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 8px;
+  background: #fbf3dd;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+div.vc__opt {
+  cursor: default;
+}
+
+.vc__opt.is-on {
+  border-color: var(--sea);
+  box-shadow: 0 0 0 3px var(--sea-teal);
+  background: #e8f1ef;
+}
+
+.vc__opt-label {
+  font-weight: 700;
+  font-size: calc(var(--vc-fs) * 1.05);
+}
+
+.vc__opt-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+  font-size: var(--vc-fs); /* 선택지 설명 문장(작업 114: 18px 이상) */
+}
+
+.vc__opt-facts dt {
+  color: var(--ink-soft);
+}
+
+.vc__opt-facts dd {
+  margin: 0;
+}
+
+.vc__reason {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vc__reason input {
+  flex: 1;
+  min-width: 200px;
+  min-height: var(--touch-min, 48px);
+  padding: 0 12px;
+  font: inherit;
+  border: 2px solid var(--brass-dark);
+  border-radius: 8px;
+  background: #fffdf6;
+}
+
+.vc__count {
+  color: var(--ink-soft);
+}
+
+.vc__chosen {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #e8f1ef;
+  border: 2px solid var(--sea-teal);
+}
+
+.vc__chosen-label {
+  margin: 0;
+}
+
+.vc__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--brass);
+  border-radius: 8px;
+  background: #fff8e6;
+}
+
+.vc__reveal-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: calc(var(--vc-fs) * 1.2);
+}
+
+/* ── 교과서 속 기사 ── */
+.vc__article {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.vc__sentence {
+  display: inline;
+  padding: 0 2px;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vc__sentence.is-marked {
+  text-decoration: underline;
+  text-decoration-color: var(--stamp-red);
+  text-decoration-thickness: 3px;
+  background: rgba(242, 182, 109, 0.35);
+}
+
+.vc__source {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--vc-fs-small);
+}
+
+/* ── 확인 퀴즈 ── */
+.vc__quiz {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vc-gap);
+}
+
+.vc__q {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 8px;
+  background: #fbf3dd;
+}
+
+.vc__q-prompt {
+  margin: 0;
+}
+
+.vc__q-no {
+  font-weight: 700;
+  color: var(--sea);
+}
+
+.vc__q-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vc__q-choice {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min, 48px);
+  min-width: 64px;
+  justify-content: center;
+  padding: 4px 14px;
+  border: 2px solid var(--brass-dark);
+  border-radius: 8px;
+  background: #fffdf6;
+  color: var(--ink);
+  font: inherit;
+}
+
+button.vc__q-choice {
+  cursor: pointer;
+}
+
+.vc__q-choice.is-picked {
+  border-color: var(--sea);
+  box-shadow: 0 0 0 3px var(--sea-teal);
+}
+
+.vc__q-choice.is-correct {
+  background: #e3f0d9;
+  border-color: #4f7a34;
+  font-weight: 700;
+}
+
+.vc__q-sent {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.vc__q-rate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(var(--u, 19.2px) * 2.4);
+  min-height: 28px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--parchment-mid);
+  overflow: hidden;
+}
+
+.vc__q-rate-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--sea-teal);
+}
+
+.vc__q-rate-num {
+  position: relative;
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.vc__q-explain {
+  margin: 0;
+}
+
+.vc__q-mark {
+  margin-right: 6px;
+}
+
+.vc__q-mark--right {
+  color: #3c6a28;
+}
+
+.vc__q-mark--wrong {
+  color: var(--stamp-red);
+}
+
+.vc__q-pages {
+  color: var(--sea);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── 오른쪽 패널(비차단: L1-E6·L1-E7) ── */
+.vc--panel {
+  --vc-fs-title: 22px;
+  --vc-pad: 14px;
+  --vc-gap: 10px;
+}
+
+.vc--panel .vc__options {
+  grid-template-columns: 1fr;
+}
