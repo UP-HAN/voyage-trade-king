@@ -155,6 +155,8 @@
   // ---------- 단위 ----------
   const MM = 96 / 25.4; // CSS px / mm
   const COURSE = '대항해 무역왕 항해 일지 · 6학년 사회 세계 속의 무역';
+  // ⑲⑳ 쪽 묶음의 종이 위 이름(작업 140: 학생용에는 '선택' 낱말을 쓰지 않는다). data-sheet 값·파일 이름은 그대로 '선택활동'
+  const SPECIAL = '특별 항해';
 
   // ---------- 머리띠 그림(136 그림 유지): 나침반·구름·물결·배·해·갈매기 ----------
   const deco = (lead) => {
@@ -195,7 +197,7 @@
   function frame(page) {
     const lead = page.hasAttribute('data-lead');
     const teacher = page.classList.contains('tpage');
-    const label = page.dataset.label || (page.dataset.sheet === '선택활동' ? '선택 활동' : page.dataset.sheet);
+    const label = page.dataset.label || (page.dataset.sheet === '선택활동' ? SPECIAL : page.dataset.sheet);
     const h = document.createElement('header');
     h.className = `mast ${lead ? 'lead' : 'slim'}`;
     h.innerHTML = deco(lead) + (lead
@@ -221,7 +223,7 @@
     pages.forEach((p) => {
       const list = bySheet[p.dataset.sheet];
       const i = list.indexOf(p) + 1;
-      const name = p.classList.contains('tpage') ? '' : `${p.dataset.sheet === '선택활동' ? '선택 활동' : p.dataset.sheet} · `;
+      const name = p.classList.contains('tpage') ? '' : `${p.dataset.sheet === '선택활동' ? SPECIAL : p.dataset.sheet} · `;
       p.querySelector('.foot b').textContent = `${name}${i} / ${list.length}`;
     });
   }
@@ -237,7 +239,7 @@
     });
   }
 
-  // ---------- 남는 공간 채우기: ① 답 칸 줄 늘리기 → ② 블록 간격 늘리기 → ③ 그래도 크게 남으면 바다 그림 ----------
+  // ---------- 남는 공간 채우기: ① 답 칸 줄 늘리기 → ② 항해 퀴즈 키우기 → ③ 그래도 크게 남으면 바다 그림 ----------
   const seaArt = (tall) => `<svg class="sea" viewBox="0 0 400 60" preserveAspectRatio="none">
   <path d="M0 22 Q12.5 14 25 22 T50 22 T75 22 T100 22 T125 22 T150 22 T175 22 T200 22 T225 22 T250 22 T275 22 T300 22 T325 22 T350 22 T375 22 T400 22 V60 H0 Z" fill="#e4f2fa"/>
   <path d="M0 22 Q12.5 14 25 22 T50 22 T75 22 T100 22 T125 22 T150 22 T175 22 T200 22 T225 22 T250 22 T275 22 T300 22 T325 22 T350 22 T375 22 T400 22" fill="none" stroke="#8cc3df" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
@@ -246,15 +248,14 @@
 <svg class="cloud" style="left:20%;top:12%" viewBox="0 0 56 24"><path d="M8 20 Q2 20 3 14 Q4 9 10 10 Q12 3 20 4 Q27 1 31 8 Q38 6 40 12 Q46 12 46 17 Q46 20 41 20 Z" fill="#fff" stroke="#b9dcee" stroke-width="1.8" stroke-linejoin="round"/></svg>
 <svg class="cloud" style="right:32%;top:4%" viewBox="0 0 56 24"><path d="M8 20 Q2 20 3 14 Q4 9 10 10 Q12 3 20 4 Q27 1 31 8 Q38 6 40 12 Q46 12 46 17 Q46 20 41 20 Z" fill="#fff" stroke="#b9dcee" stroke-width="1.8" stroke-linejoin="round"/></svg>` : ''}`;
 
-  // 쪽 채움 규칙(DESIGN.md 7장) — 질문 블록 사이 간격은 늘 8mm. 남는 공간은 답 칸 줄 수가 흡수한다.
-  //  ① 답 칸 줄을 고르게 늘린다(data-max까지).
-  //  ② 그래도 60mm 넘게 비면(내용이 쪽의 절반이 안 되는 쪽) 줄 수를 처음으로 되돌리고, 질문 블록 아래에
-  //     '자유 메모 · 그림 칸 (선택)' 상자(여러 줄 쓰기 상자)를 넣는다. 다른 답 칸은 처음보다 2줄까지만 늘리고,
-  //     메모 상자가 바다 띠(24mm) 위까지 채운다. 구름·갈매기는 넣지 않는다.
-  //  ③ 그 밖의 쪽은 상한을 6줄 더 풀어 남은 공간을 마저 흡수한다. 그래도 30mm 넘게 남으면 바다 그림.
-  const SEA_STRIP = 24; // 메모 상자 아래 바다 띠 높이(mm, --sp-6)
-  const SPARSE = 90;    // 칸 상한까지 늘려도 이만큼(mm) 넘게 비면(쪽의 약 1/3) 메모 상자를 넣는다
-  const EXTRA = 6;      // ③에서 더 풀어 주는 줄 수
+  // 쪽 채움 규칙(DESIGN.md 7장, 작업 140) — 질문 블록 사이 간격은 늘 8mm. 메모 칸은 넣지 않는다.
+  //  0. 처음 줄 수로 넘치면: 퀴즈는 기본 줄 높이 그대로, 답 칸의 처음 줄 수를 줄인다(하한 2줄). 문항은 빼거나 옮기지 않는다.
+  //  1. 답 칸 줄을 고르게 늘린다(data-max까지) → 상한을 6줄 더 풀어(칸 종류별 상한 CAP까지) 마저 늘린다.
+  //  2. 퀴즈 키우기: 그 쪽 항해 퀴즈의 하위 문항 줄 높이·사이 간격을 단계(data-step 1~3)로 키운다. 넘치지 않는 가장 큰 단계.
+  //  3. 그래도 30mm 넘게 남으면 쪽 아래 바다 그림(70mm 넘으면 구름·갈매기).
+  const EXTRA = 6;      // 1에서 더 풀어 주는 줄 수
+  const MIN_LINES = 2;  // 넘칠 때 줄이는 하한
+  const QUIZ_STEPS = 3; // data-step 1: 줄 12mm·사이 4mm, 2: 12mm·8mm, 3: 16mm·8mm (worksheet.css)
   function fill(page) {
     const body = page.querySelector('.body');
     const act = body && body.querySelector('.act');
@@ -280,48 +281,54 @@
       return list;
     };
     const setG = (g, n) => g.els.forEach((el) => setLines(el, n));
-    const grow = (gs, reserve) => {
+    const grow = (gs) => {
       for (let guard = 0; guard < 400; guard++) {
-        if (free() < 10.5 + reserve) break;
+        if (free() < 10.5) break;
         const open = gs.filter((g) => !g.done && g.n < g.max);
-        const pool = open.some((g) => !g.last) ? open.filter((g) => !g.last) : open;
-        const c = pool.sort((a, b) => (a.n - a.base) - (b.n - b.base) || a.n - b.n)[0];
+        const c = open.sort((a, b) => (a.n - a.base) - (b.n - b.base) || a.n - b.n)[0];
         if (!c) break;
         setG(c, c.n + 1); // 묶음 전체(모든 행)에 1줄씩 — 자리가 없으면 되돌린다
-        if (free() < reserve) { setG(c, c.n); c.done = true; continue; }
+        if (free() < 0) { setG(c, c.n); c.done = true; continue; }
         c.n++;
       }
     };
-    grow(growers(), 0);
-    page.dataset.empty = free().toFixed(0);
-    const noart = page.hasAttribute('data-noart');
-    const sparse = !noart && free() >= SPARSE;
-    if (sparse) {
-      const reserve = SEA_STRIP + 4; // 바다 띠 + 띠 위 간격 4mm
+    const quiz = act.querySelector('.q.quiz');
+    if (quiz) quiz.dataset.step = '0';
+    // 0. 넘침 맞추기: 가장 줄이 많은 답 칸부터 1줄씩 줄인다(하한 2줄)
+    const trims = [];
+    if (free() < 0) {
       const gs = growers();
-      gs.forEach((g) => { setG(g, g.base); g.n = g.base; g.max = Math.min(g.max, g.base + 2); });
-      const memo = document.createElement('div');
-      memo.className = 'q memo';
-      memo.innerHTML = '<p class="q-text memo-title"><span class="tag opt">선택</span>자유 메모 · 그림 칸</p><div class="a-box"></div>';
-      main.append(memo);
-      const box = memo.querySelector('.a-box');
-      setLines(box, 2);
-      gs.push({ els: [box], base: 2, n: 2, max: 99, done: false, last: true });
-      grow(gs, reserve);
-      const art = document.createElement('div');
-      art.className = 'sea-art strip';
-      art.innerHTML = seaArt(false);
-      act.append(art);
-    } else {
+      for (let guard = 0; guard < 100 && free() < 0; guard++) {
+        const c = gs.filter((g) => g.n > MIN_LINES).sort((a, b) => b.n - a.n)[0];
+        if (!c) break;
+        trims.push(`${c.n}→${c.n - 1}`);
+        setG(c, c.n - 1); c.n--;
+        c.els.forEach((el) => { el.dataset.base = String(c.n); });
+      }
+    }
+    page.dataset.trim = trims.join(' ');
+    // 1. 답 칸 줄 늘리기
+    grow(growers());
+    {
       const gs = growers();
       gs.forEach((g) => { g.max = Math.min(g.max + EXTRA, g.cap); });
-      grow(gs, 0);
-      if (!noart && free() >= 30) {
-        const art = document.createElement('div');
-        art.className = 'sea-art';
-        art.innerHTML = seaArt(free() > 70);
-        act.append(art);
+      grow(gs);
+    }
+    // 2. 퀴즈 키우기
+    if (quiz) {
+      for (let k = QUIZ_STEPS; k >= 1; k--) {
+        quiz.dataset.step = String(k);
+        if (free() >= 0) break;
+        quiz.dataset.step = '0';
       }
+      page.dataset.quiz = quiz.dataset.step;
+    }
+    // 3. 바다 그림
+    if (!page.hasAttribute('data-noart') && free() >= 30) {
+      const art = document.createElement('div');
+      art.className = 'sea-art';
+      art.innerHTML = seaArt(free() > 70);
+      act.append(art);
     }
     page.dataset.free = free().toFixed(1);
   }

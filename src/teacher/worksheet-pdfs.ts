@@ -26,7 +26,7 @@ export const WORKSHEET_PDF_META: readonly WorksheetPdfMeta[] = [
   { key: 'L3', label: '3차시', group: 'student', saveName: '대항해무역왕_항해일지_3차시.pdf' },
   { key: 'L4-1', label: '4차시 ①(⑬~⑯·⑱)', group: 'student', saveName: '대항해무역왕_항해일지_4차시_1.pdf' },
   { key: 'L4-2', label: '4차시 ②(⑰ 잡지 표지 원고)', group: 'student', saveName: '대항해무역왕_항해일지_4차시_2.pdf' },
-  { key: 'optional', label: '선택 활동(⑲·⑳)', group: 'student', saveName: '대항해무역왕_항해일지_선택활동.pdf' },
+  { key: 'optional', label: '특별 항해(⑲·⑳)', group: 'student', saveName: '대항해무역왕_항해일지_선택활동.pdf' },
   { key: 'teacher-answers', label: '교사용 예시 답', group: 'teacher', saveName: '대항해무역왕_항해일지_교사용_예시답.pdf' },
 ];
 

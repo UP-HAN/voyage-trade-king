@@ -273,7 +273,12 @@ b, strong, th { font-weight: var(--fw-bold); }
 }
 .tag.rec { border-style: dashed; border-width: var(--st-rec); }
 .tag.now { background: var(--ink); color: var(--paper); }
-.tag.opt { border-radius: var(--r-l); color: var(--ink-2); border-color: var(--ink-2); }
+/* 작업 140: 흑백에서 서로 구분 — rec 점선 / now 검은 바탕 / quiz 연회색 바탕 네모 / check 굵은 둥근 테두리 + ✓ / special 굵은 실선 네모 + ☆ */
+.tag.quiz { background: var(--head-bg); border-color: var(--head-bg); border-radius: 0; }
+.tag.check { border-width: var(--st-bold); border-radius: var(--r-l); }
+.tag.check::before { content: '✓'; margin-right: var(--in-1); }
+.tag.special { border-width: var(--st-bold); border-radius: 0; }
+.tag.special::before { content: '☆'; margin-right: var(--in-1); }
 .tag.inline { margin: 0 0 0 var(--in-1); }
 .hint { font-size: var(--fs-note); color: var(--muted); }
 .term { font-size: var(--fs-aux); color: var(--ink-2); }
@@ -419,7 +424,6 @@ b, strong, th { font-weight: var(--fw-bold); }
 .sea-art img { position: absolute; }
 /* 배: 바닥이 물결 마루(바다 그림 아래에서 약 15mm)에 떠 있게 */
 .sea-art img.ship { left: 12%; bottom: var(--sp-2); height: var(--sp-6); }
-.sea-art.strip img.ship { bottom: var(--sp-3); height: var(--sp-3); }
 .sea-art img.gull { right: 16%; top: 30%; height: var(--sp-3); }
 .sea-art svg.cloud { position: absolute; width: var(--sp-6); height: var(--sp-3); }
 
@@ -444,6 +448,8 @@ b, strong, th { font-weight: var(--fw-bold); }
   border: var(--st) solid var(--ink); font-weight: var(--fw-bold);
   font-size: var(--fs-aux); letter-spacing: var(--ls-body);
 }
+/* 항해 퀴즈 행(작업 140): 번호 원 아래 '-2' 같은 하위 번호 */
+.a-table.ans td.no small { display: block; font-size: var(--fs-note); font-weight: var(--fw-bold); line-height: var(--lh-tight); color: var(--ink); }
 .a-table.ans td.goal { text-align: center; font-weight: var(--fw-bold); color: var(--ink-2); }
 /* 평가 관점·목표 열은 보조 정보라 9pt */
 .a-table.ans td:nth-child(3), .a-table.ans td.goal { font-size: var(--fs-note); }
@@ -454,7 +460,37 @@ b, strong, th { font-weight: var(--fw-bold); }
 .a-table th.fill-th { line-height: var(--row); }
 .nw { white-space: nowrap; }
 
-/* ================= 쪽 채움: 자유 메모 · 그림 칸 (선택) ================= */
-.q.memo .memo-title { font-size: var(--fs-aux); font-weight: var(--fw-bold); color: var(--ink-2); line-height: var(--lh-body); }
-.sea-art.strip { flex: 0 0 var(--sp-6); margin-top: var(--sp-1); }
+/* ================= 항해 퀴즈(작업 140): 하위 문항 목록 + 줄 잇기 =================
+   줄 높이 --quiz-row, 사이 간격 --quiz-gap은 쪽 채움 단계(common.js fill, data-step)로 정한다. 쓰는 답 칸은 없다. */
+.q.quiz { --quiz-row: var(--quiz-row-1); --quiz-gap: var(--quiz-gap-1); }
+.q.quiz[data-step="1"] { --quiz-row: var(--quiz-row-2); }
+.q.quiz[data-step="2"] { --quiz-row: var(--quiz-row-2); --quiz-gap: var(--quiz-gap-2); }
+.q.quiz[data-step="3"] { --quiz-row: var(--quiz-row-3); --quiz-gap: var(--quiz-gap-2); }
+.quiz-list { display: flex; flex-direction: column; gap: var(--quiz-gap); }
+.quiz-item {
+  display: flex; align-items: center; gap: var(--sp-1);
+  min-height: var(--quiz-row);
+  line-height: var(--lh-body);
+}
+.quiz-item .qi-mark { flex: 0 0 auto; font-weight: var(--fw-bold); }
+/* 표시 (가)와 문장을 한 덩어리로: 두 줄 문장이어도 (가)는 첫 줄에 맞춘다(덩어리 전체는 줄 높이 안 가운데) */
+.quiz-item .qi-line { flex: 1 1 auto; display: flex; align-items: flex-start; gap: var(--sp-1); }
+.quiz-item .qi-body { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--in-2); }
+.quiz-item .qi-text { flex: 1 1 auto; }
+.quiz-item[data-type="match"] { align-items: flex-start; }
+.quiz-item[data-type="match"] .qi-mark { align-self: flex-start; }
+/* 힌트 '(종이에만 있어요)'는 쪽마다 같은 자리: 늘 질문 다음 줄 */
+.q.quiz .q-text .hint { display: block; white-space: nowrap; }
+/* OX·분류: 줄 끝 오른쪽 정렬(세로 열 맞춤) */
+.quiz-item > .choices { flex: 0 0 auto; margin-left: auto; }
+/* 둘 중 고르기: ( 가 / 나 ) — 낱말 둘레에 ○를 칠 여백 */
+.pick { white-space: nowrap; }
+.pick > span { display: inline-block; padding: 0 var(--sp-1); }
+/* 줄 잇기: 왼쪽 낱말 ● · 가운데 빈 공간 · ● 오른쪽 낱말 */
+.match { display: flex; align-items: stretch; }
+.match .m-col { display: flex; flex-direction: column; gap: var(--quiz-gap); }
+.match .m-col > span { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--quiz-row); font-weight: var(--fw-bold); }
+.match .m-col.l > span { justify-content: flex-end; }
+.match .m-gap { flex: 0 0 var(--match-gap); }
+.match .dot { display: inline-block; width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--ink); }
 

@@ -78,7 +78,7 @@ describe('빌드 플러그인: print/dist → dist/print 대응표(PRD 7.5.3)', 
     expect(pg['student-all']).toBe(chapters); // 139 기준 20쪽(활동 1개 = 1쪽)
     expect(pg['student-all']).toBe(20);
     expect(pg['optional']).toBe(2); // ⑲·⑳ 각 1쪽
-    expect(pg['teacher-answers']).toBe(3);
+    expect(pg['teacher-answers']).toBe(4); // 140: 항해 퀴즈 정답 6행·사용법 추가로 3 → 4쪽
     expect(manifestOf(scan).every((e) => typeof e.pages === 'number')).toBe(true);
     const list = availablePdfs(manifestOf(scan));
     expect(metaText(list.find((p) => p.key === 'student-all')!)).toMatch(/^A4 단면 · 20쪽 · \d/);
@@ -163,7 +163,7 @@ describe('학습지 PDF 목록·이 차시 학습지', () => {
       '3차시',
       '4차시 ①(⑬~⑯·⑱)',
       '4차시 ②(⑰ 잡지 표지 원고)',
-      '선택 활동(⑲·⑳)',
+      '특별 항해(⑲·⑳)',
       '교사용 예시 답',
     ]);
     expect(list[1]!.href).toBe('./print/logbook-L1.pdf?v=h1');
