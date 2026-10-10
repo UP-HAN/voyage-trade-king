@@ -3,13 +3,14 @@
  * 배치표 계산은 123(`src/core/schedule.ts`), 여기서는 화면용으로 나누기만 한다.
  */
 import {
-  firstRoundPreview, inputFromClass, LINKED_EVENTS, nextRoundWait, tradeClock, tryBuildSchedule,
+  firstRoundPreview, inputFromClass, LINKED_EVENTS, nextRoundWait, reschedule, tradeClock, tryBuildSchedule,
   type ClassState, type PlayUnit, type RoundNowBlock, type RoundNowPlan, type ScheduleItem,
 } from '../core';
 import { eventsById } from '../data/events';
 import { lessonsById } from '../data/lessons';
 import type { LessonId } from '../data/types';
 import { DURING_MARK } from '../data/worksheet';
+import { lessonText } from './teacher-terms';
 
 /** 사건 정의(연결 사건 L3-E5 → L3-E2 앞 사건 기준) */
 export function eventDefOf(item: Pick<ScheduleItem, 'kind' | 'refId'>) {
@@ -27,16 +28,16 @@ export function itemLabel(it: ScheduleItem): string {
       return d ? d.title : it.refId;
     }
     case 'worksheet': {
-      if (it.placement === 'during') return `학습지 ${worksheetNo(it.refId)}${DURING_MARK} 지금 쓰기`;
+      if (it.placement === 'during') return `학습지 ${worksheetNo(it.refId)}${DURING_MARK} 지금 바로 쓰기`;
       const ids = it.refIds?.length ? it.refIds : [it.refId];
       return `학습지 ${ids.map(worksheetNo).join('')}`;
     }
     case 'letter':
       return `편지 ${it.refId}`;
     case 'stageCover':
+      // (작업 137) 교사 화면은 'L1' 대신 '1차시'
       if (it.variant === 'summary') return '앞 차시 요약 카드';
-      if (it.variant === 'lesson') return `${it.stage} 차시 표지`;
-      return `${it.stage} 구간 표지`;
+      return `${lessonText(it.stage)} 표지`;
     case 'forecast':
       return '돌발 사건 예보';
     case 'incident':
@@ -178,10 +179,12 @@ export function startConfirmText(cs: ClassState, playUnit: PlayUnit, scope: read
   const when = `약 ${minSecText(p.atSec)} 뒤 라운드 ${p.round}이 시작돼요`;
   const first = names.length ? `먼저 ${joinNames(names)} 활동을 하고 ${when}` : `표지를 보고 ${when}`;
   const manual = cs.settings.progressMode === 'manual';
+  // (작업 137) 쉬운 말: 수동 진행 = '선생님이 하나씩 넘기기', [발동] = [다음으로], [지금 라운드 시작] = [라운드 지금 시작]
   const tail = manual
-    ? ' 수동 진행이라 [발동]을 눌러야 다음 항목이 시작돼요(계획 시각은 안내예요).'
+    ? ' 선생님이 하나씩 넘기는 방식이라 [다음으로]를 눌러야 다음 순서가 시작돼요(계획 시각은 안내예요).'
     : ' 그동안 학생 화면에는 라운드까지 남은 시간이 보여요.';
-  return `${head} ${first}([지금 라운드 시작]으로 당길 수 있어요).${tail}`;
+  // (수정 1회차) 실제로 누를 곳: 사전 활동 동안 '지금 할 일' 카드의 작은 글자 [라운드 바로 시작]
+  return `${head} ${first}(사전 활동 중에도 '지금 할 일' 카드의 [라운드 바로 시작]으로 당길 수 있어요).${tail}`;
 }
 
 /** 교사 화면 "라운드 1까지 m:ss" / "다음 라운드까지 m:ss"(라운드 중·무역 전이면 null) */
@@ -199,7 +202,7 @@ export const ROUND_NOW_BLOCK_TEXT: Readonly<Record<RoundNowBlock, string>> = {
   TRADE_ENDED: '무역이 끝났어요',
   ROUND_IN_PROGRESS: '라운드가 진행 중이에요',
   WORKSHEET_OPEN: '학습지 시간이 끝나면 누를 수 있어요',
-  PAUSED: '일시정지 중이에요',
+  PAUSED: '잠깐 멈춤 중이에요',
   TIME_IS_UP: '무역 시간이 끝났어요',
   NO_NEXT_ROUND: '남은 라운드가 없어요',
 };
@@ -209,10 +212,35 @@ export function roundNowConfirmBody(plan: RoundNowPlan): string {
   const tier1 = plan.tier1.map((x) => (x.live ? `「${x.title}」(진행 중 — 지금 닫혀요)` : `「${x.title}」`));
   const others = plan.skip.filter((it) => it.kind !== 'worksheet' || it.placement === 'during').filter((it) => !(it.kind === 'event' && plan.tier1.some((x) => x.id === it.refId))).map(itemLabel);
   const ws = plan.movedWorksheets.map(worksheetNo).join('');
-  const lines = [tier1.length ? `핵심(1등급) 활동 ${tier1.join(', ')}을(를) 건너뛰고 지금 라운드를 시작할까요?` : '남은 사전 활동을 건너뛰고 지금 라운드를 시작할까요?'];
-  if (ws) lines.push(`건너뛴 학습지 ${ws}은(는) 끝나고 써요.`);
-  if (others.length) lines.push(`함께 건너뛰는 활동: ${joinNames(others)}.`);
+  // (작업 137, PRD 7.5.2.6) 쉬운 말: "「두 섬 이야기」는 이 차시의 꼭 할 활동이에요. 빼고 넘어갈까요?"
+  const lines = [tier1.length ? `${tier1.join(', ')}은(는) 이 차시의 꼭 할 활동이에요. 빼고 지금 라운드를 시작할까요?` : '남은 사전 활동을 빼고 지금 라운드를 시작할까요?'];
+  if (ws) lines.push(`뺀 학습지 ${ws}은(는) 끝나고 써요.`);
+  if (others.length) lines.push(`함께 빠지는 활동: ${joinNames(others)}.`);
   const cur = plan.closing ? eventsById[plan.closing] : undefined;
   if (cur && !cur.isCover && !plan.tier1.some((x) => x.id === plan.closing)) lines.push(`지금 하던 「${cur.title}」은(는) 닫혀요.`);
   return lines.join(' ');
+}
+
+// ─── (작업 137) 무역 시간 줄이기 미리보기 ─────────────────────────────
+
+/**
+ * [줄이기] 전에 빠지게 될 활동 이름(PRD 7.5.2.6 "2분 줄이면 「무역이 없다면?」이 빠져요").
+ * core `reschedule`(줄인 시계로 다시 배치 — 실제 shorten 과 같은 계산)을 미리 돌려 새로 빠지는 활동만 고른다.
+ * 무역 전이거나 줄일 수 없으면 빈 목록(core 가 거절 문구를 보낸다).
+ */
+export function shortenDrops(cs: ClassState, playUnit: PlayUnit, scope: readonly LessonId[], sec: number, now: number): string[] {
+  if (cs.clock.startedAt === null || cs.tradeEnded) return [];
+  const ck = tradeClock.shorten(cs.clock, sec, now);
+  if (!ck) return [];
+  const c2: ClassState = { ...cs, clock: ck, settings: { ...cs.settings, tradeMinutes: ck.durationSec / 60 } };
+  const r = reschedule(cs.schedule, c2, now, { type: 'time' }, { playUnit, scope });
+  if (r.error) return [];
+  const before = new Set(cs.schedule.items.filter((it) => it.kind === 'event' && (it.form === 'dropped' || it.status !== 'pending')).map((it) => it.refId));
+  const names: string[] = [];
+  for (const it of r.schedule.items) {
+    if (it.kind !== 'event' || it.form !== 'dropped' || it.status !== 'pending' || before.has(it.refId)) continue;
+    const d = eventDefOf(it);
+    if (d && !d.isCover) names.push(d.title);
+  }
+  return [...new Set(names)];
 }

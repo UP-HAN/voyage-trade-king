@@ -197,7 +197,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
           <p>
             위치 {portsById[g.port]?.name ?? g.port}
             {g.dest ? ` → ${portsById[g.dest]?.name ?? g.dest}` : ''} · 자금 {moneyText(g.money)}만 원
-            {g.loan ? ` · 대출 ${moneyText(g.loan)}만 원` : ''} · {g.ready ? '출항 준비 됨' : '출항 준비 안 함'}
+            {g.loan ? ` · 대출 ${moneyText(g.loan)}만 원` : ''} · {g.ready ? '항해 준비 끝냄' : '항해 준비 안 함'}
           </p>
           <p>
             화물:{' '}
@@ -213,7 +213,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
                   .join(', ')
               : '없음'}
           </p>
-          <h3>사건 로그(최근 8개)</h3>
+          <h3>활동 기록(최근 8개)</h3>
           <ol class="t-log">
             {g.log.slice(-8).map((l, i) => (
               <li key={i}>
@@ -231,7 +231,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
         <div class="t-row">
           {resendable.length > 0 && (
             <>
-              <select data-testid="resend-select" aria-label="다시 보낼 사건" value={resendSel} onChange={(e) => setResendId((e.currentTarget as HTMLSelectElement).value)}>
+              <select data-testid="resend-select" aria-label="다시 보낼 활동" value={resendSel} onChange={(e) => setResendId((e.currentTarget as HTMLSelectElement).value)}>
                 {resendable.map((id) => (
                   <option key={id} value={id}>
                     {eventsById[id]?.title ?? id}
@@ -242,7 +242,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
                 type="button"
                 class="btn btn--secondary"
                 data-testid="btn-resend-event"
-                title="이 학생 기기의 따라잡기 큐에 사건을 넣어요"
+                title="이 학생 기기의 따라잡기 큐에 활동을 넣어요"
                 onClick={() => {
                   // 호스트가 거절할 경우(번호 없음·발동 전 사건)를 먼저 걸러 거절 이유를 보인다(수정 1회차)
                   const title = eventsById[resendSel]?.title ?? resendSel;
@@ -256,7 +256,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
                   );
                 }}
               >
-                이 학생만 사건 다시 보내기
+                이 학생만 활동 다시 보내기
               </button>
             </>
           )}

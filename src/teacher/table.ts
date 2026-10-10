@@ -35,18 +35,29 @@ export interface StudentRow {
   rejoinRequested: boolean;
 }
 
-export type FilterId = 'all' | 'offline' | 'noResponse' | 'notReady' | 'missionTodo' | 'noWorksheet' | 'rejoin' | 'nameCheck';
+export type FilterId = 'all' | 'help' | 'offline' | 'noResponse' | 'notReady' | 'missionTodo' | 'noWorksheet' | 'rejoin' | 'nameCheck';
 
+/**
+ * (작업 137, PRD 7.5.2.2) 필터는 [전체] [도움이 필요해요 n] [더 보기 ▾] — 나머지는 [더 보기] 안(쉬운 말).
+ * '도움이 필요해요' = 들어오지 않음 ∪ 지금 활동에 응답 안 함 ∪ 학습지 팝업 중 안 씀 ∪ 다시 들어오기 요청 ∪ 이름 확인.
+ */
 export const FILTERS: readonly { id: FilterId; label: string }[] = [
   { id: 'all', label: '전체' },
-  { id: 'offline', label: '미접속' },
+  { id: 'help', label: '도움이 필요해요' },
+  { id: 'offline', label: '들어오지 않음' },
   { id: 'noResponse', label: '응답 안 함' },
-  { id: 'notReady', label: '출항 준비 안 함' },
-  { id: 'missionTodo', label: '임무 미완료' },
+  { id: 'notReady', label: '항해 준비 안 함' },
+  { id: 'missionTodo', label: '임무 아직' },
   { id: 'noWorksheet', label: '학습지 안 씀' },
-  { id: 'rejoin', label: '재접속 요청' },
+  { id: 'rejoin', label: '다시 들어오기 요청' },
   { id: 'nameCheck', label: '이름 확인' },
 ];
+
+/** [더 보기 ▾] 안 필터 */
+export const MORE_FILTERS: readonly FilterId[] = ['offline', 'noResponse', 'notReady', 'missionTodo', 'noWorksheet', 'rejoin', 'nameCheck'];
+
+/** '도움이 필요해요'를 이루는 필터 */
+export const HELP_FILTERS: readonly FilterId[] = ['offline', 'noResponse', 'noWorksheet', 'rejoin', 'nameCheck'];
 
 export type SortId = 'seat' | 'money' | 'exports' | 'company';
 export const SORTS: readonly { id: SortId; label: string }[] = [
@@ -119,6 +130,8 @@ export function matchesFilter(r: StudentRow, f: FilterId): boolean {
   switch (f) {
     case 'all':
       return true;
+    case 'help':
+      return HELP_FILTERS.some((f) => matchesFilter(r, f));
     case 'offline':
       return !r.online;
     case 'noResponse':
@@ -160,12 +173,12 @@ export function sortRows(rows: readonly StudentRow[], s: SortId): StudentRow[] {
   }
 }
 
-/** 상단 요약 칩 "접속 26/28 · 준비 21 · 미응답 5" */
+/** 상단 요약 칩 "들어옴 24/25 · 항해 준비 12 · 응답 안 함 5"(작업 137 쉬운 말) */
 export function summaryText(rows: readonly StudentRow[]): string {
   const online = rows.filter((r) => r.online).length;
   const ready = rows.filter((r) => r.ready).length;
   const noResp = rows.filter((r) => r.responded === false).length;
-  return `접속 ${online}/${rows.length} · 준비 ${ready} · 미응답 ${noResp}`;
+  return `들어옴 ${online}/${rows.length} · 항해 준비 ${ready} · 응답 안 함 ${noResp}`;
 }
 
 /** 자금 표시(만 원 단위 숫자 — 데이터의 돈 단위가 만 원) */

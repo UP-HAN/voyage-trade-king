@@ -35,6 +35,7 @@ import {
 } from './setup';
 import { duringPreviewLine, worksheetNo } from './schedule-view';
 import { WorksheetPdfMenu } from './WorksheetPdfMenu';
+import { teacherWarningText } from './notice-text';
 
 export interface OpenError {
   code: string;
@@ -180,7 +181,7 @@ function PreviewPanel({
       {preview.warnings.length > 0 && (
         <ul class="t-warn" data-testid="preview-warnings">
           {preview.warnings.map((w, i) => (
-            <li key={i}>{w}</li>
+            <li key={i}>{teacherWarningText(w)}</li>
           ))}
         </ul>
       )}

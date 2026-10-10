@@ -2,9 +2,11 @@
  * 학생 표(30명) — 교사 화면 전용(작업 109, PRD 7.5 v0.3.1). 출석번호 + 회사 이름(실명 열 없음).
  * 발표 모드·공용 화면에서는 렌더하지 않는다(Dashboard가 발표 모드면 이 컴포넌트를 그리지 않음).
  */
-import { CheckIcon, DashIcon, Dot, DOT, FlagIcon } from './ui';
+import { useRef, useState } from 'preact/hooks';
+import { CheckIcon, DashIcon, Dot, DOT, FlagIcon, useDismiss } from './ui';
 import {
   FILTERS,
+  MORE_FILTERS,
   SORTS,
   filterCounts,
   filterRows,
@@ -36,40 +38,61 @@ export interface StudentTableProps {
   selected: number | null;
 }
 
+const labelOf = (id: FilterId) => FILTERS.find((f) => f.id === id)?.label ?? id;
+
 export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, selected }: StudentTableProps) {
+  const [more, setMore] = useState(false);
+  const moreRef = useRef<HTMLSpanElement>(null);
+  useDismiss(more, moreRef, () => setMore(false));
   const counts = filterCounts(rows);
   const shown = sortRows(filterRows(rows, filter), sort);
+  const moreActive = MORE_FILTERS.includes(filter);
+  const chip = (id: FilterId, n?: number) => (
+    <button
+      key={id}
+      type="button"
+      class={`t-chip${id === 'help' && (n ?? 0) > 0 ? ' t-chip--help' : ''}`}
+      data-testid={`filter-${id}`}
+      aria-pressed={filter === id}
+      onClick={() => {
+        onFilter(id);
+        setMore(false);
+      }}
+    >
+      {labelOf(id)}
+      {n !== undefined && <span class="t-chip__n">{n}</span>}
+    </button>
+  );
   return (
-    <section class="t-students" aria-label="학생 표" data-testid="student-table-wrap">
+    <section class="t-students" id="student-table" aria-label="학생 표" data-testid="student-table-wrap">
       <div class="t-students__bar">
         <span class="t-chip t-chip--sum" data-testid="summary-chip">
           {summaryText(rows)}
         </span>
         <div class="t-filters" role="group" aria-label="필터" data-testid="filters">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              class="t-chip"
-              data-testid={`filter-${f.id}`}
-              aria-pressed={filter === f.id}
-              onClick={() => onFilter(f.id)}
-            >
-              {f.label}
-              {f.id !== 'all' && <span class="t-chip__n">{counts[f.id]}</span>}
+          {chip('all')}
+          {chip('help', counts.help)}
+          <span class="t-more" ref={moreRef}>
+            <button type="button" class="t-chip" data-testid="filter-more" aria-expanded={more} aria-pressed={moreActive} onClick={() => setMore((v) => !v)}>
+              {moreActive ? `더 보기: ${labelOf(filter)}` : '더 보기'} ▾
             </button>
-          ))}
+            {more && (
+              <div class="t-more__pop" data-testid="filter-more-list">
+                <div class="t-more__chips">{MORE_FILTERS.map((id) => chip(id, counts[id]))}</div>
+                <label class="t-sort">
+                  정렬
+                  <select data-testid="sort" value={sort} onChange={(e) => onSort((e.currentTarget as HTMLSelectElement).value as SortId)}>
+                    {SORTS.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </span>
         </div>
-        <label class="t-sort">
-          정렬
-          <select data-testid="sort" value={sort} onChange={(e) => onSort((e.currentTarget as HTMLSelectElement).value as SortId)}>
-            {SORTS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
       <div class="t-table-scroll">
         <table class="t-table" data-testid="student-table">
@@ -77,7 +100,7 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
             <tr>
               <th scope="col">번호</th>
               <th scope="col">회사 이름</th>
-              <th scope="col">접속</th>
+              <th scope="col">들어옴</th>
               <th scope="col">항구</th>
               <th scope="col" class="t-num">자금(만 원)</th>
               <th scope="col">임무</th>
@@ -99,11 +122,11 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
                   </button>
                   {r.nameStatus === 'checkRealName' && <span class="t-tag t-tag--check">이름 확인</span>}
                   {r.nameStatus === 'blocked' && <span class="t-tag t-tag--blocked">이름 짓는 중</span>}
-                  {r.rejoinRequested && <span class="t-tag">재접속 요청</span>}
+                  {r.rejoinRequested && <span class="t-tag">다시 들어오기 요청</span>}
                 </td>
                 <td data-testid="cell-online">
-                  <Dot color={r.online ? DOT.green : DOT.gray} label={r.online ? '접속' : '미접속'} />
-                  <span class="t-small">{r.online ? '접속' : r.lastSeenAt ? hhmm(r.lastSeenAt) : '미접속'}</span>
+                  <Dot color={r.online ? DOT.green : DOT.gray} label={r.online ? '들어옴' : '안 들어옴'} />
+                  <span class="t-small">{r.online ? '들어옴' : r.lastSeenAt ? `${hhmm(r.lastSeenAt)} 나감` : '안 들어옴'}</span>
                 </td>
                 <td>
                   {r.portName}

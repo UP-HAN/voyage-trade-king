@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { lettersById } from '../src/data/letters';
 import { worksheetById } from '../src/data/worksheet';
+import { openFold, openTvMenu } from './support/voyage-ui';
 
 /**
  * 작업 112 학습지 "잠깐!" 팝업 + 편지·갈매기 퀴즈 + 항해 기록장 e2e(`?sync=local`):
@@ -54,6 +55,7 @@ async function openTeacher(ctx: BrowserContext, minutes: number): Promise<{ page
 }
 
 async function openScreen(ctx: BrowserContext, t: Page): Promise<Page> {
+  await openTvMenu(t); // (작업 137) [TV 화면 ▾] 안
   const [scr] = await Promise.all([ctx.waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
   await scr.setViewportSize({ width: 1920, height: 1080 });
   await expect(scr.getByTestId('route-screen')).toBeVisible();
@@ -77,6 +79,9 @@ async function joinStudent(ctx: BrowserContext, as: string, code: string, seat: 
 async function setWaitSec(t: Page, sec: 0 | 15 | 30) {
   await t.getByTestId('btn-settings').click();
   const modal = t.getByTestId('settings-modal');
+  // (작업 137) '다 썼어요' 대기 시간은 설정 [고급] 안
+  const adv = t.getByTestId('settings-advanced');
+  if ((await adv.getAttribute('open')) === null) await adv.locator(':scope > summary').click();
   await modal.getByRole('button', { name: `${sec}초`, exact: true }).click();
   await expect(modal.getByRole('button', { name: `${sec}초`, exact: true })).toHaveAttribute('aria-pressed', 'true');
   await t.getByTestId('settings-close').click();
@@ -86,9 +91,9 @@ async function startTrade(t: Page) {
   await t.getByTestId('btn-start-trade').click();
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('trade-clock')).toBeVisible();
-  // 학습지·편지 패널 펼치기
-  const panels = t.getByTestId('side-panels');
-  if ((await panels.getAttribute('open')) === null) await panels.locator(':scope > summary').click();
+  // 학습지·편지 패널 펼치기(작업 137: 접힘 영역 '학습지'·'편지·돌발 사건·공정한 바다')
+  await openFold(t, 'worksheet');
+  await openFold(t, 'more');
 }
 
 async function elapsed(t: Page, total: number): Promise<number> {
@@ -348,7 +353,7 @@ test('B. 차시 한 판 L1 30분: ③★ 지금 쓰기 → 구간 끝 묶음 팝
   const s2 = await joinStudent(ctx, 'b02', code, 4, '파도상회');
   await setWaitSec(t, 0);
   await startTrade(t);
-  await expect(t.getByTestId('ws-modes')).toContainText('구간 끝 묶음');
+  await expect(t.getByTestId('ws-modes')).toContainText('차시 끝에 모아서'); // (작업 137) 옛 '구간 끝 묶음'
   // ── 지금 쓰기 ③★: 두 섬 이야기(17:35~23:35) 바로 뒤 40초 ──
   await advanceTo(ctx, t, TOTAL, 1400);
   await advanceUntil(ctx, t, async () => (await s1.getByTestId('worksheet-popup').count()) > 0, 120);
@@ -410,8 +415,7 @@ test('C. 차시 한 판 L1 10분: 끝나고 쓰기 목록 + 항해 기록장(판
   const scr = await openScreen(ctx, t);
   const s1 = await joinStudent(ctx, 'c01', code, 5, '고래무역');
   // (수정 1회차) 무역 시작 전 팝업을 띄웠다 닫으면 'prep' 그대로 — 공용 화면은 방 코드·규칙, 학생 HUD는 "준비 시간"
-  const panels = t.getByTestId('side-panels');
-  if ((await panels.getAttribute('open')) === null) await panels.locator(':scope > summary').click();
+  await openFold(t, 'worksheet');
   await t.getByTestId('ws-pick').selectOption('W19');
   await t.getByTestId('ws-open-now').click();
   await expect(s1.getByTestId('worksheet-popup')).toHaveAttribute('data-ids', 'W19');
@@ -422,9 +426,16 @@ test('C. 차시 한 판 L1 10분: 끝나고 쓰기 목록 + 항해 기록장(판
   await expect(s1.getByTestId('hud-time')).toContainText('준비 시간');
   await expect(t.getByTestId('btn-start-trade')).toBeVisible();
   await startTrade(t);
-  await expect(t.getByTestId('ws-modes')).toContainText('끝나고 쓰기');
-  await expect(t.getByTestId('ws-after-ids')).toHaveText(' · 끝나고 쓰기 ①②③④');
-  await advanceUntil(ctx, t, async () => (await s1.getByTestId('after-worksheets-student').count()) > 0, TOTAL + 200);
+  await expect(t.getByTestId('ws-modes')).toContainText('게임 끝나고'); // (작업 137) 옛 '끝나고 쓰기'
+  await expect(t.getByTestId('ws-after-ids')).toHaveText(' · 게임 끝나고 쓸 번호 ①②③④');
+  // (작업 137, PRD 7.5.2.9) 무역이 끝나면 첫 마무리 항목(결산·시상)이 저절로 시작 → 학생 화면은 결산을 덮지 않게 목록을 접어 둔다(132).
+  // 그 항목을 [끝]으로 끝내면(진행 중 항목 없음) 예전처럼 '끝나고 쓰기' 목록이 펼쳐진다
+  const liveWrap = t.locator('[data-testid="wrap-item"][data-status="live"]');
+  await advanceUntil(ctx, t, async () => (await liveWrap.count()) > 0, TOTAL + 200);
+  await expect(liveWrap).toHaveAttribute('data-id', 'awards');
+  await expect(s1.getByTestId('after-unfold')).toBeVisible();
+  await liveWrap.getByRole('button', { name: '끝' }).click();
+  await advanceUntil(ctx, t, async () => (await s1.getByTestId('after-worksheets-student').count()) > 0, 30);
   const after = s1.getByTestId('after-worksheets-student');
   await expect(after).toHaveAttribute('data-ids', 'W01,W02,W03,W04'); // ⑱ 없음(L1 판)
   await expect(after.getByTestId('after-tag')).toHaveText('차시 한 판 · L1');

@@ -17,16 +17,13 @@ import { duringLabel, worksheet, worksheetById } from '../../data/worksheet';
 import type { LessonId, WorksheetId } from '../../data/types';
 import type { TeacherGame } from '../game';
 import type { PanelProps } from './types';
+import { lessonText, PLACEMENT_TEACHER_TEXT } from '../teacher-terms';
 
 /** 묶음 팝업 시간(초) — 넘으면 [모두 닫기] 강조 */
 export const BUNDLE_CLOSE_HINT_SEC = 180;
 
-export const PLACEMENT_TEXT: Record<WorksheetPlacement, string> = {
-  each: '중간마다',
-  stageEnd: '구간 끝 묶음',
-  after: '끝나고 쓰기',
-  off: '끄기',
-};
+/** (작업 137, PRD 7.5.2.5) 교사 화면 쉬운 말 — 값 이름은 그대로 */
+export const PLACEMENT_TEXT: Record<WorksheetPlacement, string> = PLACEMENT_TEACHER_TEXT;
 
 /** 교사 화면 학생 표시: "7 해오름무역" */
 export function seatLabel(seat: number, companyName: string): string {
@@ -154,10 +151,10 @@ export function WorksheetPanel({ game, view, actions, now }: PanelProps) {
   return (
     <div class="t-wsp" data-testid="panel-WorksheetPanel">
       <p class="t-small" data-testid="ws-modes">
-        배치 방식:{' '}
-        {c.settings.scope.map((s) => `${c.settings.playUnit === 'lesson' ? '' : `${s} `}${PLACEMENT_TEXT[modes[s] ?? c.worksheet.mode] ?? ''}`).join(' · ')}
+        학습지 넣는 때:{' '}
+        {c.settings.scope.map((s) => `${c.settings.playUnit === 'lesson' ? '' : `${lessonText(s)} `}${PLACEMENT_TEXT[modes[s] ?? c.worksheet.mode] ?? ''}`).join(' · ')}
         {off && ' (학습지 팝업 꺼짐)'}
-        {after.length > 0 && <span data-testid="ws-after-ids"> · 끝나고 쓰기 {labelsOf(after)}</span>}
+        {after.length > 0 && <span data-testid="ws-after-ids"> · 게임 끝나고 쓸 번호 {labelsOf(after)}</span>}
       </p>
 
       {prog.ids.length ? (
@@ -170,12 +167,12 @@ export function WorksheetPanel({ game, view, actions, now }: PanelProps) {
           data-during={prog.during ? '1' : '0'}
         >
           <p>
-            <b class="t-wsp__no">{prog.during ? `${duringLabel(prog.ids[0])} 지금 쓰기` : labelsOf(prog.ids)}</b>{' '}
+            <b class="t-wsp__no">{prog.during ? `${duringLabel(prog.ids[0])} 지금 바로 쓰기` : labelsOf(prog.ids)}</b>{' '}
             {prog.during
               ? worksheetById[prog.ids[0]].during?.prompt ?? worksheetById[prog.ids[0]].prompt
               : prog.ids.length === 1
                 ? worksheetById[prog.ids[0]].prompt
-                : `${worksheetById[prog.ids[0]].lesson} 구간 묶음 — 번호마다 한 줄씩`}
+                : `${lessonText(worksheetById[prog.ids[0]].lesson)} 묶음 — 번호마다 한 줄씩`}
           </p>
           <p>
             다 쓴 회사{' '}
@@ -217,9 +214,9 @@ export function WorksheetPanel({ game, view, actions, now }: PanelProps) {
       {next && !c.tradeEnded && (
         <p class="t-small" data-testid="ws-next" data-item={next.id}>
           다음 학습지:{' '}
-          {next.placement === 'during' ? `${duringLabel(next.refId as WorksheetId)} 지금 쓰기` : labelsOf((next.refIds?.length ? next.refIds : [next.refId]) as WorksheetId[])}
+          {next.placement === 'during' ? `${duringLabel(next.refId as WorksheetId)} 지금 바로 쓰기` : labelsOf((next.refIds?.length ? next.refIds : [next.refId]) as WorksheetId[])}
           <button type="button" class="t-mini" data-testid="ws-skip" onClick={() => actions.dispatch({ type: 'skipItem', id: next.id })}>
-            건너뛰기
+            이번엔 빼기
           </button>
         </p>
       )}
@@ -249,7 +246,7 @@ export function WorksheetPanel({ game, view, actions, now }: PanelProps) {
           class="t-mini"
           data-testid="ws-open-now"
           disabled={!pick || eventOpen || ended}
-          title={eventOpen ? '사건 카드가 끝나면 띄울 수 있어요' : undefined}
+          title={eventOpen ? '활동 카드가 끝나면 띄울 수 있어요' : undefined}
           onClick={() => {
             open(pickIds);
             setPick('');
@@ -276,7 +273,7 @@ export function WorksheetPanel({ game, view, actions, now }: PanelProps) {
         {completionGroups(game).map((grp) => (
           <details key={grp.lesson} open={grp.inPlay} style={grp.inPlay ? undefined : OFF_STYLE} data-testid="ws-rate-group" data-lesson={grp.lesson} data-inplay={grp.inPlay ? '1' : '0'}>
             <summary>
-              {grp.lesson === 'optional' ? '선택 활동' : grp.lesson} {grp.rows.map((r) => r.label).join('')}
+              {grp.lesson === 'optional' ? '특별 항해' : lessonText(grp.lesson)} {grp.rows.map((r) => r.label).join('')}
               {!grp.inPlay && ' (이번 판 밖)'}
             </summary>
             <ul style={{ margin: '2px 0 6px', paddingLeft: '18px' }}>

@@ -328,7 +328,8 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     await t.getByTestId('room-code').waitFor({ timeout: 20_000 });
     code = (await t.getByTestId('room-code').innerText()).trim();
     step(`교사: 방 열기(${sc.unit ? '단원 한 판' : '차시 L1'} ${sc.minutes}분 ${sc.manual ? '수동' : '자동'}) — 방 코드 받음`);
-    // 공용 화면 창
+    // 공용 화면 창(작업 137: 위쪽 띠 [TV 화면 ▾] 안)
+    await t.getByTestId('tv-menu').click();
     const [screenPage] = await Promise.all([t.context().waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
     scr = screenPage;
     watch(scr, '공용 화면');
@@ -438,8 +439,8 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       hideFireOn = true;
       step('고장 플래그 hide-fire: 교사 [발동] 안내 숨김');
     }
-    const panels = t.getByTestId('side-panels');
-    if ((await panels.getAttribute('open').catch(() => '')) === null) await panels.locator(':scope > summary').click().catch(() => undefined);
+    // (작업 137) 학습지·편지 패널은 오른쪽 접힘 영역 '학습지'·'편지·돌발 사건·공정한 바다'
+    for (const f of ['worksheet', 'more']) await openFoldOf(t, f);
     await env.clock.setSpeed(o.speed);
 
     // ── 학생 두뇌(브라우저 4명): 화면 훑기 → 한 가지 행동 ──
@@ -509,6 +510,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     const fireNoEffect = new Map<string, number>();
     let approveSeenAt: number | null = null;
     let timeUpSeenAt: number | null = null;
+    let finishSeenAt: number | null = null;
     let startRoundNowUsed: string = '안 함';
 
     const ready = (x: Timed<unknown>): boolean => {
@@ -537,29 +539,56 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
             break;
           }
           case 'extend1':
+            await openFoldOf(T, 'time'); // (작업 137) '시간 조절' 접힘 영역
             await T.getByTestId('btn-extend-1').click();
             extraAllowFast += 60_000;
             step('교사: 무역 +1분');
             break;
-          case 'endRound':
+          case 'endRound': {
+            // (작업 137) 카드 [라운드 끝내기] — 라운드에 붙은 결정 패널이 떠 있으면 카드가 그 활동(우선)이라 [다음으로]로 먼저 끝낸다.
+            // 남은 시간이 있고 모두 준비가 아니면 확인 창
+            for (let i = 0; i < 4 && !(await T.getByTestId('btn-end-round').isVisible().catch(() => false)); i++) {
+              for (const id of ['btn-close-event', 'btn-end-result']) {
+                const b = T.getByTestId(id);
+                if (await b.isVisible().catch(() => false)) await b.click({ timeout: 3000 }).catch(() => undefined);
+              }
+              await sleep(800);
+            }
             await T.getByTestId('btn-end-round').click({ timeout: 5000 });
-            step('교사: [라운드 끝]');
+            if (await T.getByTestId('confirm-end-round').isVisible({ timeout: 1500 }).catch(() => false)) await T.getByTestId('confirm-ok').click();
+            step('교사: [라운드 끝내기]');
             break;
-          case 'closeEvent':
-            await T.getByTestId('btn-close-event').click({ timeout: 5000 });
-            step(`교사: 사건 [마감](${pub?.event?.id ?? '?'})`);
+          }
+          case 'closeEvent': {
+            // 응답 받는 활동은 [다음으로](응답 받기 끝내기), 표지·카드는 [다음으로](끝내고 다음 항목)
+            const close = T.getByTestId('btn-close-event');
+            if (await close.isVisible().catch(() => false)) await close.click({ timeout: 5000 });
+            else await T.getByTestId('now-primary').locator('button').click({ timeout: 5000 });
+            step(`교사: 카드 [다음으로](${pub?.event?.id ?? '?'})`);
             break;
+          }
           case 'lock':
-            if (((await T.getByTestId('btn-lock').first().innerText()) ?? '').includes('입장 마감')) await T.getByTestId('btn-lock').first().click();
-            step('교사: 입장 마감');
+            await openFoldOf(T, 'entry');
+            if (((await T.getByTestId('btn-lock').first().innerText()) ?? '').includes('그만 받기')) await T.getByTestId('btn-lock').first().click();
+            step('교사: 새 학생 그만 받기');
             break;
           case 'startRoundNow': {
-            const b = T.getByRole('button', { name: /지금 라운드 시작/ });
+            // (작업 137) 카드 [라운드 지금 시작]/[라운드 바로 시작], 없으면 '오늘 순서'의 라운드 줄 [지금 시작]
+            let b = T.getByRole('button', { name: /라운드 (지금|바로) 시작/ });
+            if (!((await b.count()) && (await b.first().isVisible().catch(() => false)))) {
+              await openFoldOf(T, 'order');
+              const row = T.locator('[data-testid="tl-next-item"][data-item^="r:"]').first();
+              if (await row.count()) {
+                const head = row.locator('.t-ord__head');
+                if ((await head.getAttribute('aria-expanded').catch(() => null)) !== 'true') await head.click().catch(() => undefined);
+              }
+              b = row.getByTestId('tl-now');
+            }
             if ((await b.count()) && (await b.first().isVisible().catch(() => false))) {
               await b.first().click();
               if (await T.getByTestId('confirm-ok').isVisible({ timeout: 2000 }).catch(() => false)) await T.getByTestId('confirm-ok').click();
               startRoundNowUsed = '눌렀음';
-              step('교사: [지금 라운드 시작]');
+              step('교사: [라운드 지금 시작]');
             } else {
               startRoundNowUsed = '버튼 없음(134 전) — 건너뜀';
               step('교사: [지금 라운드 시작] 버튼 없음 — 건너뜀');
@@ -751,7 +780,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
                   if (now() - fireSeenAt > 6000 + rand() * 10_000) {
                     const before = pub.waiting;
                     const err = await T.getByTestId('btn-fire').click({ timeout: 3000 }).then(() => '', (e: unknown) => String(e).split('\n')[0]!.slice(0, 100));
-                    step(`교사: [발동](${before ?? ''})${err ? ` 실패: ${err}` : ''}`);
+                    step(`교사: 카드 [다음으로](옛 발동, ${before ?? ''})${err ? ` 실패: ${err}` : ''}`);
                     fireSeenAt = null;
                     // 눌렀는데 진행되지 않음(같은 항목을 계속 기다림) — 3번이면 막힘
                     const t1 = now();
@@ -763,6 +792,18 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
                     }
                   }
                 } else fireSeenAt = null;
+                // (작업 137) 수동 진행: 카드 큰 버튼이 [발동] 말고 다른 것(응답 받기 끝내기·결과 끝·학습지 닫기·남은 순서가 없을 때 [지금 마무리로](확인 1번))이면
+                // 교사가 카드대로 누른다(라운드 끝내기는 시나리오 동작으로만)
+                const finishBtn = T.locator('[data-testid="now-primary"]:is([data-kind="finishEarly"],[data-kind="closeEvent"],[data-kind="endResult"],[data-kind="closeWorksheet"]) button');
+                if (pub.mode === 'manual' && (await finishBtn.isVisible().catch(() => false))) {
+                  finishSeenAt ??= now();
+                  if (now() - finishSeenAt > 6000) {
+                    await finishBtn.click({ timeout: 3000 }).catch(() => undefined);
+                    if (await T.getByTestId('confirm-finish').isVisible({ timeout: 2000 }).catch(() => false)) await T.getByTestId('confirm-ok').click().catch(() => undefined);
+                    step('교사: 카드 큰 버튼(수동 진행 — 발동 아닌 것)');
+                    finishSeenAt = null;
+                  }
+                } else finishSeenAt = null;
                 if (tpx.rejoinReqs > 0) {
                   approveSeenAt ??= now();
                   if (now() - approveSeenAt > 5000) {
@@ -775,7 +816,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
                   timeUpSeenAt ??= now();
                   if (now() - timeUpSeenAt > 5000) {
                     await T.getByTestId('btn-after-activity').click({ timeout: 3000 }).catch(() => undefined);
-                    step('교사: 무역 시간 끝 창 [이 활동 끝나고]');
+                    step('교사: 무역 시간 끝 카드 [이 활동 끝나고]');
                     timeUpSeenAt = null;
                   }
                 } else timeUpSeenAt = null;
@@ -939,7 +980,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
             const tu = timeUpMissing.update(P.timeUp && !timeUpModalSeen && !T0.timeUp && !T0.wrapup, n);
             if (tu > 15_000 && !timeUpMissing.reported) {
               timeUpMissing.reported = true;
-              await problem({ kind: 'teacher-guidance', severity: '문제', key: 'timeup-missing', title: '무역 시간이 끝났는데 교사 화면에 안내 창이 없음', detail: 'schedule.timeUp인데 time-up 창이 보이지 않아요.', page: t });
+              await problem({ kind: 'teacher-guidance', severity: '문제', key: 'timeup-missing', title: '무역 시간이 끝났는데 교사 화면에 안내가 없음', detail: "schedule.timeUp인데 '지금 할 일' 카드가 '무역 시간이 끝났어요'(timeUp)가 아니에요.", page: t });
             }
             const nc = teacherNoCountdown.update(P.mode === 'auto' && P.round === 0 && P.phase !== 'round' && !hasTeacherRoundCountdown(T0.text), n);
             if (nc > 30_000 && !teacherNoCountdown.reported) {
@@ -1038,16 +1079,21 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         if (!ok) await problem({ kind: 'missing-screen', severity: '문제', key: `trade-over-${s.seat}`, title: `무역이 끝났는데 ${s.label} 화면에 결과(무역 끝) 화면이 없음`, detail: '20초(실제) 안에 trade-over가 보이지 않았어요.', who: [s.label], page: s.page });
       }
       await checkConsistency('무역 끝');
-      // 마무리: [시작] → 학생 화면 → [끝]
+      // 마무리: (작업 137) 첫 항목은 저절로 시작(PRD 7.5.2.9) → 학생 화면 → [끝], 다음 항목은 [시작] → 학생 화면 → [끝]
       const items = t!.locator('[data-testid="wrap-item"]');
+      await items.first().waitFor({ timeout: 10_000 }).catch(() => undefined);
       const nItems = await items.count();
       const wrapLog: string[] = [];
+      if (nItems && (await items.first().getAttribute('data-status').catch(() => null)) !== 'live')
+        await problem({ kind: 'teacher-guidance', severity: '문제', key: 'wrap-auto-start', title: '무역 시간이 끝났는데 첫 마무리 항목이 저절로 시작되지 않음', detail: `첫 마무리 항목 상태: ${await items.first().getAttribute('data-status').catch(() => '?')} — PRD 7.5.2.9는 저절로 시작.`, page: t });
       for (let i = 0; i < nItems; i++) {
         const it = items.nth(i);
         const label = ((await it.innerText().catch(() => '')) ?? '').split('\n')[0]!.slice(0, 20);
-        const start = it.getByRole('button', { name: '시작' });
-        if (!(await start.count())) continue;
-        await start.click({ timeout: 5000 }).catch(() => undefined);
+        if ((await it.getAttribute('data-status').catch(() => null)) !== 'live') {
+          const start = it.getByRole('button', { name: '시작' });
+          if (!(await start.count())) continue;
+          await start.click({ timeout: 5000 }).catch(() => undefined);
+        }
         const want = /결산|시상/.test(label) ? 'wrap-awards' : /되돌아/.test(label) ? 'wrap-reflect' : null;
         if (want) {
           for (const s of slots.values()) {
@@ -1274,7 +1320,8 @@ async function probeTeacher(t: Page): Promise<TeacherProbe | null> {
         clockSec: clock ? Number(clock.getAttribute('data-sec')) : null,
         fireVisible: vis(fire),
         fireInView: Boolean(fr && fr.top >= 0 && fr.bottom <= innerHeight && fr.left >= 0 && fr.right <= innerWidth),
-        timeUp: vis(q('time-up')),
+        // (작업 137) 옛 time-up 창 → '지금 할 일' 카드 상태 5
+        timeUp: q('now-card')?.getAttribute('data-state') === 'timeUp',
         wrapup: vis(q('wrapup-panel')),
         rejoinReqs: [...document.querySelectorAll('[data-testid="rejoin-request"]')].filter(vis).length,
         ended: vis(q('ended')),
@@ -1311,6 +1358,12 @@ function tradeElapsed(p: PubSummary): number {
   const remaining = p.paused ? null : (p.endsAt - p.serverNow) / 1000;
   if (remaining === null) return Math.max(0, ((p.pausedAt ?? p.serverNow) - p.startedAt) / 1000 - p.pausedTotalSec);
   return Math.max(0, p.durationSec - remaining);
+}
+
+/** (작업 137) 교사 대시보드 오른쪽 접힘 영역 펼치기(이미 펼쳐져 있으면 그대로) */
+async function openFoldOf(t: Page, id: string): Promise<void> {
+  const f = t.getByTestId(`fold-${id}`);
+  if ((await f.getAttribute('data-open').catch(() => null)) !== '1') await t.getByTestId(`fold-${id}-head`).click({ timeout: 5000 }).catch(() => undefined);
 }
 
 async function endRoom(t: Page): Promise<boolean> {

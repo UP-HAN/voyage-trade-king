@@ -22,6 +22,7 @@ import {
   type HostSnapshot,
   type ItemForm,
   type PlayUnit,
+  type WrapItem,
 } from '../core';
 import { metrics as METRICS, type MetricId } from '../data/awards';
 import { playUnits } from '../data/schedule';
@@ -49,6 +50,8 @@ export type TeacherGame = HostSnapshot & {
   screenScene?: ScreenScene;
   /** 마무리 항목 진행(WrapItem id → 상태). 내용 화면은 118·112 */
   wrapProgress?: Record<string, WrapStepStatus>;
+  /** (작업 137) 마무리 첫 항목을 저절로 시작했는가(새로 고침 뒤 두 번 시작하지 않게) */
+  wrapAutoStarted?: boolean;
 };
 
 /** 교사 화면 전용 행동(103 TeacherAction 밖 — 이 파일의 리듀서가 처리) */
@@ -82,8 +85,37 @@ export const teacherReducer: SessionReducer<TeacherGame> = (snapshot, input: Ses
     }
   }
   const r = coreReducer(snapshot, input as never, now);
-  return { snapshot: r.snapshot as TeacherGame, outputs: r.outputs as unknown as SessionOutput[] };
+  const next = r.snapshot as TeacherGame;
+  const outputs = r.outputs as unknown as SessionOutput[];
+  // (작업 137, PRD 7.5.2.9) 무역 시간이 끝나 마무리 단계가 되는 순간 첫 마무리 항목을 저절로 시작한다(한 번만)
+  const auto = autoStartWrap(snapshot, next);
+  if (auto) return { snapshot: auto, outputs: [...outputs, { type: 'teacher', data: { notice: 'WRAP_STEP' } }, { type: 'public' }] };
+  return { snapshot: next, outputs };
 };
+
+/** 마무리 단계 중 저절로 시작할 첫 항목(내용이 있는 첫 항목 — 0분짜리 '마지막 라운드 정산'은 끝난 것으로 둔다) */
+export function firstWrapStep(items: readonly WrapItem[]): WrapItem | null {
+  return items.find((w) => w.id !== 'settle') ?? null;
+}
+
+/**
+ * (작업 137) 마무리 첫 항목 자동 시작 — 호스트 상태(스냅숏)로 처리한다.
+ * 무역이 끝나는 바로 그 입력(틱의 시간 끝·[지금 마무리로]·계획 끝)에서만 일어나고, 표시(`wrapAutoStarted`)를 남겨
+ * 새로 고침·복구(스냅숏 다시 읽기) 뒤에 두 번 시작하지 않는다. 교사가 이미 무엇이든 시작했으면 건드리지 않는다.
+ */
+export function autoStartWrap(prev: TeacherGame, next: TeacherGame): TeacherGame | null {
+  if (next.wrapAutoStarted || prev.class.tradeEnded || !next.class.tradeEnded || next.class.phase !== 'wrapup') return null;
+  const items = next.class.schedule.wrapup ?? [];
+  const first = firstWrapStep(items);
+  const wp = { ...(next.wrapProgress ?? {}) };
+  if (Object.values(wp).some((v) => v === 'live')) return { ...next, wrapAutoStarted: true };
+  for (const w of items) {
+    if (w === first) break;
+    if (!wp[w.id]) wp[w.id] = 'done';
+  }
+  if (first && !wp[first.id]) wp[first.id] = 'live';
+  return { ...next, wrapProgress: wp, wrapAutoStarted: true };
+}
 
 const isDev = (() => {
   try {

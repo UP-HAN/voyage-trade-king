@@ -1,4 +1,7 @@
 /**
+ * (작업 137, PRD 7.5.2.2) '수업 중 자주 바꾸는 것'(라운드 길이·순위 공개·편지 배달)과 [고급](진행 방식·최종 자산 탭·상별 수상 인원·
+ * '다 썼어요' 대기 시간·회색 P1 항목·연결 테스트·판 옮기기 파일 저장·작은 글씨 "배치 n판")으로 나눈다. [결과 파일 저장]·[수업 끝내기(방 닫기)]는 맨 아래.
+ *
  * 설정(판 중) — 작업 109, PRD 7.5 '설정(판 중)' v0.3.1:
  * 라운드 길이, 순위 공개 N·자산 탭, 상별 수상 인원, "다 썼어요" 대기 시간, 진행 방식, (P1 회색) 공용 화면 예보·이름 확인 후 공개·추가 금칙어,
  * [연결 테스트], [결과 파일 저장], [판 옮기기 파일 저장], [판 끝내기·방 닫기](두 번 확인). 이름 표시 방식·이름 받지 않기는 v0.3.1에서 삭제.
@@ -11,6 +14,7 @@ import { roundLength, worksheetWaitSecOptions } from '../data/schedule';
 import { ConnectionTest } from '../ui/common/ConnectionTest';
 import type { TeacherActions } from './actions';
 import type { TeacherGame } from './game';
+import { MODE_TEXT } from './teacher-terms';
 import { Modal } from './ui';
 
 export interface SettingsModalProps {
@@ -48,6 +52,7 @@ export function SettingsModal({ game, actions, onClose, onSaveResult, onSaveMove
   return (
     <Modal title="설정" onClose={onClose} testId="settings-modal" wide>
       <div class="t-settings">
+        <h3 class="t-h4">수업 중 자주 바꾸는 것</h3>
         <Row label="라운드 길이">
           {roundOptions.map((sec) =>
             pick(s.roundSec, sec, `${sec % 60 ? (sec / 60).toFixed(1) : sec / 60}분`, () => actions.dispatch({ type: 'setRoundSec', sec })),
@@ -56,50 +61,58 @@ export function SettingsModal({ game, actions, onClose, onSaveResult, onSaveMove
         <Row label="순위 공개">
           {leaderboardRules.topNOptions.map((n) => pick(s.leaderboardTopN, n as TopN, n === 0 ? '안 보임' : `상위 ${n}`, () => upd({ leaderboardTopN: n as TopN })))}
         </Row>
-        <Row label="최종 자산 탭">
-          {pick(s.assetBoard, true, '보임', () => upd({ assetBoard: true }))}
-          {pick(s.assetBoard, false, '숨김', () => upd({ assetBoard: false }))}
-        </Row>
-        <Row label="상별 수상 인원">{([1, 2, 3] as const).map((k) => pick(s.awardsPerPrize, k, `${k}명`, () => upd({ awardsPerPrize: k })))}</Row>
-        <Row label="'다 썼어요' 대기 시간">
-          {worksheetWaitSecOptions.map((w) => pick(s.worksheetWaitSec, w, `${w}초`, () => upd({ worksheetWaitSec: w })))}
-        </Row>
-        <Row label="진행 방식">
-          {pick(game.class.schedule.mode, 'auto', '자동', () => actions.dispatch({ type: 'setProgressMode', mode: 'auto' }), 'mode-auto')}
-          {pick(game.class.schedule.mode, 'manual', '수동', () => actions.dispatch({ type: 'setProgressMode', mode: 'manual' }), 'mode-manual')}
-        </Row>
         <Row label="편지 배달">
-          {pick(game.class.letters.enabled, true, '켜기', () => actions.dispatch({ type: 'toggleLetters', enabled: true }))}
-          {pick(game.class.letters.enabled, false, '끄기', () => actions.dispatch({ type: 'toggleLetters', enabled: false }))}
+          {pick(game.class.letters.enabled, true, '켜기', () => actions.dispatch({ type: 'toggleLetters', enabled: true }), 'set-letters-on')}
+          {pick(game.class.letters.enabled, false, '끄기', () => actions.dispatch({ type: 'toggleLetters', enabled: false }), 'set-letters-off')}
         </Row>
-        <Row label="공용 화면에 예보 보이기" off>
-          <button type="button" class="t-seg__btn" disabled aria-pressed={s.showForecastOnScreen}>
-            {s.showForecastOnScreen ? '보임' : '숨김'}
-          </button>
-        </Row>
-        <Row label="회사 이름 확인 후 공개" off>
-          <button type="button" class="t-seg__btn" disabled aria-pressed={s.nameReview}>
-            {s.nameReview ? '켬' : '끔'}
-          </button>
-        </Row>
-        <Row label="추가 금칙어" off>
-          <input class="t-input" disabled placeholder="곧 열려요" />
-        </Row>
+        <details class="t-adv t-settings__adv" data-testid="settings-advanced">
+          <summary>고급</summary>
+          <Row label="진행 방식">
+            {pick(game.class.schedule.mode, 'auto', MODE_TEXT.auto, () => actions.dispatch({ type: 'setProgressMode', mode: 'auto' }), 'mode-auto')}
+            {pick(game.class.schedule.mode, 'manual', MODE_TEXT.manual, () => actions.dispatch({ type: 'setProgressMode', mode: 'manual' }), 'mode-manual')}
+          </Row>
+          <Row label="최종 자산 탭">
+            {pick(s.assetBoard, true, '보임', () => upd({ assetBoard: true }))}
+            {pick(s.assetBoard, false, '숨김', () => upd({ assetBoard: false }))}
+          </Row>
+          <Row label="상별 수상 인원">{([1, 2, 3] as const).map((k) => pick(s.awardsPerPrize, k, `${k}명`, () => upd({ awardsPerPrize: k })))}</Row>
+          <Row label="'다 썼어요' 대기 시간">
+            {worksheetWaitSecOptions.map((w) => pick(s.worksheetWaitSec, w, `${w}초`, () => upd({ worksheetWaitSec: w })))}
+          </Row>
+          <Row label="공용 화면에 예보 보이기" off>
+            <button type="button" class="t-seg__btn" disabled aria-pressed={s.showForecastOnScreen}>
+              {s.showForecastOnScreen ? '보임' : '숨김'}
+            </button>
+          </Row>
+          <Row label="회사 이름 확인 후 공개" off>
+            <button type="button" class="t-seg__btn" disabled aria-pressed={s.nameReview}>
+              {s.nameReview ? '켬' : '끔'}
+            </button>
+          </Row>
+          <Row label="추가 금칙어" off>
+            <input class="t-input" disabled placeholder="곧 열려요" />
+          </Row>
+          <div class="t-row">
+            <button type="button" class="btn btn--secondary t-btn-sm" data-testid="btn-conn" aria-expanded={conn} onClick={() => setConn((v) => !v)}>
+              연결 테스트
+            </button>
+            <button type="button" class="btn btn--secondary t-btn-sm" data-testid="btn-save-move" onClick={onSaveMove}>
+              판 옮기기 파일 저장
+            </button>
+          </div>
+          {conn && <ConnectionTest />}
+          <p class="t-small t-settings__ver" data-testid="schedule-version">
+            배치 {game.class.schedule.version}판
+          </p>
+        </details>
         <div class="t-row t-settings__btns">
-          <button type="button" class="btn btn--secondary" aria-expanded={conn} onClick={() => setConn((v) => !v)}>
-            연결 테스트
-          </button>
           <button type="button" class="btn btn--secondary" data-testid="btn-save-result" onClick={onSaveResult}>
             결과 파일 저장
           </button>
-          <button type="button" class="btn btn--secondary" data-testid="btn-save-move" onClick={onSaveMove}>
-            판 옮기기 파일 저장
-          </button>
           <button type="button" class="btn t-btn--danger" data-testid="btn-end" onClick={onEnd}>
-            판 끝내기·방 닫기
+            수업 끝내기(방 닫기)
           </button>
         </div>
-        {conn && <ConnectionTest />}
         <div class="t-modal__actions">
           <button type="button" class="btn btn--primary" data-testid="settings-close" onClick={onClose}>
             닫기

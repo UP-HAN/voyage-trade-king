@@ -10,6 +10,20 @@ import { createHostTransport } from '../sync/select';
 import type { HostTransport } from '../sync/adapter';
 import { resultTableOf, teacherReducer, teacherViews, type TeacherGame } from './game';
 
+/**
+ * (작업 137) 공용 화면 창 연결 신호: 같은 브라우저의 공용 화면 창(`#/screen`)은 4초마다 hello를 보낸다(살아 있음 확인).
+ * 마지막 hello가 이 시간 안이면 '연결됨'. 교사 탭의 실제 시각(Date.now)으로 잰다(서버 시각과 무관).
+ */
+export const SCREEN_ALIVE_MS = 10_000;
+let lastScreenHello = 0;
+export function markScreenHello(): void {
+  lastScreenHello = Date.now();
+}
+/** 공용 화면 창이 지금 연결돼 있나(최근 hello) */
+export function screenConnected(nowMs: number = Date.now()): boolean {
+  return lastScreenHello > 0 && nowMs - lastScreenHello < SCREEN_ALIVE_MS;
+}
+
 export interface TeacherHost {
   session: HostSession<TeacherGame>;
   transport: HostTransport;
@@ -33,7 +47,7 @@ export function createTeacherHostFrom(transport: HostTransport, store: HostStore
     now,
     phaseOf: (g) => g.class.phase,
     resultTable: resultTableOf,
-    screenFactory: (code) => createScreenPublisher(code, { now }),
+    screenFactory: (code) => createScreenPublisher(code, { now, onHello: markScreenHello }),
     extraBannedWords: () => [],
   });
   return { session, transport, store, now };

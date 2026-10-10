@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { openFold, openOrderRow, openTvMenu } from './support/voyage-ui';
 
 /**
  * 작업 110 공용 화면(#/screen) e2e.
@@ -366,6 +367,7 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     const code = (await codeEl.innerText()).trim();
 
     // [공용 화면 창 열기] → 새 창(같은 브라우저)
+    await openTvMenu(page); // (작업 137) 위쪽 띠 [TV 화면 ▾]
     const [screen] = await Promise.all([context.waitForEvent('page'), page.getByTestId('btn-open-screen').click()]);
     screen.on('pageerror', (e) => errors.push(`screen: ${e.message}`));
     await screen.setViewportSize({ width: 1920, height: 1080 });
@@ -399,6 +401,7 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
 
     // 교사가 장면을 바꾸면 2초 안에
     const pick = async (scene: string, want: string) => {
+      await openTvMenu(page);
       const t0 = Date.now();
       await page.getByTestId('scene-select').selectOption(scene);
       await expect.poll(() => sceneOf(screen), { timeout: 2000 }).toBe(want);
@@ -420,10 +423,12 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     await shot(screen, 'flow-02-leaderboard.png');
     await modal.getByRole('button', { name: '상위 3' }).click();
     await page.getByTestId('settings-close').click();
+    await openTvMenu(page);
     await page.getByTestId('scene-select').selectOption('auto');
     await expect.poll(() => sceneOf(screen), { timeout: 2000 }).toMatch(/^(code|rules)$/);
 
-    // 발표 모드: 교사 창이 공용 화면으로 → [대시보드로]
+    // 발표 모드(이 화면을 TV로 보여 주기): 교사 창이 공용 화면으로 → [선생님 화면으로]
+    await openTvMenu(page);
     await page.getByTestId('btn-present').click();
     await expect(page.getByTestId('presentation').getByTestId('route-screen')).toBeVisible();
     await expect.poll(() => sceneOf(page), { timeout: 15_000 }).toBe('code');
@@ -445,9 +450,12 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     await shot(screen, 'flow-04-cover.png');
 
     // 다음 사건 [지금] → 사건 카드(표지가 끝난 뒤)
+    // (작업 137) '오늘 순서'에서 줄을 눌러 [지금 시작]
+    await openFold(page, 'order');
     const nextEvent = page.locator('[data-testid="tl-next-item"][data-item^="ev:"]').first();
     await expect(nextEvent).toBeVisible({ timeout: 30_000 });
-    await nextEvent.getByRole('button', { name: '지금' }).click();
+    await openOrderRow(page, nextEvent);
+    await nextEvent.getByTestId('tl-now').click();
     await expect.poll(() => sceneOf(screen), { timeout: 30_000 }).toMatch(/^(event|bars)$/);
     await expectNoPrivate(screen, ['500만']);
     await shot(screen, 'flow-05-event.png');
@@ -465,8 +473,12 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
 
     // 무역 시간을 줄여 끝냄 → 마무리(시계 숨김). 학생 1명 차시 한 판은 모든 지표 값이 같아 상이 자동으로 숨겨지므로(PRD 4.1.1)
     // 시상 목록 대신 순위판이 나온다 — 시상 장면 자체는 위 '장면' 시험(27개 회사)에서 확인
+    await openFold(page, 'time'); // (작업 137) '시간 조절' 접힘 영역: 직접 __분 [줄이기]
     await page.getByTestId('custom-min').fill('9');
-    await page.getByRole('button', { name: '직접 −' }).click();
+    await page.getByTestId('btn-custom-shorten').click();
+    const shortConf = page.getByTestId('confirm-shorten');
+    await shortConf.waitFor({ state: 'visible', timeout: 1000 }).catch(() => undefined);
+    if (await shortConf.isVisible().catch(() => false)) await page.getByTestId('confirm-ok').click();
     await expect
       .poll(
         async () => {

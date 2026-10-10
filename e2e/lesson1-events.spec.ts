@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { openActivities, pickWorksheetMode } from './support/voyage-ui';
+import { openActivities, openFold, openTvMenu, pickWorksheetMode } from './support/voyage-ui';
 
 /**
  * 작업 111 사건·결정 카드 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 107 실제 화면).
@@ -82,6 +82,7 @@ async function expectScreenSkew(scr: Page, t: Page, skewMs: number) {
 }
 
 async function openScreen(ctx: BrowserContext, t: Page): Promise<Page> {
+  await openTvMenu(t); // (작업 137) [TV 화면 ▾] 안
   const [scr] = await Promise.all([ctx.waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
   await scr.setViewportSize({ width: 1920, height: 1080 });
   await expect(scr.getByTestId('route-screen')).toBeVisible();
@@ -229,6 +230,7 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   await expect(t.getByTestId('trade-clock')).toBeVisible();
   // 배치표(18분 + 확인 퀴즈 넣기): 표지 0 · L1-E1 20(짧게) · L1-E2 170 · 1라운드+L1-E6 290 · L1-E4 444(짧게) ·
   // 2라운드+L1-E7 504 · L1-E5 657(짧게) · 3라운드 807 · L1-E8 960
+  await openFold(t, 'order'); // (작업 137) '오늘 순서' 접힘 영역
   const tlText = await t.getByTestId('tl-next').innerText();
   expect(tlText).toContain('벽란도 시장');
 
@@ -334,7 +336,7 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   await s1.getByTestId('event-panel-unfold').click();
   await expect(s1.getByTestId('event-panel')).toHaveAttribute('data-event', 'L1-E7');
   // 결정: s1 상하이, s2 부산(국내산)
-  await expect(t.getByTestId('tl-resp-count')).toHaveText('응답 0/2');
+  await expect(t.getByTestId('tl-resp-count')).toHaveText('흑연을 어디서 살까요? 학생 0/2 응답'); // (작업 137 수정 1회차) 라운드 중 결정은 라운드 카드 보조 정보
   await s1.getByTestId('decision-opt-SHA').click();
   await s1.getByTestId('decision-reason').fill('값이 싸서');
   await s1.getByTestId('decision-submit').dblclick();
@@ -343,7 +345,7 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   await expect(s1.getByTestId('event-panel').getByTestId('card-unit-note')).toHaveCount(0); // 차시 한 판: 숨김
   await s2.getByTestId('decision-opt-BUS').click();
   await s2.getByTestId('decision-submit').click();
-  await expect(t.getByTestId('tl-resp-count')).toHaveText('응답 2/2');
+  await expect(t.getByTestId('tl-resp-count')).toHaveText('흑연을 어디서 살까요? 학생 2/2 응답');
   await expect(t.locator('[data-testid="cell-response"][data-v="yes"]')).toHaveCount(2);
   await expect(screenEvent(scr, 'L1-E7').getByTestId('event-count')).toHaveText('응답한 회사 2/2');
   await expect(scr.getByTestId('decision-bars')).toHaveCount(0); // [결과 공개] 전에는 수만
@@ -444,7 +446,7 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   await s2.waitForTimeout(600);
   await answer(s2, 'CQ-L1-2', '0');
   await expect(s1.getByTestId('quiz-sent')).toHaveCount(2);
-  await expect(t.getByTestId('tl-resp-count')).toHaveText('응답 2/3');
+  await expect(t.getByTestId('tl-resp-count')).toHaveText('학생 2/3 응답');
   await expect(screenEvent(scr, 'L1-E8').getByTestId('event-count')).toHaveText('응답한 회사 2/3');
   await expect(t.locator('[data-testid="cell-response"][data-v="no"]')).toHaveCount(1);
   // (수정 1회차) [결과 공개] 없이 바로 [마감] → 결과 20초(정답률·해설·쪽수), 마지막 계획 항목이어도 무역이 바로 끝나지 않음
@@ -527,7 +529,11 @@ test('B. 단원 한 판: L1-E2 짧은 형태, L1-E4 전체, L1-E7 카드에 unit
   // [결과 공개] 경로: 마감 전에 공개 → 막대, 그 뒤 [마감] → 결과 20초 유지 → 해도
   await s1.getByTestId('decision-opt-SHA').click();
   await s1.getByTestId('decision-submit').click();
-  await t.getByTestId('btn-reveal-event').click();
+  // (작업 137 수정 1회차) 라운드 중 결정의 [TV에 결과 보여 주기]는 '오늘 순서'에서 그 줄을 눌러(카드 작은 글자는 [응답 받기 끝내기])
+  const liveDecision = t.locator('[data-testid="tl-live-item"][data-item="ev:L1-E7"]');
+  await openFold(t, 'order');
+  await liveDecision.locator('.t-ord__head').click();
+  await t.getByTestId('tl-reveal').click();
   await expect(screenEvent(scr, 'L1-E7').getByTestId('decision-bars')).toContainText('상하이에서 살래요');
   await expect(screenEvent(scr, 'L1-E7')).toHaveAttribute('data-revealed', '1');
   await t.getByTestId('btn-close-event').click();

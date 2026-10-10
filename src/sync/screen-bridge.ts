@@ -53,6 +53,8 @@ export interface ScreenBridgeOptions {
   strict?: boolean;
   /** (호스트 쪽) 호스트 기준 시각(중계 서버 시각). 있으면 상태 메시지마다 보낸 순간의 시각 `hostNow`를 싣는다(작업 111) */
   now?: () => number;
+  /** (작업 137, 호스트 쪽) 공용 화면 창이 hello(처음 + 4초마다 살아 있음 신호)를 보낼 때 — 교사 카드 "TV 화면 창이 열려 있지 않아요" 판단 */
+  onHello?: () => void;
 }
 
 function clean(obj: JsonObject | null | undefined, strict: boolean): JsonObject | null {
@@ -86,7 +88,14 @@ export function createScreenPublisher(code: string, o: ScreenBridgeOptions = {})
   if (ch) {
     ch.onmessage = (ev) => {
       const m = ev.data as { t?: string } | null;
-      if (m && m.t === 'hello' && last) post(last);
+      if (m && m.t === 'hello') {
+        try {
+          o.onHello?.();
+        } catch {
+          /* 무시 */
+        }
+        if (last) post(last);
+      }
     };
   }
   return {

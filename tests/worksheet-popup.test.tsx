@@ -489,7 +489,7 @@ describe("(작업 132) 지금 쓰기 ③★·⑭★ 팝업", () => {
     expect(l1.rows.find((x) => x.label === '③')).toMatchObject({ done: 0 });
     mount(<WorksheetPanel game={g} view={viewOf(g)} actions={demoActions(() => NOW)} now={NOW} />);
     expect(byTest('ws-now')[0]!.getAttribute('data-during')).toBe('1');
-    expect(text(byTest('ws-now')[0])).toContain('③★ 지금 쓰기');
+    expect(text(byTest('ws-now')[0])).toContain('③★ 지금 바로 쓰기');
     const star = byTest('ws-rate-during');
     expect(star).toHaveLength(1);
     expect(text(star[0])).toContain('③★ 1/2');

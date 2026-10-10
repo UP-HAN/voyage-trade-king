@@ -92,7 +92,7 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await t.getByTestId('btn-start-trade').click();
   const confirm = t.getByTestId('confirm-start');
   await expect(confirm).toContainText('먼저 벽란도 시장·무역·수입·수출 활동을 하고 약 3분 50초 뒤 라운드 1이 시작돼요');
-  await expect(confirm).toContainText('[지금 라운드 시작]으로 당길 수 있어요');
+  await expect(confirm).toContainText("사전 활동 중에도 '지금 할 일' 카드의 [라운드 바로 시작]으로 당길 수 있어요");
   await shot(t, '134-A1-teacher-start-confirm.png');
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('trade-clock')).toBeVisible();
@@ -103,9 +103,12 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await shot(s, '134-A3a-student-wait-card-cover.png');
   // 20초 뒤(표지 → 벽란도 시장 시작 무렵)
   await advanceUntil(ctx, t, async () => (await elapsed(t, 600)) >= 20, 40);
-  // 교사: 무역 시계 옆 "라운드 1까지 m:ss" + [지금 라운드 시작]
+  // 교사: 진행 줄(카드 바로 아래, 첫 화면) "라운드 1까지 m:ss" + (작업 137 수정 1회차) 사전 활동 카드의 작은 글자 [라운드 바로 시작]
   await expect(t.getByTestId('next-round')).toHaveText(/^라운드 1까지 3:\d{2}$/);
-  await expect(t.getByTestId('btn-round-now')).toBeEnabled();
+  const roundNow = t.getByTestId('now-round-now');
+  await expect(roundNow).toBeEnabled();
+  const box = await roundNow.boundingBox();
+  expect(box && box.y + box.height <= 768).toBe(true); // 첫 화면 안
   await shot(t, '134-A2-teacher-next-round.png');
   // 학생: 상태 카드(활동 화면이 떠 있으면 그 화면이 위) — 거래·출항 버튼 없음
   await expect(s.getByTestId('round-wait-card')).toBeAttached();
@@ -115,15 +118,17 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await expect(s.getByTestId('set-ready')).toHaveCount(0);
   await shot(s, '134-A3b-student-activity-over-card.png');
 
-  // [지금 라운드 시작] → 1등급(무역·수입·수출)이 빠지므로 이름이 든 확인 창
-  await t.getByTestId('btn-round-now').click();
+  // [지금 시작](라운드) → 꼭 할 활동(무역·수입·수출)이 빠지므로 이름이 든 확인 창
+  await roundNow.click();
   const conf = t.getByTestId('confirm-round-now');
   await expect(conf).toContainText('「무역·수입·수출」');
   await expect(conf).toContainText('벽란도 시장');
   await shot(t, '134-A4-teacher-round-now-confirm.png');
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('round-info')).toContainText('라운드 1');
-  await expect(t.getByTestId('btn-round-now')).toHaveCount(0);
+  await expect(t.getByTestId('now-round-now')).toHaveCount(0);
+  await expect(t.locator('[data-testid="tl-next-item"][data-item="r:1"]')).toHaveCount(0);
+  await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'round');
   await shot(t, '134-A5-teacher-round1.png');
 
   // 학생: 즉시 거래·출항 가능
@@ -158,7 +163,7 @@ test('B. 차시 L1 10분 자동: 누르지 않으면 3:50에 라운드 1이 열�
   await ctx.close();
 });
 
-test('C. 차시 L1 10분 수동: [발동]만으로 표지 → 활동 → 라운드 1(표지에서 막히지 않음, 버튼은 첫 화면 안)', async ({ browser, baseURL }) => {
+test('C. 차시 L1 10분 수동: 카드 [다음으로](옛 [발동])만으로 표지 → 활동 → 라운드 1(표지에서 막히지 않음, 버튼은 첫 화면 안)', async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
   test.setTimeout(300_000);
   const ctx = await browser.newContext({ baseURL, viewport: { width: 1366, height: 768 } });
@@ -166,7 +171,7 @@ test('C. 차시 L1 10분 수동: [발동]만으로 표지 → 활동 → 라운�
   const { t, code } = await openTeacher(ctx, { minutes: 10, manual: true });
   const s = await joinStudent(ctx, 'r03', code, 3, '고래해운');
   await t.getByTestId('btn-start-trade').click();
-  await expect(t.getByTestId('confirm-start')).toContainText('수동 진행이라 [발동]을 눌러야 다음 항목이 시작돼요');
+  await expect(t.getByTestId('confirm-start')).toContainText('선생님이 하나씩 넘기는 방식이라 [다음으로]를 눌러야 다음 순서가 시작돼요');
   await t.getByTestId('confirm-ok').click();
   await expect(s.getByTestId('round-wait-line')).toHaveText('선생님이 시작하면 라운드가 열려요');
   const fired: string[] = [];

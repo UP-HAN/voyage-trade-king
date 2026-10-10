@@ -609,8 +609,11 @@ export type TeacherAction =
   | { type: 'postpone'; id: string; sec?: number }
   /** [건너뛰기](1등급은 confirm 없이 보내면 needsConfirm) */
   | { type: 'skipItem'; id: string; confirm?: boolean }
-  /** [지금] / 수동 진행의 [발동] */
-  | { type: 'fireNow'; id: string }
+  /**
+   * [지금] / 수동 진행의 [발동]. (작업 137) clear: 지금 떠 있는 표지·카드·학습지·결과 보여 주기를 먼저 끝내고 이 항목을 시작한다
+   * (교사 '지금 할 일' 카드의 [다음으로] — 자동 진행에서도. 수동 진행은 원래 끝낸다)
+   */
+  | { type: 'fireNow'; id: string; clear?: boolean }
   | { type: 'setProgressMode'; mode: 'auto' | 'manual' }
   /**
    * (작업 134) [지금 라운드 시작]: 다음 라운드 앞의 아직 시작하지 않은 사전 활동을 건너뛰고(진행 중 활동은 닫고) 라운드를 지금 연다.

@@ -125,7 +125,50 @@ export async function pickWorksheetMode(t: Page, mode: 'auto' | 'each' | 'stageE
   await expect(b).toHaveAttribute('aria-pressed', 'true');
 }
 
+// ─── (작업 137) 교사 대시보드 새 배치: 접힘 영역·TV 화면 메뉴·라운드 끝내기 확인 ───
+
+export type FoldId = 'time' | 'order' | 'entry' | 'worksheet' | 'more';
+
+/** 오른쪽 접힘 영역을 펼친다(이미 펼쳐져 있으면 그대로) — 시간 조절·오늘 순서·입장 관리·학습지·편지/돌발/공정한 바다 */
+export async function openFold(t: Page, id: FoldId): Promise<void> {
+  const f = t.getByTestId(`fold-${id}`);
+  await f.waitFor({ state: 'attached' });
+  if ((await f.getAttribute('data-open')) !== '1') await t.getByTestId(`fold-${id}-head`).click();
+  await expect(f).toHaveAttribute('data-open', '1');
+}
+
+/** 위쪽 띠 [TV 화면 ▾]를 펼친다(공용 화면 창 열기·장면 고르기·이 화면을 TV로 보여 주기) */
+export async function openTvMenu(t: Page): Promise<void> {
+  const list = t.getByTestId('tv-menu-list');
+  if (!(await list.isVisible().catch(() => false))) await t.getByTestId('tv-menu').click();
+  await expect(list).toBeVisible();
+}
+
+/** 학생 표 [더 보기 ▾](나머지 필터·정렬)를 펼친다 */
+export async function openMoreFilters(t: Page): Promise<void> {
+  const list = t.getByTestId('filter-more-list');
+  if (!(await list.isVisible().catch(() => false))) await t.getByTestId('filter-more').click();
+  await expect(list).toBeVisible();
+}
+
+/** '오늘 순서'에서 항목 줄을 눌러 [지금 시작]·[1분 미루기]·[이번엔 빼기]를 연다 */
+export async function openOrderRow(t: Page, row: ReturnType<Page['locator']>): Promise<void> {
+  await openFold(t, 'order');
+  const head = row.locator('.t-ord__head');
+  if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+  await expect(head).toHaveAttribute('aria-expanded', 'true');
+}
+
+/** [라운드 끝내기] — 남은 시간이 있고 모두 준비가 아니면 확인 창(PRD 7.5.2.6)이 뜨므로 확인까지 */
+export async function endRound(t: Page): Promise<void> {
+  await t.getByTestId('btn-end-round').click();
+  const conf = t.getByTestId('confirm-end-round');
+  await conf.waitFor({ state: 'visible', timeout: 1500 }).catch(() => undefined);
+  if (await conf.isVisible().catch(() => false)) await t.getByTestId('confirm-ok').click();
+}
+
 export async function openScreen(t: Page): Promise<Page> {
+  await openTvMenu(t);
   const [scr] = await Promise.all([t.context().waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
   await scr.setViewportSize({ width: 1920, height: 1080 });
   await expect(scr.getByTestId('route-screen')).toBeVisible();

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { openActivities } from './support/voyage-ui';
+import { openActivities, openTvMenu } from './support/voyage-ui';
 
 /**
  * 작업 113 미니게임 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 1366×768).
@@ -62,6 +62,7 @@ async function openTeacher(ctx: BrowserContext, o: { minutes: number; forms?: Re
 }
 
 async function openScreen(ctx: BrowserContext, t: Page): Promise<Page> {
+  await openTvMenu(t); // (작업 137) [TV 화면 ▾] 안
   const [scr] = await Promise.all([ctx.waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
   await scr.setViewportSize({ width: 1920, height: 1080 });
   await expect(scr.getByTestId('route-screen')).toBeVisible();

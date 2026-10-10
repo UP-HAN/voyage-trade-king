@@ -549,6 +549,8 @@ function teacherAction(ctx: Ctx, action: TeacherAction): boolean {
       // (작업 134) 수동 진행의 [발동]: 지금 떠 있는 차단형 활동(표지·사건 카드·학습지)을 끝내고 다음 항목을 시작한다.
       // 수동 진행에서는 끝 시각이 지나도 저절로 닫히지 않아, 이것이 없으면 표지에서 판이 멈춘다(리허설 d)
       if (c.schedule.mode === 'manual' && needsClear(c, it)) clearCurrent(ctx);
+      // (작업 137) 카드 [다음으로]: 자동 진행에서도 떠 있는 것(표지·카드·학습지·결과·앞 차시 요약)을 끝내고 다음 항목을 연다
+      else if (action.clear) clearCurrent(ctx, true);
       const r = fireItem(ctx, it, elapsed(ctx), true);
       if (r === 'wait') return fail('CANNOT_FIRE_NOW');
       syncStatuses(ctx);
@@ -593,9 +595,15 @@ function blocksRound(it: ScheduleItem): boolean {
 }
 
 /** 떠 있는 학습지 팝업·차단형 사건(표지 포함)을 닫고 그 항목을 끝냄(계획 길이 = 실제)으로. 결과 보여 주기도 끝낸다 */
-function clearCurrent(ctx: Ctx): void {
+function clearCurrent(ctx: Ctx, summary = false): void {
   const e = Math.floor(elapsed(ctx) + 1e-9);
   const c = cls(ctx);
+  // (작업 137) 앞 차시 요약 카드(사건 없이 시각으로만 끝남)도 지금 끝낸다
+  if (summary) {
+    for (const it of c.schedule.items) {
+      if (it.kind === 'stageCover' && it.variant === 'summary' && it.status === 'live') mark(ctx, it.id, 'done', { durSec: Math.max(0, e - it.at) });
+    }
+  }
   if (c.phase === 'worksheet' && c.worksheet.current) {
     const ids = c.worksheet.current;
     act(ctx, { type: 'closeWorksheet' });

@@ -19,19 +19,19 @@ export const TEACHER_NOTICE_TEXT: Readonly<Record<string, string>> = {
   BAD_MODE: '그 진행 방식은 고를 수 없어요.',
   PLAN_DONE: '계획한 활동이 모두 끝났어요.',
   // (작업 134) [지금 라운드 시작]
-  PAUSED: '일시정지 중이에요. [이어서 하기]를 먼저 눌러 주세요.',
-  TIME_IS_UP: '무역 시간이 끝났어요. 결산으로 넘어가요.',
+  PAUSED: '잠깐 멈춤 중이에요. [이어서 하기]를 먼저 눌러 주세요.',
+  TIME_IS_UP: '무역 시간이 끝났어요. 마무리로 넘어가요.',
   NO_NEXT_ROUND: '남은 라운드가 없어요.',
-  ROUND_NOW_TIER1: '핵심 활동을 건너뛰게 돼요. 한 번 더 확인해요.',
+  ROUND_NOW_TIER1: '꼭 할 활동이 빠지게 돼요. 한 번 더 확인해요.',
   // 배치표 항목
   ALREADY_STARTED: '이미 시작한 활동이에요.',
   CANNOT_SKIP: '표지는 건너뛸 수 없어요.',
   NO_ITEM: '그 활동을 찾지 못했어요.',
-  TIER1_CANNOT_DROP: '핵심(1등급) 활동은 뺄 수 없어요. 짧게는 할 수 있어요.',
+  TIER1_CANNOT_DROP: '꼭 할 활동은 뺄 수 없어요. 짧게는 할 수 있어요.',
   NO_SHORT_FORM: '이 활동은 짧은 형태가 없어요.',
   BAD_FORM: '그 형태로는 바꿀 수 없어요.',
-  CANNOT_FIRE_NOW: '지금은 띄울 수 없어요. 라운드가 끝나면 떠요.',
-  REQUIRED_EVENT: '꼭 해야 하는 활동이에요. 정말 건너뛸지 한 번 더 확인해요.',
+  CANNOT_FIRE_NOW: '지금은 시작할 수 없어요. 라운드가 끝나면 시작돼요.',
+  REQUIRED_EVENT: '꼭 할 활동이에요. 정말 뺄지 한 번 더 확인해요.',
   // 구간·사건·라운드
   NOT_IN_SCOPE: '이번 판 범위에 없는 차시예요.',
   STAGE_ALREADY_STARTED: '이미 시작한 구간이에요.',
@@ -74,6 +74,17 @@ export const TEACHER_NOTICE_TEXT: Readonly<Record<string, string>> = {
   BAD_ACTION: '지금은 할 수 없는 행동이에요.',
   ERROR: '문제가 생겼어요. 다시 해 보세요.',
 };
+
+/**
+ * (작업 137 수정 1회차) core 배치 경고 문장(데이터용 말 'L1'·'구간')을 교사 화면 쉬운 말로 — 경고 문장은 core 것을 그대로 두고 보일 때만 바꾼다.
+ * "L2 활동이 많아…" → "2차시 활동이 많아…", "구간 끝에 써요" → "차시 끝에 모아서 써요".
+ */
+export function teacherWarningText(w: string): string {
+  return w
+    .replace(/\bL([1-4])\b/g, '$1차시')
+    .replace(/구간 끝에/g, '차시 끝에 모아서')
+    .replace(/구간/g, '차시');
+}
 
 /** 화면에 띄우지 않는 알림(다른 곳에서 보여 주거나 정보용) */
 export const SILENT_NOTICES: ReadonlySet<string> = new Set(['UPCOMING', 'WRAP_STEP', 'TIME_UP', 'NEEDS_CONFIRM']);

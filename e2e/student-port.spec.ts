@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { endRound, openFold, openOrderRow } from './support/voyage-ui';
 
 /**
  * 작업 108 항구 시장 e2e: `?sync=local`로 실제 교사 화면(109 #/teacher) 탭 + 학생 탭(#/play).
@@ -63,8 +64,11 @@ async function ensureRound(t: Page) {
       await t.waitForTimeout(800);
       continue;
     }
-    const item = t.getByTestId('tl-next-item').filter({ has: t.getByTestId('tl-skip') }).first();
+    // (작업 137) '오늘 순서'에서 빼기를 할 수 있는 첫 줄(표지·라운드 아닌 아직 시작 안 한 활동)을 눌러 [이번엔 빼기]
+    await openFold(t, 'order');
+    const item = t.locator('[data-testid="tl-next-item"]:has(.t-ord__head:not([disabled]))').filter({ hasNotText: '라운드' }).first();
     if (await item.count()) {
+      await openOrderRow(t, item);
       await item.getByTestId('tl-skip').click();
       const conf = t.getByTestId('confirm-skip-tier1');
       if (await conf.isVisible().catch(() => false)) await t.getByTestId('confirm-ok').click();
@@ -89,9 +93,17 @@ async function sailTo(s: Page, t: Page, port: string, label: string) {
   await s.getByTestId('pick-confirm').click();
   await s.getByTestId('set-ready').click();
   await expect(s.getByTestId('ready-note')).toBeVisible();
-  await expect(t.getByTestId('ready-count')).toContainText('출항 준비 1/1');
+  await expect(t.getByTestId('ready-count')).toContainText('항해 준비 끝낸 학생 1/1');
   const r0 = await roundNo(t);
-  await t.getByTestId('btn-end-round').click();
+  // (작업 137) 라운드에 붙은 결정 패널이 떠 있으면 카드는 그 활동(우선 8) → [다음으로](응답 받기 끝내기) → 결과 [다음으로] → [라운드 끝내기]
+  for (let i = 0; i < 6 && !(await t.getByTestId('btn-end-round').isVisible().catch(() => false)); i++) {
+    for (const id of ['btn-close-event', 'btn-end-result']) {
+      const b = t.getByTestId(id);
+      if (await b.isVisible().catch(() => false)) await b.click().catch(() => undefined);
+    }
+    await t.waitForTimeout(700);
+  }
+  await endRound(t);
   await expect.poll(() => roundNo(t), { timeout: 10_000 }).not.toBe(r0);
   await expect(s.getByTestId('toasts')).toContainText(`${label}에 도착했어요`, { timeout: 15_000 });
 }

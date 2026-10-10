@@ -9,6 +9,7 @@ import { letterSlots, type ClassState, type LetterSlotInfo } from '../../core';
 import { letterRewards } from '../../data/letterSchedule';
 import type { TeacherGame } from '../game';
 import type { PanelProps } from './types';
+import { lessonText } from '../teacher-terms';
 
 export type SlotState = 'delivered' | 'skipped' | 'pending';
 
@@ -95,7 +96,7 @@ export function LettersPanel({ game, actions }: PanelProps) {
         <ul style={{ margin: 0, paddingLeft: '18px' }} data-testid="lp-slots">
           {rows.map((r) => (
             <li key={r.slot.slotId} data-testid="lp-slot" data-slot={r.slot.slotId} data-state={r.state} style={r.state === 'skipped' ? { color: '#8a7f6a' } : undefined}>
-              <b>{r.slot.slotId}</b> 라운드 {r.slot.round} · {r.slot.stage} · {letterRewards[r.slot.reward].name} · {STATE_TEXT[r.state]}
+              <b>{r.slot.slotId}</b> 라운드 {r.slot.round} · {lessonText(r.slot.stage)} · {letterRewards[r.slot.reward].name} · {STATE_TEXT[r.state]}
               {r.state === 'delivered' && (
                 <span data-testid="lp-rate">
                   {' '}

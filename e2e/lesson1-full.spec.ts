@@ -14,7 +14,9 @@ import {
   finishMinigame,
   found,
   newContext,
+  openFold,
   openScreen,
+  openTvMenu,
   openStudent,
   openTeacher,
   sailTo,
@@ -143,9 +145,9 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('trade-clock')).toBeVisible();
   const total = await tradeLeft(t);
-  // 학습지·편지 패널 펼치기
-  const panels = t.getByTestId('side-panels');
-  if ((await panels.getAttribute('open')) === null) await panels.locator(':scope > summary').click();
+  // 학습지·편지 패널 펼치기(작업 137: 접힘 영역 '학습지'·'편지·돌발 사건·공정한 바다')
+  await openFold(t, 'worksheet');
+  await openFold(t, 'more');
   expect(total).toBeGreaterThan(14 * 60);
 
   // ── L1-E1 벽란도 시장(짧은 형태) ──
@@ -252,7 +254,7 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   await s2.getByTestId('decision-submit').click();
   await s3.getByTestId('decision-opt-none').click();
   await s3.getByTestId('decision-submit').click();
-  await expect(t.getByTestId('tl-resp-count')).toHaveText('응답 3/3');
+  await expect(t.getByTestId('tl-resp-count')).toHaveText('흑연을 어디서 살까요? 학생 3/3 응답'); // (작업 137 수정 1회차) 라운드 중 결정은 라운드 카드 보조 정보
   // s1: 부산으로 출항
   await s1.getByTestId('port-back').click();
   await sailTo(s1, 'BUS');
@@ -282,21 +284,25 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   const wrapText = await t.getByTestId('wrapup-panel').innerText();
   expect(wrapText).toContain('결산·시상');
   expect(wrapText).toContain('되돌아보기');
-  await expect(s1.getByTestId('after-worksheets-student')).toBeVisible();
+  // (작업 137) 첫 마무리 항목(결산·시상)이 저절로 시작되므로 학생 화면은 바로 결산 — '끝나고 쓰기' 목록은 진행 중 항목이 없을 때(아래) 확인
   await shot(t, 'A05-teacher-wrapup-1366.png');
-  await shot(s1, 'A06-student-trade-over-1366.png');
-  // (작업 132) 마무리 [시작]을 따라 학생 화면이 바뀐다: 결산·시상 → 결산 요약, 되돌아보기 → 2문항
+  // (작업 132) 마무리 단계를 따라 학생 화면이 바뀐다: 결산·시상 → 결산 요약, 되돌아보기 → 2문항
+  // (작업 137, PRD 7.5.2.9) 첫 항목(결산·시상)은 무역 시간이 끝나면 저절로 시작, 그다음은 카드 [다음으로: 되돌아보기]
   const wrapItem = (label: string) => t.locator('[data-testid="wrap-item"]').filter({ hasText: label });
-  await wrapItem('결산·시상').getByRole('button', { name: '시작' }).click();
+  await expect(wrapItem('결산·시상')).toHaveAttribute('data-status', 'live');
+  await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'wrapup');
   await expect(s1.getByTestId('wrap-awards')).toBeVisible({ timeout: 15_000 });
   await expect(s1.getByTestId('wrap-metrics')).toContainText('최종 자산');
   await shot(s1, 'A06b-student-wrap-awards-1366.png');
-  await wrapItem('결산·시상').getByRole('button', { name: '끝' }).click();
-  await wrapItem('되돌아보기').getByRole('button', { name: '시작' }).click();
+  await expect(t.getByTestId('now-wrap-next')).toHaveText(/다음으로: 되돌아보기/);
+  await t.getByTestId('now-wrap-next').click();
+  await expect(wrapItem('결산·시상')).toHaveAttribute('data-status', 'done');
   await expect(s1.getByTestId('wrap-reflect')).toHaveAttribute('data-questions', '2', { timeout: 15_000 });
   await shot(s1, 'A06c-student-wrap-reflect-1366.png');
   await wrapItem('되돌아보기').getByRole('button', { name: '끝' }).click();
   await expect(s1.getByTestId('trade-over')).toHaveAttribute('data-wrap', '');
+  await expect(s1.getByTestId('after-worksheets-student')).toBeVisible();
+  await shot(s1, 'A06-student-trade-over-1366.png');
   await clock.fastForwardUntil(async () => (await SCENE(scr)) !== 'map', { label: 'screen wrap', maxFastMs: 60_000 }).catch(() => undefined);
   await noteScene();
   await shot(scr, 'A07-screen-wrapup-1920.png');
@@ -340,7 +346,8 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   });
   let started = 0;
   t.on('download', () => started++);
-  await t.getByTestId('btn-save-result-wrap').click();
+  // (작업 137) 마무리 카드의 [결과 파일 저장](작은 글자 버튼 — 다음 마무리 항목을 기다릴 때·마지막 항목에서)
+  await t.getByTestId('now-save-result').click();
   await expect(t.getByTestId('confirm-result')).toContainText('실명은 들어 있지 않아요');
   await t.getByTestId('confirm-ok').click();
   await expect.poll(() => started, { timeout: 15_000 }).toBe(2);
@@ -349,8 +356,12 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   expect(csv.split(/\r?\n/)[0]).toMatch(/^출석번호,회사 이름,판 단위,차시\(범위\)/);
   expect(blobs.some((x) => x.trim().startsWith('{'))).toBe(true);
   for (const n of ['해오름무역', '바다상회', '늦은배무역']) expect(csv).toContain(n);
-  await t.getByTestId('wrapup-panel').getByRole('button', { name: '판 끝내기·방 닫기' }).click();
+  // [수업 끝내기(방 닫기)] — 확인 2번(PRD 7.5.2.6). 마무리 중간이면 [설정] 맨 아래에서
+  await t.getByTestId('btn-settings').click();
+  await t.getByTestId('btn-end').click();
+  await expect(t.getByTestId('confirm-end-1')).toBeVisible();
   await t.getByTestId('confirm-ok').click();
+  await expect(t.getByTestId('confirm-end-2')).toBeVisible();
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('ended')).toBeVisible();
   for (const s of [s1, s2, s3]) await expect(s.getByTestId('student-room-closed')).toBeVisible({ timeout: 15_000 });
@@ -621,7 +632,7 @@ test('C. 일시정지 중 입장 · 중계 서버 재시작(같은 코드) · �
     await expect(t.getByTestId('disconnected')).toHaveCount(0, { timeout: 40_000 });
     await expect(t.getByTestId('code-changed')).toHaveCount(0);
     for (const s of [s1, s2, s3]) await expect(s.getByTestId('hud-company')).toBeVisible({ timeout: 40_000 });
-    await expect.poll(async () => t.locator('[data-testid="cell-online"]').filter({ hasText: '접속' }).count(), { timeout: 40_000 }).toBe(3);
+    await expect.poll(async () => t.locator('[data-testid="cell-online"]').filter({ hasText: /^\s*들어옴\s*$/ }).count(), { timeout: 40_000 }).toBe(3);
     expect(await tradeLeft(t)).toBeLessThanOrEqual(leftBefore);
     // 재시작 뒤에도 행동이 호스트까지 간다
     await dismissLight(s2);
@@ -899,7 +910,9 @@ test('E. 30명 판(브라우저 학생 3 + 봇 27) L1 30분: 오류 0·라운드
     await env.clock.fastForwardUntil(async () => (await b1.locator('[data-testid="event-panel"][data-event="L1-E6"]').count()) > 0, { label: 'E round 1', speed: 15 });
     out.gameImageBytesUntilRound1 = imgBytes.get('game') ?? 0;
     // 공용 화면을 해도로 → 30척 프레임 측정(실제 시간 3초, 빠른 시계 1배)
+    await openTvMenu(t); // (작업 137) [TV 화면 ▾]
     await t.getByTestId('scene-select').selectOption('map');
+    await t.keyboard.press('Escape'); // 메뉴 닫기(스크린숏에 펼친 메뉴가 남지 않게)
     await expect.poll(() => SCENE(scr)).toBe('map');
     await expect(scr.locator('.wm-ship, [data-pid]').first()).toBeVisible();
     const frames = async (p: Page) =>
@@ -961,7 +974,9 @@ test('E. 30명 판(브라우저 학생 3 + 봇 27) L1 30분: 오류 0·라운드
     }
 
     // ── 끝까지(빠른 시계) ──
+    await openTvMenu(t);
     await t.getByTestId('scene-select').selectOption('auto');
+    await t.keyboard.press('Escape');
     await env.clock.fastForwardUntil(async () => (await b1.getByTestId('trade-over').count()) > 0, { label: 'E trade over', speed: 15, maxFastMs: 45 * 60_000 });
     await env.clock.setSpeed(1);
     await t.waitForTimeout(3000);

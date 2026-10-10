@@ -1,5 +1,5 @@
 /**
- * 작업 109 학생 표: 필터 8종(전체 + 7, '이름 확인' 포함)·정렬·요약 칩, `?demo=30` 가짜 데이터.
+ * 작업 109 학생 표: 필터(작업 137 — 전체·도움이 필요해요·[더 보기] 7종)·정렬·요약 칩, `?demo=30` 가짜 데이터.
  */
 import { describe, expect, it } from 'vitest';
 import { makeDemo } from '../../src/teacher/demo';
@@ -7,7 +7,7 @@ import { aggregate, seatKey } from '../../src/core';
 import { checkQuizFor } from '../../src/data/checkQuiz';
 import { eventsById } from '../../src/data/events';
 import type { TeacherGame } from '../../src/teacher/game';
-import { FILTERS, buildRows, currentResponseCount, filterCounts, filterRows, matchesFilter, sortRows, summaryText, type StudentRow } from '../../src/teacher/table';
+import { FILTERS, HELP_FILTERS, MORE_FILTERS, buildRows, currentResponseCount, filterCounts, filterRows, matchesFilter, sortRows, summaryText, type StudentRow } from '../../src/teacher/table';
 
 const demo = makeDemo(30, Date.UTC(2026, 9, 9, 1, 0, 0));
 const rows = buildRows(demo.game, demo.view);
@@ -23,8 +23,9 @@ describe('?demo=30 학생 표', () => {
     }
   });
 
-  it('필터 8종: 전체 + 미접속·응답 안 함·출항 준비 안 함·임무 미완료·학습지 안 씀·재접속 요청·이름 확인', () => {
-    expect(FILTERS.map((f) => f.label)).toEqual(['전체', '미접속', '응답 안 함', '출항 준비 안 함', '임무 미완료', '학습지 안 씀', '재접속 요청', '이름 확인']);
+  it('필터: 전체 + 도움이 필요해요 + [더 보기] 7종(쉬운 말 — 작업 137)', () => {
+    expect(FILTERS.map((f) => f.label)).toEqual(['전체', '도움이 필요해요', '들어오지 않음', '응답 안 함', '항해 준비 안 함', '임무 아직', '학습지 안 씀', '다시 들어오기 요청', '이름 확인']);
+    expect(MORE_FILTERS).toEqual(['offline', 'noResponse', 'notReady', 'missionTodo', 'noWorksheet', 'rejoin', 'nameCheck']);
     const c = filterCounts(rows);
     expect(c.all).toBe(30);
     for (const f of FILTERS) {
@@ -41,6 +42,24 @@ describe('?demo=30 학생 표', () => {
     expect(filterRows(rows, 'noWorksheet').every((r) => r.worksheetDone === false)).toBe(true);
   });
 
+  it("'도움이 필요해요' = 들어오지 않음 ∪ 응답 안 함 ∪ 학습지 안 씀 ∪ 다시 들어오기 요청 ∪ 이름 확인(합집합, 겹쳐도 한 번)", () => {
+    const union = new Set<number>();
+    for (const f of HELP_FILTERS) for (const r of filterRows(rows, f)) union.add(r.seat);
+    expect(HELP_FILTERS).toEqual(['offline', 'noResponse', 'noWorksheet', 'rejoin', 'nameCheck']);
+    expect(filterRows(rows, 'help').map((r) => r.seat)).toEqual([...union].sort((a, b) => a - b));
+    expect(filterCounts(rows).help).toBe(union.size);
+    // 항해 준비 안 함·임무 아직만 걸린 학생은 '도움이 필요해요'에 들지 않는다
+    const base: StudentRow = { ...rows[0]!, online: true, responded: true, worksheetDone: true, rejoinRequested: false, nameStatus: 'ok', ready: false, missionsDone: 0, missionsTotal: 2 };
+    expect(matchesFilter(base, 'help')).toBe(false);
+    expect(matchesFilter({ ...base, online: false }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, responded: false }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, worksheetDone: false }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, rejoinRequested: true }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, nameStatus: 'checkRealName' }, 'help')).toBe(true);
+    // 응답할 활동·학습지가 없으면(null) 걸리지 않는다
+    expect(matchesFilter({ ...base, responded: null, worksheetDone: null }, 'help')).toBe(false);
+  });
+
   it('정렬: 번호·자금·수출액·회사 이름', () => {
     const byMoney = sortRows(rows, 'money').map((r) => r.money);
     expect([...byMoney].sort((a, b) => b - a)).toEqual(byMoney);
@@ -51,11 +70,11 @@ describe('?demo=30 학생 표', () => {
     expect(sortRows(sortRows(rows, 'money'), 'seat').map((r) => r.seat)).toEqual(rows.map((r) => r.seat));
   });
 
-  it('요약 칩 "접속 n/m · 준비 r · 미응답 k"', () => {
+  it('요약 칩 "들어옴 n/m · 항해 준비 r · 응답 안 함 k"(쉬운 말 — 작업 137)', () => {
     const online = rows.filter((r) => r.online).length;
     const ready = rows.filter((r) => r.ready).length;
     const nr = rows.filter((r) => r.responded === false).length;
-    expect(summaryText(rows)).toBe(`접속 ${online}/30 · 준비 ${ready} · 미응답 ${nr}`);
+    expect(summaryText(rows)).toBe(`들어옴 ${online}/30 · 항해 준비 ${ready} · 응답 안 함 ${nr}`);
   });
 
   it('마지막 접속 시각은 미접속 학생에게만', () => {
@@ -85,7 +104,7 @@ describe('응답 판정 — 103 aggregate와 같은 규칙(수정 1회차)', () 
       const r = buildRows(g, demo.view);
       expect(r.every((x) => x.responded === null)).toBe(true);
       expect(filterRows(r, 'noResponse')).toHaveLength(0);
-      expect(summaryText(r)).toMatch(/미응답 0$/);
+      expect(summaryText(r)).toMatch(/응답 안 함 0$/);
       expect(currentResponseCount(g)).toBeNull();
       expect(aggregate(g.class, g.players).event).toBeNull();
     }

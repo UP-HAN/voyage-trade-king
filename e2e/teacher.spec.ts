@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test';
+import { endRound, openFold, openMoreFilters, openOrderRow, openTvMenu } from './support/voyage-ui';
 
 /**
  * 작업 109 교사 대시보드(호스트) e2e.
@@ -286,11 +287,12 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await expect(rows).toHaveCount(2);
     await expect(page.locator('[data-seat="7"] [data-testid="cell-company"]')).toContainText('해오름무역');
     await expect(page.locator('[data-seat="2"] [data-testid="cell-company"]')).toContainText('푸른바다상사');
-    await expect(page.locator('[data-seat="7"] [data-testid="cell-online"]')).toContainText('접속');
+    await expect(page.locator('[data-seat="7"] [data-testid="cell-online"]')).toHaveText(/^\s*들어옴\s*$/);
     await expect(page.getByTestId('student-table').getByRole('columnheader')).toHaveText([
-      '번호', '회사 이름', '접속', '항구', '자금(만 원)', '임무', '응답', '학습지', '편지',
+      '번호', '회사 이름', '들어옴', '항구', '자금(만 원)', '임무', '응답', '학습지', '편지',
     ]);
-    await expect(page.getByTestId('prep-counts')).toContainText('들어온 회사 2');
+    // (작업 137) 입장 현황은 '지금 할 일' 카드의 준비 체크(들어온 n · 회사 만든 m)
+    await expect(page.getByTestId('prep-counts')).toContainText(/들어온( 학생)? 2/);
     await shot(page, 'dash-prep-2students.png');
 
     // [회사 이름 바꾸기] → 공용 화면 상태에 새 이름, 출석번호 없음
@@ -324,7 +326,10 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     const prob = page.getByTestId('seat-problem');
     await expect(prob).toContainText('7번으로 다른 회사 이름 입장 시도 — 1회');
     await expect(prob).not.toContainText('다른회사');
-    await expect(page.getByTestId('issue-badge')).toContainText('입장 문제 1');
+    // (작업 137) 입장 관리 접힘 영역이 저절로 펼쳐지고 제목에 개수 배지, 카드 알림 줄에도
+    await expect(page.getByTestId('fold-entry')).toHaveAttribute('data-open', '1');
+    await expect(page.getByTestId('fold-entry-badge')).toHaveText('1');
+    await expect(page.getByTestId('note-seat')).toContainText('같은 번호로 다른 이름 입장 시도 1건');
     await shot(page, 'dash-entry-problem.png');
     await prob.getByTestId('btn-bind').click();
     await join(s3, code, 7, '다른회사');
@@ -352,11 +357,14 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await expect.poll(sec, { timeout: 5000 }).toBeLessThan(c0);
     await expect(page.getByTestId('room-count')).toHaveCount(0);
 
-    // 1등급 활동 건너뛰기 → 확인 창
-    const tier1 = page.getByTestId('tl-next-item').filter({ hasText: '1등급' }).first();
+    // 꼭 할 활동(옛 1등급) [이번엔 빼기] → 확인 창('오늘 순서'에서 줄을 눌러야 버튼이 나온다 — 작업 137)
+    await openFold(page, 'order');
+    const tier1 = page.getByTestId('tl-next-item').filter({ hasText: '꼭 할 활동' }).first();
     await expect(tier1).toBeVisible();
+    await expect(tier1.getByTestId('tl-skip')).toHaveCount(0);
+    await openOrderRow(page, tier1);
     await tier1.getByTestId('tl-skip').click();
-    await expect(page.getByTestId('confirm-skip-tier1')).toContainText('핵심 경험이에요. 정말 건너뛸까요?');
+    await expect(page.getByTestId('confirm-skip-tier1')).toContainText('이 차시의 꼭 할 활동이에요. 빼고 넘어갈까요?');
     await shot(page, 'dash-skip-tier1-confirm.png');
     await page.getByTestId('confirm-cancel').click();
     await expect(page.getByTestId('confirm-skip-tier1')).toHaveCount(0);
@@ -374,21 +382,28 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await expect(s3.locator('#paused')).toBeHidden();
 
     // [+3] → 시계 +180초, 배치표 다시 배치(버전 증가), 학생 남은 시간도 늘어남
-    const v0 = await page.getByTestId('timeline').locator('h2').innerText();
+    const v0 = await page.getByTestId('timeline').getAttribute('data-version');
     const b3 = await sec();
+    await openFold(page, 'time');
     await page.getByTestId('btn-extend-3').click();
     await expect.poll(sec).toBeGreaterThan(b3 + 170);
-    await expect.poll(() => page.getByTestId('timeline').locator('h2').innerText()).not.toBe(v0);
+    await expect.poll(() => page.getByTestId('timeline').getAttribute('data-version')).not.toBe(v0);
     await expect.poll(async () => Number(await s3.locator('#remaining').innerText())).toBeGreaterThan(b3 + 160);
     // [−1]
     const b1 = await sec();
     await page.getByTestId('btn-shorten-1').click();
+    // 줄여서 활동이 빠지게 되면 이름을 보이는 확인 창(PRD 7.5.2.6)
+    const shortConf = page.getByTestId('confirm-shorten');
+    await shortConf.waitFor({ state: 'visible', timeout: 1000 }).catch(() => undefined);
+    if (await shortConf.isVisible().catch(() => false)) await page.getByTestId('confirm-ok').click();
     await expect.poll(sec).toBeLessThan(b1 - 50);
 
     // 라운드: 앞 활동을 [건너뛰기](1등급은 확인 창에서 확인) → 다시 배치되어 라운드 1이 곧 시작 → [라운드 끝]
     for (let i = 0; i < 6 && !(await page.getByTestId('round-info').count()); i++) {
-      const item = page.getByTestId('tl-next-item').filter({ has: page.getByTestId('tl-skip') }).first();
+      // 빼기를 할 수 있는 첫 줄(표지·라운드가 아닌 아직 시작 안 한 활동)
+      const item = page.locator('[data-testid="tl-next-item"]:has(.t-ord__head:not([disabled]))').filter({ hasNotText: '라운드' }).first();
       if (!(await item.count())) break;
+      await openOrderRow(page, item);
       await item.getByTestId('tl-skip').click();
       const conf = page.getByTestId('confirm-skip-tier1');
       if (await conf.isVisible().catch(() => false)) await page.getByTestId('confirm-ok').click();
@@ -399,7 +414,7 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     const roundText = async () => ((await page.getByTestId('round-info').count()) ? (await page.getByTestId('round-info').innerText()).split('·')[0]!.trim() : '');
     const r0 = await roundText();
     expect(r0).toBe('라운드 1');
-    await page.getByTestId('btn-end-round').click();
+    await endRound(page);
     // 라운드 1이 끝남(일찍 끝내면 남은 시간으로 다시 배치되어 다음 항목이 바로 이어질 수 있음 — 123 R7)
     await expect.poll(roundText, { timeout: 10_000 }).not.toBe('라운드 1');
 
@@ -424,7 +439,8 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await expect.poll(() => statusOf(s4)).toBe('kicked');
     await expect(page.locator('[data-seat="12"]')).toHaveCount(0);
 
-    // [입장 마감] → 새 번호 입장 불가
+    // [새 학생 그만 받기](옛 입장 마감, 입장 관리 접힘 영역) → 새 번호 입장 불가
+    await openFold(page, 'entry');
     await page.getByTestId('btn-lock').click();
     const s5 = await student(context, 's5');
     await join(s5, code, 20, '늦은무역');
@@ -480,9 +496,12 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await page.getByTestId('settings-close').click();
     await shot(page, 'dash-trade.png');
 
-    // 공용 화면 장면 선택 → 공개 상태(screenScene), [발표 모드]에서는 학생 표를 그리지 않음
+    // 공용 화면 장면 선택([TV 화면 ▾]) → 공개 상태(screenScene), [이 화면을 TV로 보여 주기](옛 발표 모드)에서는 학생 표를 그리지 않음
+    await openTvMenu(page);
     await page.getByTestId('scene-select').selectOption('leaderboard');
     await expect.poll(async () => JSON.stringify(await publicOf(s3))).toContain('"screenScene":"leaderboard"');
+    // 카드 TV 꼬리표: 손으로 고정 → 주황 안내 + [알아서 바꾸기로]
+    await expect(page.getByTestId('tv-chip')).toHaveAttribute('data-kind', /fixed|off/);
     await page.getByTestId('btn-present').click();
     await expect(page.getByTestId('presentation')).toBeVisible();
     await expect(page.getByTestId('student-table')).toHaveCount(0);
@@ -532,18 +551,25 @@ test.describe('이어하기', () => {
 test.describe('?demo=30 (개발 서버)', () => {
   test.skip(!FULL, '개발 서버에서만(tests/teacher/playwright.config.ts)');
 
-  test('1366×768에서 학생 표 10줄 이상 보이고 필터 8종이 동작한다', async ({ page }) => {
+  test('1366×768에서 학생 표 8줄 이상 보이고 필터([전체] [도움이 필요해요] [더 보기 ▾] 7종)가 동작한다', async ({ page }) => {
     await page.goto('./?sync=local#/teacher?demo=30');
     await expect(page.getByTestId('teacher-dashboard')).toBeVisible();
     const rows = page.getByTestId('student-row');
     await expect(rows).toHaveCount(30);
     const visible = await rows.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().bottom <= window.innerHeight).length);
-    expect(visible).toBeGreaterThanOrEqual(10);
+    expect(visible).toBeGreaterThanOrEqual(8); // (작업 137 PRD 7.5.2.8) '지금 할 일' 카드 아래 8줄 이상
+    // '도움이 필요해요' = 합집합
+    const help = page.getByTestId('filter-help');
+    const nHelp = Number(await help.locator('.t-chip__n').innerText());
+    await help.click();
+    await expect(rows).toHaveCount(nHelp);
+    await page.getByTestId('filter-all').click();
     const fs = await rows.first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     expect(fs).toBeGreaterThanOrEqual(16);
     await shot(page, 'dash-demo30.png');
     const ids = ['offline', 'noResponse', 'notReady', 'missionTodo', 'noWorksheet', 'rejoin', 'nameCheck'];
     for (const id of ids) {
+      await openMoreFilters(page);
       const chip = page.getByTestId(`filter-${id}`);
       const n = Number(await chip.locator('.t-chip__n').innerText());
       await chip.click();
@@ -552,7 +578,8 @@ test.describe('?demo=30 (개발 서버)', () => {
     }
     await page.getByTestId('filter-all').click();
     await expect(rows).toHaveCount(30);
-    // 정렬: 자금
+    // 정렬: 자금([더 보기 ▾] 안)
+    await openMoreFilters(page);
     await page.getByTestId('sort').selectOption('money');
     const money = await rows.evaluateAll((els) => els.map((e) => Number((e.children[4] as HTMLElement).innerText.replace(/,/g, ''))));
     expect([...money].sort((a, b) => b - a)).toEqual(money);
