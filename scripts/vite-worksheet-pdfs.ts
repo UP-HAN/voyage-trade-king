@@ -11,6 +11,9 @@
  * - 쪽 수는 PDF 안의 쪽 객체를 세어 목록에 넣는다(화면이 "n쪽"을 고정 문구로 갖지 않게 — 수정 1회차).
  * - 시험용: 환경 변수 `VOYAGE_WORKSHEET_PDF_DIR`로 원본 폴더를 바꿀 수 있다(파일 하나를 뺀 폴더로 빌드해 보기).
  *
+ * (작업 141) 공략집 PDF(`npm run guide:build` 산출 `print/dist/대항해무역왕_공략집_*.pdf`)도 같은 방식으로 `dist/print/guide-*.pdf`에 복사하고
+ *   목록을 `__GUIDE_PDFS__`로 넣는다(학습지 목록·용량 기준·원본보다 오래됨 검사와는 따로 — 스크린숏이 많아 학습지보다 크다).
+ *
  * fs.rmSync·fs.cpSync 는 쓰지 않는다(Windows + Node 24 + 한글 경로에서 프로세스가 죽음 — CLAUDE.md). copyFileSync·mkdirSync 만.
  */
 import { createHash } from 'node:crypto';
@@ -29,6 +32,14 @@ export const WORKSHEET_PDF_SOURCES: readonly { key: string; src: string; file: s
   { key: 'optional', src: '장별/선택활동.pdf', file: 'logbook-optional.pdf' },
   { key: 'teacher-answers', src: '대항해무역왕_항해일지_교사용_예시답.pdf', file: 'logbook-teacher-answers.pdf' },
 ];
+
+/** (작업 141) 공략집 PDF: 원본(print/dist 기준) → 배포 이름. 순서 = 화면 순서 */
+export const GUIDE_PDF_SOURCES: readonly { key: string; src: string; file: string }[] = [
+  { key: 'guide-teacher', src: '대항해무역왕_공략집_선생님.pdf', file: 'guide-teacher.pdf' },
+  { key: 'guide-student', src: '대항해무역왕_공략집_학생.pdf', file: 'guide-student.pdf' },
+];
+/** 공략집 파일 하나 용량 경고 기준(경고만) */
+export const GUIDE_FILE_MAX = 15_000_000;
 
 /** 용량 기준(PRD 7.5.3): 1MB = 1,000,000 바이트(보수적으로 10진) */
 export const PDF_FILE_MAX = 2_000_000;
@@ -104,6 +115,25 @@ export function scanWorksheetPdfs(srcDir: string, worksheetDir: string | null): 
   return { entries, missing, warnings, total };
 }
 
+/** (작업 141) 공략집 PDF 목록 — 없으면 그 항목만 빠지고(경고 한 줄) 빌드는 계속된다 */
+export function scanGuidePdfs(srcDir: string): WorksheetPdfScan {
+  const entries: WorksheetPdfScan['entries'] = [];
+  const missing: string[] = [];
+  const warnings: string[] = [];
+  for (const s of GUIDE_PDF_SOURCES) {
+    const path = join(srcDir, ...s.src.split('/'));
+    if (!existsSync(path) || !statSync(path).isFile()) {
+      missing.push(s.src);
+      continue;
+    }
+    const buf = readFileSync(path);
+    entries.push({ key: s.key, file: s.file, bytes: buf.length, hash: createHash('sha1').update(buf).digest('hex').slice(0, 10), pages: countPdfPages(buf), path });
+    if (buf.length > GUIDE_FILE_MAX) warnings.push(`공략집 PDF ${s.file}가 ${(buf.length / 1e6).toFixed(2)} MB예요(기준 15MB 이하)`);
+  }
+  if (missing.length) warnings.push(`공략집 PDF ${missing.length}개가 없어 그 링크는 숨겨요: ${missing.join(', ')} — npm run guide:build`);
+  return { entries, missing, warnings, total: entries.reduce((n, e) => n + e.bytes, 0) };
+}
+
 /** define 값(경로 없이) */
 export function manifestOf(scan: WorksheetPdfScan): WorksheetPdfEntry[] {
   return scan.entries.map(({ key, file, bytes, hash, pages }) => ({ key, file, bytes, hash, pages }));
@@ -113,6 +143,7 @@ export function worksheetPdfs(o: { root: string }): Plugin {
   const srcDir = () => resolve(o.root, process.env.VOYAGE_WORKSHEET_PDF_DIR || join('print', 'dist'));
   const wsDir = join(o.root, 'print', 'worksheet');
   let scan: WorksheetPdfScan | null = null;
+  let guides: WorksheetPdfScan | null = null;
   let outDir = '';
   let isBuild = false;
   return {
@@ -120,9 +151,10 @@ export function worksheetPdfs(o: { root: string }): Plugin {
     config(_config, env) {
       isBuild = env.command === 'build';
       scan = scanWorksheetPdfs(srcDir(), wsDir);
+      guides = scanGuidePdfs(srcDir());
       const isTest = Boolean(process.env.VITEST) || env.mode === 'test';
-      if (!isTest) for (const w of scan.warnings) console.warn(`[worksheet-pdfs] ${w}`);
-      return { define: { __WORKSHEET_PDFS__: JSON.stringify(manifestOf(scan)) } };
+      if (!isTest) for (const w of [...scan.warnings, ...guides.warnings]) console.warn(`[worksheet-pdfs] ${w}`);
+      return { define: { __WORKSHEET_PDFS__: JSON.stringify(manifestOf(scan)), __GUIDE_PDFS__: JSON.stringify(manifestOf(guides)) } };
     },
     configResolved(config) {
       outDir = resolve(config.root, config.build.outDir);
@@ -131,8 +163,8 @@ export function worksheetPdfs(o: { root: string }): Plugin {
       // 개발 서버: …/print/logbook-*.pdf → 원본 PDF(같은 대응표). 파일을 다시 만들었을 수 있어 요청마다 원본을 읽는다.
       server.middlewares.use((req, res, next) => {
         const path = (req.url ?? '').split('?')[0] ?? '';
-        const m = /\/print\/(logbook-[A-Za-z0-9-]+\.pdf)$/.exec(path);
-        const src = m ? WORKSHEET_PDF_SOURCES.find((s) => s.file === m[1]) : undefined;
+        const m = /\/print\/((?:logbook|guide)-[A-Za-z0-9-]+\.pdf)$/.exec(path);
+        const src = m ? [...WORKSHEET_PDF_SOURCES, ...GUIDE_PDF_SOURCES].find((s) => s.file === m[1]) : undefined;
         if (!src) return next();
         const file = join(srcDir(), ...src.src.split('/'));
         if (!existsSync(file)) return next();
@@ -146,11 +178,17 @@ export function worksheetPdfs(o: { root: string }): Plugin {
     },
     closeBundle() {
       if (!isBuild || !scan || !outDir) return;
-      if (!scan.entries.length) return;
       const dest = join(outDir, 'print');
-      mkdirSync(dest, { recursive: true });
-      for (const e of scan.entries) copyFileSync(e.path, join(dest, e.file));
-      console.log(`[worksheet-pdfs] 학습지 PDF ${scan.entries.length}개(${(scan.total / 1e6).toFixed(2)} MB) → ${join('dist', 'print')}`);
+      if (scan.entries.length) {
+        mkdirSync(dest, { recursive: true });
+        for (const e of scan.entries) copyFileSync(e.path, join(dest, e.file));
+        console.log(`[worksheet-pdfs] 학습지 PDF ${scan.entries.length}개(${(scan.total / 1e6).toFixed(2)} MB) → ${join('dist', 'print')}`);
+      }
+      if (guides?.entries.length) {
+        mkdirSync(dest, { recursive: true });
+        for (const e of guides.entries) copyFileSync(e.path, join(dest, e.file));
+        console.log(`[worksheet-pdfs] 공략집 PDF ${guides.entries.length}개(${(guides.total / 1e6).toFixed(2)} MB) → ${join('dist', 'print')}`);
+      }
     },
   };
 }

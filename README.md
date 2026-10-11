@@ -31,6 +31,7 @@ npm run build:server   # 중계 서버 빌드 → server/dist/
 npm run loadtest       # 중계 서버 부하 테스트(server/scripts/loadtest.ts)
 npm run e2e            # Playwright 스모크(처음 한 번: npx playwright install chromium)
 npm run deploy         # 배포 미리 보기(아래 '업데이트 배포')
+npm run guide:build    # 공략집 PDF(선생님 편·학생 편) — 실제 한 판을 찍어 print/dist/에 만듦(약 6분)
 ```
 
 화면 주소(해시 라우팅):

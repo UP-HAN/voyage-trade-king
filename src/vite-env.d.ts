@@ -17,3 +17,8 @@ declare const __IMAGE_VARIANTS__: Record<string, [number, number, string, number
  * 주소는 페이지 기준 `./print/<file>?v=<hash>`. e2e 하네스처럼 정의가 없으면 `typeof` 검사로 빈 목록.
  */
 declare const __WORKSHEET_PDFS__: readonly { key: string; file: string; bytes: number; hash: string; pages: number }[];
+/**
+ * (작업 141) 빌드 때 print/dist/ 에 있던 공략집 PDF 목록(선생님 편·학생 편, scripts/vite-worksheet-pdfs.ts `GUIDE_PDF_SOURCES`).
+ * 주소는 `./print/guide-*.pdf?v=<hash>`. 정의가 없으면 빈 목록.
+ */
+declare const __GUIDE_PDFS__: readonly { key: string; file: string; bytes: number; hash: string; pages: number }[];

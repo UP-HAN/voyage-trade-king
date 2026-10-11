@@ -4,6 +4,7 @@
  * [새 판 열기]·[이어하기]는 방 수와 관계없이 막지 않는다. 로컬 모드에서는 131 부품이 스스로 숨는다.
  * (작업 138, PRD 7.5.2.4) 큰 버튼 아래 "처음이세요? 수업 준비 3단계" 상자(① 학습지 인쇄 [학습지 열기 ▾] ② 새 판 열기 ③ TV·입장).
  * 접으면 이 브라우저에 기억(`voyage.teacher.guide` = 'closed', 학생 정보 없음).
+ * (작업 141) 그 아래 "공략집 [선생님 편] [학생 편]" 링크 줄(빌드에 공략집 PDF가 있을 때만, 새 탭으로 열림).
  */
 import { useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
@@ -15,6 +16,7 @@ import { playUnitLabel, scopeLabel, type TeacherGame } from './game';
 import { mmss, tradeRemainingSec } from './schedule-view';
 import type { StoredHost } from '../sync/host-store';
 import { WorksheetPdfMenu } from './WorksheetPdfMenu';
+import { availableGuides, guideMetaText, type GuidePdf } from './guide-pdfs';
 
 /** 수업 준비 3단계 상자를 접었는지 기억하는 열쇠(교사 localStorage) */
 export const GUIDE_KEY = 'voyage.teacher.guide';
@@ -75,6 +77,31 @@ export function PrepGuide({ storage }: { storage?: StorageLike | null }) {
         </li>
       </ol>
     </details>
+  );
+}
+
+/** 공략집 링크 줄(작업 141) — 공략집 PDF가 빌드에 없으면 아무것도 그리지 않는다 */
+export function GuidePdfLinks({ guides }: { guides?: readonly GuidePdf[] }) {
+  const list = guides ?? availableGuides();
+  if (!list.length) return null;
+  return (
+    <div class="t-guidebook" data-testid="guide-pdf-links">
+      <span class="t-guidebook__label">공략집</span>
+      {list.map((g) => (
+        <a
+          key={g.key}
+          class="t-guidebook__link"
+          href={g.href}
+          target="_blank"
+          rel="noopener"
+          title="새 탭에서 열어요(화면 따라 하기 안내 — 인쇄하거나 TV로 보여 줄 수 있어요)"
+          data-testid={`guide-pdf-${g.key}`}
+        >
+          <span class="t-guidebook__name">{g.label}</span>
+          <span class="t-guidebook__meta">{guideMetaText(g)}</span>
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -163,6 +190,7 @@ export function StartScreen({ resume, busy, error, onNew, onResume, onImport }: 
             </button>
           </div>
           <PrepGuide />
+          <GuidePdfLinks />
           <div class="t-start__small">
             <label class="link-small t-file" data-testid="btn-import">
               판 옮기기 파일 열기

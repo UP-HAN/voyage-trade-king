@@ -231,6 +231,12 @@
 .t-guide__steps { margin: 6px 0 2px; padding-left: 1.4em; }
 .t-guide__steps li { padding: 4px 0; line-height: 1.5; }
 .t-guide__steps .t-wsm { margin-top: 6px; }
+/* (작업 141) 공략집 링크 줄 */
+.t-guidebook { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; }
+.t-guidebook__label { font-size: 17px; font-weight: 700; }
+.t-guidebook__link { display: inline-flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 6px 12px; border: 2px solid var(--sea); border-radius: 8px; background: #e3ecef; color: var(--ink); font-size: 16px; font-weight: 700; text-decoration: none; }
+.t-guidebook__link:hover, .t-guidebook__link:focus-visible { background: #d3e2e7; }
+.t-guidebook__meta { color: var(--ink-soft); font-weight: 400; white-space: nowrap; }
 
 .t-wsm { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .t-wsm__main { display: flex; flex-wrap: wrap; gap: 8px; }

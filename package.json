@@ -27,8 +27,9 @@
     "size:report": "npm run build && npm run build:server && node scripts/run-ts.mjs scripts/size-report.ts",
     "check:data": "node scripts/run-ts.mjs scripts/check-data.ts",
     "build:land": "node scripts/run-ts.mjs scripts/build-land.ts",
-    "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
-    "worksheet:pdf": "node scripts/build-worksheet-pdf.mjs"
+    "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
+    "worksheet:pdf": "node scripts/build-worksheet-pdf.mjs",
+    "guide:build": "node scripts/guide/build.mjs"
   },
   "dependencies": {
     "preact": "^11.0.1"

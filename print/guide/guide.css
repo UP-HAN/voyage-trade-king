@@ -1,0 +1,138 @@
+/* 대항해 무역왕 공략집 (작업 141) — A4 가로, 한 쪽에 한 단계.
+   색·글꼴은 항해 일지 디자인 시스템(print/worksheet/design-system.css)의 토큰을 그대로 가져다 쓴다.
+   이 파일의 값은 쪽 틀(가로 297mm × 세로 210mm)에 맞춘 것이다. */
+@import url('../worksheet/design-system.css');
+
+@font-face {
+  font-family: 'Guide Title';
+  src: url('../../src/styles/fonts/SongMyung-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Guide Fallback';
+  src: url('../../src/styles/fonts/GowunDodum-Regular.woff2') format('woff2');
+  font-weight: 100 900;
+}
+
+@page { size: A4 landscape; margin: 0; }
+
+:root {
+  --g-w: 297mm;
+  --g-h: 210mm;
+  --g-pad: 10mm;
+  --g-press: #e00000;
+  --g-look: #1565c0;
+  --g-accent: var(--c-l1);
+  --g-soft: #eef3f8;
+  --g-tip: #fff6dc;
+  --g-tip-line: #d9a21b;
+}
+:root[data-book='student'] { --g-accent: var(--c-l4); --g-soft: #eaf5f2; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #8a96a3; }
+body {
+  font-family: 'Noto Sans KR', 'Guide Fallback', sans-serif;
+  color: var(--ink);
+  font-size: 12.5pt;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+@media screen { .page { margin: 6mm auto; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); } }
+
+.page {
+  position: relative;
+  width: var(--g-w);
+  height: var(--g-h);
+  padding: var(--g-pad) var(--g-pad) 14mm;
+  overflow: hidden;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+}
+.page:last-child { page-break-after: auto; break-after: auto; }
+
+/* ── 머리 ── */
+.head { display: flex; align-items: center; gap: 4mm; min-height: 13mm; padding-bottom: 2.5mm; border-bottom: 0.6mm solid var(--g-accent); }
+.head .no {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 12mm; height: 12mm; padding: 0 2.5mm; border-radius: 6mm;
+  background: var(--g-accent); color: #fff; font-size: 15pt; font-weight: 900; letter-spacing: -0.03em;
+}
+.head h2 { margin: 0; font-family: 'Guide Title', serif; font-weight: 400; font-size: 21pt; line-height: 1.2; }
+.head .sec { margin-left: auto; flex: 0 0 auto; padding: 1mm 3mm; border: 0.35mm solid var(--g-accent); border-radius: 3mm; color: var(--g-accent); font-size: 10pt; font-weight: 700; }
+.head .who { flex: 0 0 auto; padding: 1mm 3mm; border-radius: 3mm; background: var(--g-soft); font-size: 10pt; font-weight: 700; }
+
+.lead { margin: 2.5mm 0 0; font-size: 12.5pt; }
+
+/* ── 몸통: 화면(왼쪽) + 설명(오른쪽) ── */
+.body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 186mm 1fr; gap: 6mm; margin-top: 3mm; }
+.body.pair { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; }
+.body.pair .shots { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+.body.pair .text { grid-column: 1 / -1; columns: 2; column-gap: 8mm; }
+.body.pair .text > * { break-inside: avoid; }
+
+.shots { display: flex; flex-direction: column; gap: 3mm; min-height: 0; }
+figure { margin: 0; }
+figure img { display: block; width: 100%; height: auto; border: 0.35mm solid #9aa7b4; border-radius: 1.5mm; }
+figcaption { margin-top: 1mm; color: var(--ink-2); font-size: 9.5pt; line-height: 1.3; }
+figcaption b { color: var(--ink); }
+.shots.sub-row { flex-direction: row; }
+figure.zoom img { width: auto; max-width: 100%; height: 42mm; border-color: #c9a227; }
+.shots .sub { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+
+.text { min-width: 0; }
+ol.marks { list-style: none; margin: 0; padding: 0; }
+ol.marks li { position: relative; margin: 0 0 2.6mm; padding-left: 9mm; font-size: 12.5pt; line-height: 1.5; }
+ol.marks li .g {
+  position: absolute; left: 0; top: 0.4mm; width: 6.6mm; height: 6.6mm; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--g-press); color: #fff; font-family: Arial, sans-serif; font-size: 10.5pt; font-weight: 700; letter-spacing: 0;
+}
+ol.marks li.look .g { background: var(--g-look); }
+ol.marks li.plain { padding-left: 0; }
+.btn { font-weight: 700; }
+.btn.nw { white-space: nowrap; }
+.side-shots { margin-top: 3mm; }
+.side-shots figure + figure { margin-top: 2mm; }
+.btn.press { color: #b00000; }
+.btn.look { color: #0d4f99; }
+.kbd { display: inline-block; padding: 0 1.5mm; border: 0.3mm solid #9aa7b4; border-radius: 1mm; background: #f4f6f8; font-weight: 700; }
+
+.note { margin: 3mm 0 0; padding: 2.5mm 3.5mm; border-radius: 2mm; background: var(--g-soft); font-size: 11pt; }
+.tip { margin: 3mm 0 0; padding: 2.5mm 3.5mm 3mm; border: 0.4mm solid var(--g-tip-line); border-radius: 2mm; background: var(--g-tip); font-size: 11pt; break-inside: avoid; }
+.tip h4 { margin: 0 0 1mm; font-size: 11.5pt; }
+.tip p { margin: 0.8mm 0 0; }
+.tip p b.q { color: #7a4d00; }
+
+/* ── 꼬리 ── */
+.foot { position: absolute; left: var(--g-pad); right: var(--g-pad); bottom: 5mm; display: flex; justify-content: space-between; color: var(--ink-2); font-size: 9pt; border-top: 0.25mm solid #c9d2db; padding-top: 1.5mm; }
+
+/* ── 표지·차례·글 쪽 ── */
+.cover { justify-content: center; align-items: flex-start; padding-left: 22mm; }
+.cover .kicker { font-size: 14pt; font-weight: 700; color: var(--g-accent); }
+.cover h1 { margin: 2mm 0 4mm; font-family: 'Guide Title', serif; font-weight: 400; font-size: 44pt; line-height: 1.15; }
+.cover .sub { font-size: 15pt; max-width: 200mm; }
+.cover .legend { display: flex; gap: 10mm; margin-top: 10mm; font-size: 12pt; align-items: center; }
+.cover .legend span.box { display: inline-block; width: 22mm; height: 9mm; margin-right: 3mm; border: 1mm solid var(--g-press); border-radius: 2mm; vertical-align: middle; }
+.cover .legend span.box.look { border-style: dashed; border-color: var(--g-look); }
+.cover .meta { margin-top: 12mm; color: var(--ink-2); font-size: 11pt; }
+.cover .ship { position: absolute; right: 18mm; bottom: 22mm; width: 70mm; opacity: 0.9; }
+
+.toc { columns: 3; column-gap: 9mm; margin-top: 5mm; }
+.toc .grp { break-inside: avoid-column; margin-bottom: 2.5mm; }
+.toc h3 { margin: 0 0 1mm; font-size: 12pt; color: var(--g-accent); break-after: avoid; }
+.toc ol { margin: 0; padding-left: 0; list-style: none; }
+.toc li { display: flex; gap: 1.5mm; font-size: 10.5pt; line-height: 1.45; break-inside: avoid; }
+.toc li .n { flex: 0 0 7mm; font-weight: 700; color: var(--g-accent); }
+.toc li .dots { flex: 1 1 auto; min-width: 3mm; border-bottom: 0.3mm dotted #b3bec9; margin-bottom: 1.4mm; }
+.toc li .p { flex: 0 0 auto; color: var(--ink-2); }
+
+.prose { margin-top: 4mm; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; align-content: start; }
+.prose section { padding: 3mm 4mm; border: 0.35mm solid #c9d2db; border-radius: 2mm; break-inside: avoid; }
+.prose h3 { margin: 0 0 1.5mm; font-size: 13pt; color: var(--g-accent); }
+.prose p, .prose li { margin: 0.8mm 0; font-size: 11pt; }
+.prose ul { margin: 0; padding-left: 5mm; }
