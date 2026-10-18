@@ -57,3 +57,6 @@ deploy/redeploy-lab-ches.sh
 # 공략집(작업 141): 중간 산출물(상자 그린 그림·HTML)과 임시 PDF 폴더. 완성 PDF는 print/dist/에 공개
 print/guide/build/
 print/.guide-tmp/
+
+# 렌더된 영상(크기 큼, 저장소 제외 — 142·143)
+media/out/

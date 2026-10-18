@@ -33,8 +33,8 @@ const PRD_ITEMS = [
   '자주 쓰신다면 같은 프로그램을 학교 서버에 직접 설치해 쓰실 수 있습니다(설치 안내: 공개 저장소 README — https://github.com/UP-HAN/voyage-trade-king).',
 ];
 
-const PRD_CONTACT = '문의: Instagram @hanuipyo';
-const PRD_CREDIT = 'Copyright 2026. hanuipyo · Instagram @hanuipyo';
+const PRD_CONTACT = '문의: GitHub 저장소(github.com/UP-HAN/voyage-trade-king)';
+const PRD_CREDIT = 'Copyright 2026. hanuipyo';
 const withMax = (items: string[], m: string) => items.map((t) => t.replace('{maxRooms}개', m));
 
 describe('기본 문구 = PRD 10.12.1', () => {
@@ -52,11 +52,11 @@ describe('기본 문구 = PRD 10.12.1', () => {
 
   it('저작권·문의 줄(credit)은 늘 같고 링크가 아니다', () => {
     expect(SERVICE_CREDIT).toBe(PRD_CREDIT);
-    expect(DEFAULT_CONTACT).toBe('Instagram @hanuipyo');
+    expect(DEFAULT_CONTACT).toBe('GitHub 저장소(github.com/UP-HAN/voyage-trade-king)');
     for (const serverInfo of [undefined, null, {}, { operator: '홍길동', contact: 'https://example.org/q' }]) {
       const n = buildServiceNotice({ maxRooms: 50, serverInfo });
       expect(n.credit).toBe(PRD_CREDIT);
-      expect(n.links.some((l) => /instagram|hanuipyo/i.test(l))).toBe(false);
+      expect(n.links.some((l) => /hanuipyo|UP-HAN/i.test(l))).toBe(false);
     }
   });
 
@@ -100,7 +100,7 @@ describe('채울 자리', () => {
     expect(t).not.toContain('{maxRooms}');
   });
 
-  it('문의처 없음(serverInfo 없음) → 한 줄에는 붙이지 않고, 9번은 기본 문의 Instagram @hanuipyo', () => {
+  it('문의처 없음(serverInfo 없음) → 한 줄에는 붙이지 않고, 9번은 기본 문의 GitHub 저장소', () => {
     for (const serverInfo of [undefined, null, {}]) {
       const n = buildServiceNotice({ maxRooms: 50, serverInfo });
       expect(n.short).toBe(PRD_SHORT);

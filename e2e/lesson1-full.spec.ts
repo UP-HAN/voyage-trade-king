@@ -427,9 +427,9 @@ test('B. 사용 중인 방 n/1 → 가득 참 → 풀림 → 경쟁(BUSY) → �
   const env: Env = { browser, base: w1.base, clock: new FastClock(), errors: [], contexts: [] };
   const doc = docServiceNotice();
   expect(doc.items).toHaveLength(9);
-  expect(doc.items[8]).toBe('문의: Instagram @hanuipyo');
+  expect(doc.items[8]).toBe('문의: GitHub 저장소(github.com/UP-HAN/voyage-trade-king)');
   expect(doc.short.length).toBeGreaterThan(20);
-  expect(doc.credit).toBe('Copyright 2026. hanuipyo · Instagram @hanuipyo');
+  expect(doc.credit).toBe('Copyright 2026. hanuipyo');
   try {
     // ── 타이틀(v0.3.4): 사용 중인 방은 기본 숨김, 하단 두 줄·[이용 안내] 전문 = 문서(상한 자리는 서버 값 1) ──
     const titleCtx = await newContext(env);

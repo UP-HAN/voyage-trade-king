@@ -224,7 +224,7 @@ curl -s https://<내 도메인>/voyage/health
 - 그림(`assets/images/`)·문서·학습지(`docs/`): CC BY-NC 4.0 — 비영리 수업·연수에 자유롭게 쓰고 고칠 수 있어요(저작자 표시: hanuipyo).
 - 글꼴: SIL Open Font License 1.1(`src/styles/fonts/OFL.txt`)
 
-자세한 내용은 [`LICENSE`](LICENSE). 만든 사람: hanuipyo · Instagram [@hanuipyo](https://www.instagram.com/hanuipyo/)
+자세한 내용은 [`LICENSE`](LICENSE). 만든 사람: hanuipyo · 문의: GitHub 저장소(https://github.com/UP-HAN/voyage-trade-king)
 
 ## 생성 이미지·교과서 인용
 - `assets/images/`의 그림은 AI 이미지 생성 도구로 만든 것이다. CC BY-NC 4.0으로 공개한다.

@@ -45,7 +45,7 @@ async function mockServer(page: Page, m: Mock): Promise<() => number> {
 
 /** 타이틀에 방 수를 보이게 하는 설정(v0.3.4 기본은 숨김) */
 const SHOW = { display: { titleRoomCount: true } };
-const CREDIT = 'Copyright 2026. hanuipyo · Instagram @hanuipyo';
+const CREDIT = 'Copyright 2026. hanuipyo';
 
 const health = (rooms: number, maxRooms = 50, acceptingNewRooms = rooms < maxRooms) => ({
   ok: true,
@@ -235,7 +235,7 @@ test.describe('하단 이용 안내', () => {
     await expect(items).toHaveCount(9);
     await expect(items.nth(2)).toContainText('동시에 열 수 있는 방은 50개');
     await expect(items.nth(2)).toContainText("선생님 시작 화면과 판 설정의 [방 열기] 위 '사용 중인 방'에서 확인할 수 있습니다.");
-    await expect(items.nth(8)).toHaveText('문의: Instagram @hanuipyo');
+    await expect(items.nth(8)).toHaveText('문의: GitHub 저장소(github.com/UP-HAN/voyage-trade-king)');
     await expect(dlg.locator('a')).toHaveCount(0);
     // [닫기]가 화면 안에 온전히 보인다(1366×768)
     const cb = (await page.getByRole('button', { name: '닫기' }).boundingBox())!;

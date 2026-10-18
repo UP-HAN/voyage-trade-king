@@ -5,8 +5,8 @@
  * 채울 자리
  * - `{maxRooms}개` — `/health`의 `maxRooms`. 못 읽으면 그 구절을 "정해진 수"로 바꾼다.
  * - 문의 — `config.json`의 `serverInfo`(다른 운영자)가 있으면 한 줄 끝 " · 문의: {operator} {contact}"와 9번 "문의: {operator} · {contact}".
- *   없으면(기본) 한 줄에는 붙이지 않고, 9번은 늘 "문의: Instagram @hanuipyo"(v0.3.4, 작업 132).
- * - 저작권·문의 줄(하단 둘째 줄) `credit` — `serverInfo`와 관계없이 늘 `SERVICE_CREDIT`. 글자로만 낸다(링크 아님).
+ *   없으면(기본) 한 줄에는 붙이지 않고, 9번은 늘 "문의: GitHub 저장소(github.com/UP-HAN/voyage-trade-king)"(v0.3.6, 작업 144 — 글자만, 링크 아님).
+ * - 저작권 줄(하단 둘째 줄) `credit` — `serverInfo`와 관계없이 늘 `SERVICE_CREDIT`. 글자로만 낸다(링크 아님).
  * - 8번 항목의 설치 안내 — `serverInfo.repoUrl`이 있으면 "설치 안내: <링크>", 없으면 PRD 문구 그대로.
  */
 import { isSafeLink, type ServerInfo, type ServiceNoticeOverride } from '../../config/deploy';
@@ -15,10 +15,10 @@ import { isSafeLink, type ServerInfo, type ServiceNoticeOverride } from '../../c
 export const SERVICE_NOTICE_SHORT =
   '이 게임 서버는 교사 한 사람이 개인적으로 운영하는 무료 서버예요. 예고 없이 점검하거나 멈출 수 있어요. 학생 실명은 받지 않고, 학생 정보는 서버에 저장하지 않아요.';
 
-/** 하단 둘째 줄 — 저작권·문의(PRD 10.12.1 v0.3.4). 늘 같고 링크가 아니다 */
-export const SERVICE_CREDIT = 'Copyright 2026. hanuipyo · Instagram @hanuipyo';
+/** 하단 둘째 줄 — 저작권(PRD 10.12.1 v0.3.6). 늘 같고 링크가 아니다 */
+export const SERVICE_CREDIT = 'Copyright 2026. hanuipyo';
 /** 기본 문의처(serverInfo가 없을 때 [이용 안내] 9번) */
-export const DEFAULT_CONTACT = 'Instagram @hanuipyo';
+export const DEFAULT_CONTACT = 'GitHub 저장소(github.com/UP-HAN/voyage-trade-king)';
 
 /** [이용 안내] 창 전문(1~8번, 9번 문의는 `buildServiceNotice`가 붙인다) */
 export const SERVICE_NOTICE_FULL = {
@@ -55,7 +55,7 @@ export interface ServiceNotice {
    * 그 밖의 글자는 모두 그냥 글자로 낸다. 기본 문의·`credit`은 넣지 않는다(링크 아님).
    */
   links: string[];
-  /** 하단 둘째 줄(저작권·문의) — 늘 `SERVICE_CREDIT` */
+  /** 하단 둘째 줄(저작권) — 늘 `SERVICE_CREDIT` */
   credit: string;
 }
 

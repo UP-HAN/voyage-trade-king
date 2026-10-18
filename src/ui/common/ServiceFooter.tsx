@@ -172,7 +172,7 @@ export function ServiceFooter({ fixed = false }: ServiceFooterProps) {
       >
         이용 안내
       </button>
-      {/* 둘째 줄: 저작권·문의(글자만 — 학생이 타이틀에서 인스타그램으로 넘어가지 않게) */}
+      {/* 둘째 줄: 저작권(글자만, 링크 아님) */}
       <p
         data-testid="service-footer-credit"
         style={{ margin: 0, flex: '1 0 100%', fontSize: '13px', lineHeight: 1.4, color: '#FFFFFF', opacity: 0.92 }}
