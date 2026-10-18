@@ -96,13 +96,25 @@ function graphiteChoice(p: HelperPlayer): HelperInputs['graphiteChoice'] | null 
   return c === 'SHA' || c === 'BUS' || c === 'none' ? { choice: c } : null;
 }
 
-/** 부산에 들여온(수입 판매) / 내보낸(수출 판매) 상자 수 — 거래 로그 합계 */
-function boardFrom(players: readonly HelperPlayer[]): HelperInputs['customsBoard'] | null {
+/** 공장 재료가 되는 천연자원(임무 '자원 수입 → 생산 → 수출') */
+const IPE_RAW_GOODS: readonly GoodId[] = ['crude', 'iron', 'graphite', 'nickel', 'chem'];
+
+/** 부산에 들여온(수입 판매 + 공장에서 쓴 천연자원) / 내보낸(수출 판매) 상자 수 — 거래 로그 합계. (작업 115) 공개 상태 customsBoard 도 이 함수로 만든다 */
+export function boardFrom(players: readonly HelperPlayer[]): HelperInputs['customsBoard'] | null {
   const imports: Partial<Record<GoodId, number>> = {};
   const exports: Partial<Record<GoodId, number>> = {};
   let any = false;
   for (const p of players) {
     for (const e of p.game.log) {
+      // (작업 115 수정 1회차) 부산 공장에서 쓴 재료(해외에서 들여온 천연자원)도 '부산에 들여온 상품'으로 센다(교과서 p.100 원유 수입과 맞춤)
+      if (e.kind === 'produce' && e.good) {
+        for (const [g, n] of Object.entries(recipesById[e.good]?.inputs ?? {}) as [GoodId, number][]) {
+          if (!IPE_RAW_GOODS.includes(g)) continue;
+          imports[g] = (imports[g] ?? 0) + n * (e.qty ?? 0);
+          any = true;
+        }
+        continue;
+      }
       if (e.kind !== 'sell' || !e.good) continue;
       const q = e.qty ?? 0;
       if (e.stamp === 'import' && e.port === 'BUS') {
@@ -122,34 +134,38 @@ function customsBoard(src: HelperSource): HelperInputs['customsBoard'] | null {
   return src.players ? boardFrom(src.players) : null;
 }
 
-/** 첫 '수입 → 생산 → 수출' 기록: 첫 생산 상품 + 그 전 해외에서 산 재료 + 그 뒤 첫 수출 */
+/**
+ * '수입 → 생산 → 수출' 기록 — (작업 115 수정 1회차) 한 만큼 보여 준다.
+ * 수출까지 한 생산이 있으면 그것, 없으면 첫 생산(+ 그 전 해외 재료), 생산이 없으면 해외에서 산 첫 천연자원. 아무것도 없으면 null.
+ */
 function importProduceExport(p: HelperPlayer): HelperInputs['importProduceExport'] | null {
   const log = p.game.log;
+  const importBefore = (i: number, inputs: readonly GoodId[]) => {
+    for (let j = i - 1; j >= 0; j--) {
+      const b = log[j];
+      if (b.kind === 'buy' && b.good && inputs.includes(b.good) && b.port && b.port !== 'BUS') return { importGood: b.good, importPort: b.port };
+    }
+    return { importGood: null, importPort: null };
+  };
+  let partial: NonNullable<HelperInputs['importProduceExport']>['record'] = null;
   for (let i = 0; i < log.length; i++) {
     const e = log[i];
     if (e.kind !== 'produce' || !e.good) continue;
     const product = e.good;
-    const inputs = Object.keys(recipesById[product]?.inputs ?? {}) as GoodId[];
-    let importGood: GoodId | null = null;
-    let importPort: PortId | null = null;
-    for (let j = i - 1; j >= 0; j--) {
-      const b = log[j];
-      if (b.kind === 'buy' && b.good && inputs.includes(b.good) && b.port && b.port !== 'BUS') {
-        importGood = b.good;
-        importPort = b.port;
-        break;
-      }
-    }
+    const imp = importBefore(i, Object.keys(recipesById[product]?.inputs ?? {}) as GoodId[]);
     const sale = log.slice(i + 1).find((s) => s.kind === 'sell' && s.good === product && s.stamp === 'export' && s.port);
-    if (importGood && importPort && sale?.port) return { record: { importGood, importPort, product, exportPort: sale.port } };
+    if (sale?.port) return { record: { ...imp, product, exportPort: sale.port } };
+    partial ??= { ...imp, product, exportPort: null };
   }
-  return null;
+  if (partial) return { record: partial };
+  const imp = importBefore(log.length, IPE_RAW_GOODS);
+  return imp.importGood ? { record: { ...imp, product: null, exportPort: null } } : null;
 }
 
 function exportTypes(p: HelperPlayer): HelperInputs['exportTypes'] | null {
   const done: Partial<Record<ExportTypeId, GoodId>> = {};
   for (const e of p.game.log) {
-    if ((e.kind !== 'buy' && e.kind !== 'sell') || !e.good) continue;
+    if ((e.kind !== 'buy' && e.kind !== 'sell') || !e.good || e.ref === 'startCargo') continue;
     for (const card of exportTypeCards) if (!done[card.id] && card.goods.includes(e.good)) done[card.id] = e.good;
   }
   return Object.keys(done).length ? { done } : null;
@@ -364,26 +380,38 @@ export function afterWorksheetIds(schedule: Pick<ScheduleState, 'wrapup'>): Work
   return [...((schedule.wrapup ?? []).find((w) => w.id === 'afterWorksheet')?.worksheetIds ?? [])];
 }
 
-/** 판 단위 꼬리표: "차시 한 판 · L2" / "단원 한 판 · L3 구간" */
+/** 'L2' → '2차시'(학생·TV 화면에 개발 용어 L1~L4를 보이지 않는다 — 작업 115 수정 1회차) */
+export function lessonLabel(stage: LessonId | string): string {
+  const m = /^L(\d)$/.exec(String(stage));
+  return m ? `${m[1]}차시` : String(stage);
+}
+
+/** 범위 → "2차시" / "1~4차시" */
+function scopeLabel(scope: readonly string[]): string {
+  if (!scope.length) return '';
+  if (scope.length === 1) return lessonLabel(scope[0]!);
+  return `${String(scope[0]).replace(/^L/, '')}~${lessonLabel(scope[scope.length - 1]!)}`;
+}
+
+/** 판 단위 꼬리표: "2차시" / "단원 한 판 · 3차시" */
 export function playUnitTag(playUnit: string, stage: LessonId | string): string {
-  if (playUnit === 'lesson') return `차시 한 판 · ${stage}`;
-  if (playUnit === 'unit') return `단원 한 판 · ${stage} 구간`;
-  return `연속 구간 한 판 · ${stage} 구간`;
+  if (playUnit === 'lesson') return lessonLabel(stage);
+  if (playUnit === 'unit') return `단원 한 판 · ${lessonLabel(stage)}`;
+  return `연속 구간 한 판 · ${lessonLabel(stage)}`;
 }
 
-/** 판 단위 + 범위 꼬리표('끝나고 쓰기' 목록): "차시 한 판 · L2" / "단원 한 판 · L1~L4" */
+/** 판 단위 + 범위 꼬리표('끝나고 쓰기' 목록): "2차시" / "단원 한 판 · 1~4차시" */
 export function playScopeTag(playUnit: string, scope: readonly string[]): string {
-  const range = scope.length > 1 ? `${scope[0]}~${scope[scope.length - 1]}` : (scope[0] ?? '');
-  if (playUnit === 'lesson') return `차시 한 판 · ${scope[0] ?? ''}`;
-  if (playUnit === 'unit') return `단원 한 판 · ${range}`;
-  return `연속 구간 한 판 · ${range}`;
+  if (playUnit === 'lesson') return lessonLabel(scope[0] ?? '');
+  if (playUnit === 'unit') return `단원 한 판 · ${scopeLabel(scope)}`;
+  return `연속 구간 한 판 · ${scopeLabel(scope)}`;
 }
 
-/** 판 단위 이름(기록장 제목): "차시 한 판 L2" / "단원 한 판" / "연속 구간 한 판 L1~L2" */
+/** 판 단위 이름(기록장 제목): "2차시" / "단원 한 판" / "연속 구간 한 판 1~2차시" */
 export function playUnitTitle(playUnit: string, scope: readonly string[]): string {
-  if (playUnit === 'lesson') return `차시 한 판 ${scope[0] ?? ''}`.trim();
+  if (playUnit === 'lesson') return lessonLabel(scope[0] ?? '');
   if (playUnit === 'unit') return '단원 한 판';
-  return `연속 구간 한 판 ${scope.length > 1 ? `${scope[0]}~${scope[scope.length - 1]}` : scope[0] ?? ''}`.trim();
+  return `연속 구간 한 판 ${scopeLabel(scope)}`.trim();
 }
 
 /** 묶음이면 그 구간, 아니면 번호의 구간 */

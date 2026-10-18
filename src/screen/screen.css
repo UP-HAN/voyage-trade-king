@@ -333,3 +333,12 @@
 .scr-event__card > .vc { width: 100%; }
 .scr-event__count { margin: 0; font-size: var(--scr-body); }
 .scr-event__bars { display: grid; grid-template-columns: max-content 1fr max-content; align-items: center; gap: calc(var(--u) * 0.6) calc(var(--u) * 1.2); }
+
+/* (작업 115) L2-E6 세관 게시판 */
+.scr-customs__cols { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 2); }
+.scr-customs__col { display: grid; grid-template-columns: max-content 1fr max-content; align-items: center; align-content: start; gap: calc(var(--u) * 0.6) calc(var(--u) * 1); }
+.scr-customs__col > .scr-customs__h, .scr-customs__col > .scr-customs__book, .scr-customs__col > .scr-lead { grid-column: 1 / -1; }
+.scr-customs__h { margin: 0; font-family: var(--font-title); font-size: var(--scr-body); color: var(--ink); }
+.scr-customs__book { margin: calc(var(--u) * 0.6) 0 0; padding: calc(var(--u) * 0.6) calc(var(--u) * 0.8); border: 2px dashed var(--brass); border-radius: 10px; font-size: var(--scr-body); }
+.scr-customs__ask { margin-top: calc(var(--u) * 1); }
+.scr-customs__col > .scr-lead { color: var(--ink-soft); }

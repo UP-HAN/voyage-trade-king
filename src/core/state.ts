@@ -240,6 +240,11 @@ export function createPlayer(meta: SessionMeta, cs: ClassState, input: NewPlayer
   const start = stageStartByLesson[meta.scope[0] ?? 'L1'];
   const flag = defaultFlag(input.seat);
   const game = newGame(start.money);
+  // (작업 115 수정 1회차) 처음 화물(2차시: 담맘 원유 2상자). 기록에는 '처음 화물'(ref startCargo, 0원)로 남겨 학습지 ⑥ [내 기록]이 수입한 곳을 안다
+  for (const c of start.startCargo ?? []) {
+    game.cargo.push({ good: c.good, qty: c.qty, unitCost: c.unitCost, origin: 'foreign', source: 'specialty', boughtAt: c.boughtAt });
+    game.log.push({ round: 0, stage: start.lesson, kind: 'buy', good: c.good, qty: c.qty, port: c.boughtAt, amount: 0, ref: 'startCargo' });
+  }
   // 늦게 와도 이미 끝난 라운드의 항해는 처리할 것이 없다
   game.resolvedRound = completedRound(cs);
   game.roundContracts.round = cs.round;

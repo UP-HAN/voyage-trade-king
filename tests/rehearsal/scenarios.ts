@@ -1,5 +1,5 @@
 /**
- * 작업 135 리허설 — 시나리오 묶음(a~e). 시각은 무역 시간 T에 대한 비율(0~1, 빠른 시계·호스트 기준 경과)이다.
+ * 작업 135 리허설 — 시나리오 묶음(a~e, 작업 115: f = 2차시). 시각은 무역 시간 T에 대한 비율(0~1, 빠른 시계·호스트 기준 경과)이다.
  * 학생 25명 = 실제 학생 화면 브라우저 4명(1~4번) + 가벼운 봇 21명(5~25번, 실제 학생 코드 + 실제 중계 서버 연결).
  */
 
@@ -27,9 +27,11 @@ export interface Timed<T> {
 }
 
 export interface Scenario {
-  id: 'a' | 'b' | 'c' | 'd' | 'e';
+  id: 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
   title: string;
   unit: boolean;
+  /** (작업 115) 차시 한 판의 차시(없으면 1차시) */
+  lesson?: 'L1' | 'L2';
   minutes: number;
   manual: boolean;
   /** (보완 1) 기능 플래그로 꺼 둔 준비 중 기능을 개발용 열쇠(localStorage)로 열어 돌리는 시나리오 — L2~L4 미구현 때문에 생긴 것은 '준비 중 기능(참고)'로 */
@@ -123,6 +125,22 @@ export const SCENARIOS: Scenario[] = [
       { at: 0.25, do: { op: 'botDrop', seat: 14, backAfterSec: 50, newDevice: true } },
       { at: 0.4, do: { op: 'refresh', student: 2 } },
       { at: 0.65, do: { op: 'browserDrop', student: 4, backAfterSec: 30 } },
+    ],
+  },
+  {
+    // (작업 115) 2차시 판 — 공장·임무 3종·싱가포르·세관 게시판·학습지 ⑤~⑧. 10월 22일 공개수업(15·16차시) 대비
+    id: 'f',
+    title: '차시 2차시 25분 자동(늦은 입장·새로 고침·라운드 끝)',
+    unit: false,
+    lesson: 'L2',
+    minutes: 25,
+    manual: false,
+    teacher: [{ at: 0.45, phase: 'round', do: { op: 'endRound' } }],
+    crowd: [
+      { at: 0.15, do: { op: 'lateJoin', seats: [24] } },
+      { at: 0.2, phase: 'round', do: { op: 'refresh', student: 2 } },
+      { at: 0.4, do: { op: 'botDrop', seat: 9, backAfterSec: 40 } },
+      { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
     ],
   },
 ];

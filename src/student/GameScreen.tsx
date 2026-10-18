@@ -73,11 +73,13 @@ export function isTradingPhase(cls: PublicClass | null | undefined): boolean {
 export function roundWaitInfo(cls: PublicClass, now: number): { title: string; line: string; sub: string } {
   const w = nextRoundWait(cls, now);
   const first = cls.round === 0;
-  const title = first ? '지금은 다 함께 활동하는 시간이에요' : '지금은 라운드 사이 활동 시간이에요';
-  const sub = '라운드가 열리면 항구에서 사고팔고 출항할 수 있어요';
+  // (작업 115) 남은 라운드가 없으면(마지막 라운드 뒤 정리 활동 — 세관 게시판·확인 퀴즈·학습지) "라운드가 열리면" 대신 정리 안내
+  const over = !w && !cls.paused && cls.clock.startedAt !== null;
+  const title = over ? '라운드가 모두 끝났어요' : first ? '지금은 다 함께 활동하는 시간이에요' : '지금은 라운드 사이 활동 시간이에요';
+  const sub = over ? '선생님과 함께 오늘 배운 것을 정리해요. 곧 결산을 해요' : '라운드가 열리면 항구에서 사고팔고 출항할 수 있어요';
   let line: string;
   if (cls.paused) line = '선생님이 잠시 멈췄어요';
-  else if (!w) line = cls.clock.startedAt !== null ? '남은 라운드가 없어요 · 곧 무역을 마무리해요' : '선생님이 시작하면 라운드가 열려요';
+  else if (!w) line = cls.clock.startedAt !== null ? '남은 라운드가 없어요 · 선생님이 시작하면 정리 활동을 함께 해요' : '선생님이 시작하면 라운드가 열려요';
   else if (w.manual) line = '선생님이 시작하면 라운드가 열려요';
   else if (w.sec > 0) line = w.first ? `라운드 ${w.round}까지 ${formatClock(w.sec)}` : `다음 라운드까지 ${formatClock(w.sec)}`;
   // (수정 1회차) 계획 시각이 지났는데 활동이 아직 진행 중 — 언제 열리는지 그대로 알린다
@@ -164,6 +166,32 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
 }
 
 function MissionBar({ me }: { me: MeView }) {
+  // (작업 115) 임무가 여럿이면(2차시 3종) 한 줄에 칩으로: 제목 줄임 + 단계 칸
+  const many = Object.entries(me.game.missions).filter(([id]) => missionsById[id]);
+  if (many.length > 1) {
+    return (
+      <div class="st-missions" data-testid="missions">
+        {many.map(([id, m]) => {
+          const def = missionsById[id]!;
+          const complete = m.status === 'done';
+          const done = complete ? def.steps.length : m.steps.filter(Boolean).length;
+          return (
+            <div key={id} class={`st-mission st-mission--chip${complete ? ' is-complete' : ''}`} data-testid={`mission-${id}`} data-status={m.status} data-done={done} data-total={def.steps.length} title={def.steps.join(' → ')}>
+              <span class="st-mission__title">
+                {def.short ?? def.title}
+                {complete && <span class="st-mission__done"> · 완료</span>}
+              </span>
+              <span class="st-mission__bar" role="progressbar" aria-valuemin={0} aria-valuemax={def.steps.length} aria-valuenow={done} aria-label={`${def.title} ${done}/${def.steps.length}단계`}>
+                {def.steps.map((_, i) => (
+                  <span key={i} class={`st-mission__step${complete || m.steps[i] ? ' is-done' : ''}`} />
+                ))}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   // 진행 중 임무가 먼저, 없으면 마지막으로 끝낸 임무를 꽉 찬 막대로(작업 111: 천연가스 임무 완료가 하단 바에 보이게)
   const list = Object.entries(me.game.missions);
   const entry = list.find(([, m]) => m.status === 'active') ?? [...list].reverse().find(([, m]) => m.status === 'done');
@@ -209,7 +237,10 @@ function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: Studen
   const waiting = !!cls && cls.phase !== 'round';
   let status: string;
   if (!cls) status = '';
-  else if (waiting) status = `${roundWaitInfo(cls, now).line} · 라운드가 열리면 거래할 수 있어요`;
+  else if (waiting) {
+    const info = roundWaitInfo(cls, now);
+    status = info.title === '라운드가 모두 끝났어요' ? info.line : `${info.line} · 라운드가 열리면 거래할 수 있어요`;
+  }
   else if (cls.phase === 'round') status = dest ? `목적지: ${portLabel(dest)} · 운항비 ${formatMoney(cost ?? 0)}` : '지도에서 항구를 눌러 목적지를 골라요';
   else if (cls.phase === 'event' || cls.phase === 'worksheet') status = '선생님 활동이 끝나면 이어서 해요';
   else status = '다음 라운드가 시작되면 거래할 수 있어요';
@@ -348,7 +379,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
         {(founded || phase !== 'prep') && <Hud store={store} st={st} now={now} onDex={() => setDex(true)} />}
         <div class="st-main">{main}</div>
         {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} />}
-        {dex && <Dex collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} onClose={() => setDex(false)} />}
+        {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} onClose={() => setDex(false)} />}
         {/* (작업 134) 처음 입항 항구 카드: 라운드 중에는 아래 화면을 막지 않는 작은 카드(왼쪽 위) — 거래 버튼·결정 패널을 가리지 않게 */}
         {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round'} onClose={() => setPortCard(null)} />}
       </div>

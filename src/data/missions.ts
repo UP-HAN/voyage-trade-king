@@ -12,19 +12,19 @@ export const missions: readonly Mission[] = [
     reward: [{ type: 'dexCard', card: 'trade-need' }],
   },
   {
-    id: 'M-IPE', eventId: 'L2-E3', lesson: 'L2', title: '자원 수입 → 생산 → 수출',
+    id: 'M-IPE', eventId: 'L2-E3', lesson: 'L2', title: '자원 수입 → 생산 → 수출', short: '수입→생산→수출',
     steps: ['원유·철광석·흑연(배터리 재료) 중 하나를 사서 부산에 가져와요 [수입]', '부산 공장에서 상품을 만들어요', '만든 상품을 다른 나라에 팔아요 [수출]'],
     pages: [101, 104], fake: false, persistsAcrossStages: true,
     reward: [{ type: 'dexCard', card: 'korea-trade' }],
   },
   {
-    id: 'M-EXPORT4', eventId: 'L2-E4', lesson: 'L2', title: '수출국 4유형 모으기',
+    id: 'M-EXPORT4', eventId: 'L2-E4', lesson: 'L2', title: '수출국 4유형 모으기', short: '수출국 4유형',
     steps: ['농산물(쌀)', '천연자원(원유·철광석·천연가스·니켈)', '기술(로봇·백신)', '문화(온라인 동영상 서비스·K-콘텐츠)'],
     pages: [103], fake: false, persistsAcrossStages: true,
     reward: [{ type: 'dexCard', card: 'export-agri' }, { type: 'dexCard', card: 'export-resource' }, { type: 'dexCard', card: 'export-tech' }, { type: 'dexCard', card: 'export-culture' }],
   },
   {
-    id: 'M-RELAY', eventId: 'L2-E5', lesson: 'L2', title: '싱가포르 중계 무역',
+    id: 'M-RELAY', eventId: 'L2-E5', lesson: 'L2', title: '싱가포르 중계 무역', short: '싱가포르 중계',
     steps: ['싱가포르에서 상품을 사요', '그 상품을 다른 나라 항구에 팔아요 [중계]'],
     pages: [104], fake: false, persistsAcrossStages: true,
     reward: [{ type: 'dexCard', card: 'relay' }],

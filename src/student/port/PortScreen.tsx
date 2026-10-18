@@ -2,7 +2,8 @@
  * 항구 화면 S08 (PRD 6.3.3, 6.4.2, 6.5, 6.6, 8.1, 8.3) — 작업 108.
  *
  * 위: 항구 장면 띠(16:9 → 가로 띠로 잘라 보임, 없으면 해도 확대 + 이름 띠) + 오른쪽 위 이름표 "부산 (대한민국)" + 탭 [시장][이야기].
- *   (공장·조선소 탭은 L2 이후 작업 115·119 자리 — L1에서는 숨김: `FUTURE_TABS`)
+ *   (작업 115) 부산에 있고 공장이 열렸으면(2차시~) [공장] 탭: 레시피 3칸 카드(재료 → 공장 → 상품) + 첫 생산 때 p.101 순환 그림 카드.
+ *   조선소 탭은 작업 119 자리(`FUTURE_TABS`).
  * 시장 탭: 팔기(내 화물칸·계약서 카드) → 사기(이 항구에서 싸게 살 수 있는 상품) → [이 항구가 사는 상품 보기].
  * 상품 카드 한 장의 숫자: 값 1개 + 수량(+ 작은 "산 값"). 계산은 103 `quote()`·`applyAction()`만 쓴다(`./market.ts`).
  *
@@ -15,6 +16,7 @@ import type { Action, GameEvent, StampKind } from '../../core';
 import { cargoCapacity, cargoUsed } from '../../core';
 import { conceptCards } from '../../data/dex';
 import { goodsById, serviceRules } from '../../data/goods';
+import { factoryCycleCard } from '../../data/recipes';
 import { portsById } from '../../data/ports';
 import { pageLabel } from '../../data/text';
 import type { GoodId, PortId } from '../../data/types';
@@ -42,6 +44,8 @@ import {
   type SaleSummary,
   type SellCard,
 } from './market';
+import { helperLine } from '../../core/worksheet-helpers';
+import { factoryCards, factoryOpen, type FactoryCard } from './factory';
 import { PortScene, PortStory } from './PortCard';
 import { ContractIcon, FlameIcon, GoodIcon } from './PortIcons';
 import './port.css';
@@ -69,7 +73,7 @@ export interface PortScreenProps {
   onBack: () => void;
 }
 
-type Tab = 'market' | 'story';
+type Tab = 'market' | 'factory' | 'story';
 
 function Stepper({
   value,
@@ -276,6 +280,78 @@ function SaleResult({ sale, port, onDone }: { sale: SaleSummary & { id: number }
   );
 }
 
+/** (작업 115) 공장 레시피 카드: 재료 → 공장 → 상품 3칸 컨베이어 */
+function FactoryCardView({ c, qty, setQty, trading, onMake }: { c: FactoryCard; qty: number; setQty: (n: number) => void; trading: boolean; onMake: () => void }) {
+  const q = Math.min(Math.max(1, qty), Math.max(1, c.max));
+  const off = !trading || c.max === 0;
+  return (
+    <div class={`pt-card pt-fac${c.max === 0 ? ' is-off' : ''}`} data-testid={`recipe-${c.id}`} data-recipe={c.id} data-max={c.max}>
+      <div class="pt-fac__belt">
+        <div class="pt-fac__cell" data-testid="recipe-inputs">
+          <span class="pt-fac__label">재료</span>
+          {c.inputs.map((i) => (
+            <span key={i.good} class={`pt-fac__in${i.have < i.need ? ' is-short' : ''}`} data-good={i.good}>
+              <GoodIcon good={i.good} size={32} />
+              <span>
+                {i.name} {i.need}
+                <small> (있음 {i.have})</small>
+              </span>
+            </span>
+          ))}
+        </div>
+        <span class="pt-fac__arrow" aria-hidden="true">→</span>
+        <div class="pt-fac__cell pt-fac__cell--mid">
+          <span class="pt-fac__label">공장</span>
+          <span class="pt-fac__fee">공장비 {formatMoney(c.fee)}</span>
+        </div>
+        <span class="pt-fac__arrow" aria-hidden="true">→</span>
+        <div class="pt-fac__cell">
+          <span class="pt-fac__label">상품</span>
+          <span class="pt-fac__out">
+            <GoodIcon good={c.id} size={40} />
+            <strong>{c.name}</strong>
+          </span>
+        </div>
+      </div>
+      {c.reason && (
+        <p class="pt-card__reason" data-testid="recipe-reason">
+          {c.reason}
+        </p>
+      )}
+      <div class="pt-card__act">
+        <Stepper value={q} max={Math.max(1, c.max)} disabled={off} onChange={setQty} testId={`make-${c.id}`} unit="상자" />
+        <button type="button" class="btn btn--primary pt-card__btn" disabled={off} data-testid={`make-${c.id}`} onClick={onMake}>
+          만들기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** (작업 115) 첫 생산 때 한 번: p.101 '천연자원 수입 → 상품 생산 → 상품 수출' 순환 그림 카드 */
+function CycleCard({ onClose }: { onClose: () => void }) {
+  const c = factoryCycleCard;
+  return (
+    <div class="pt-concept pt-cycle" role="dialog" aria-label={`개념 카드: ${c.title}`} data-testid="factory-cycle-card">
+      <div class="pt-concept__head">
+        <strong class="title-font">{c.title}</strong>
+      </div>
+      <ol class="pt-cycle__steps">
+        {c.steps.map((st, i) => (
+          <li key={st}>
+            <span class="pt-cycle__no">{i + 1}</span> {st}
+          </li>
+        ))}
+      </ol>
+      <p>{c.text}</p>
+      <p class="pt-pages">({pageLabel(c.pages)})</p>
+      <button type="button" class="btn btn--secondary" data-testid="factory-cycle-ok" onClick={onClose}>
+        알겠어요
+      </button>
+    </div>
+  );
+}
+
 /** 첫 [수출]/[수입]/[중계] 도장 때 한 번 뜨는 작은 개념 카드 */
 function ConceptPop({ cardId, stamp, onClose }: { cardId: string; stamp: StampKind; onClose: () => void }) {
   const card = conceptCards.find((c) => c.id === cardId);
@@ -304,6 +380,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   const [showWanted, setShowWanted] = useState(false);
   const [sale, setSale] = useState<(SaleSummary & { id: number }) | null>(null);
   const [concept, setConcept] = useState<{ cardId: string; stamp: StampKind } | null>(null);
+  const [cycle, setCycle] = useState(false);
   const lastTrade = useRef<number | null>(null);
   const seq = useRef(0);
 
@@ -325,6 +402,9 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   const free = Math.max(0, cargoCapacity(player) - cargoUsed(player));
   const qOf = (k: string) => qty[k] ?? 1;
   const setQ = (k: string, n: number) => setQtyMap({ ...qty, [k]: n });
+  const hasFactory = factoryOpen(cs, player);
+  const facCards = hasFactory ? factoryCards(cs, player) : [];
+  const shownTab: Tab = tab === 'factory' && !hasFactory ? 'market' : tab;
   const focusCard = sells.find((c) => c.good === focus && !c.reason) ?? sells.find((c) => !c.reason) ?? null;
 
   /** 거래 보내기: 미리 계산으로 결과 이벤트를 얻고 보낸다. 보내졌으면 이벤트, 아니면 null */
@@ -365,6 +445,15 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
     store.toast(`${goodsById[c.good].name} ${n}${c.service ? '계약' : '상자'}를 샀어요`, 'info');
   };
 
+  const doMake = (c: FactoryCard) => {
+    const n = Math.min(Math.max(1, qOf(`m:${c.id}`)), c.max);
+    const events = send({ type: 'produce', recipe: c.id, qty: n });
+    if (!events) return;
+    setQ(`m:${c.id}`, 1);
+    if (events.some((e) => e.type === 'factoryCycleCard')) setCycle(true);
+    store.toast(`${c.name} ${n}상자를 만들었어요. 다른 나라에 팔면 [수출]이에요`, 'info');
+  };
+
   return (
     <section class="pt" data-testid="port-screen" data-port={port.id}>
       <header class="pt-head">
@@ -374,11 +463,16 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
             해도로 돌아가기
           </button>
           <div class="pt-tabs" role="tablist" aria-label="항구 메뉴">
-            <button type="button" role="tab" aria-selected={tab === 'market'} class={`pt-tab${tab === 'market' ? ' is-on' : ''}`} data-testid="tab-market" onClick={() => setTab('market')}>
+            <button type="button" role="tab" aria-selected={shownTab === 'market'} class={`pt-tab${shownTab === 'market' ? ' is-on' : ''}`} data-testid="tab-market" onClick={() => setTab('market')}>
               시장
             </button>
-            {/* 공장(115)·조선소(119) 탭 자리 — L1에서는 숨김 */}
-            <button type="button" role="tab" aria-selected={tab === 'story'} class={`pt-tab${tab === 'story' ? ' is-on' : ''}`} data-testid="tab-story" onClick={() => setTab('story')}>
+            {/* (작업 115) 공장: 2차시부터, 부산에서만. 조선소(119) 자리 */}
+            {hasFactory && (
+              <button type="button" role="tab" aria-selected={shownTab === 'factory'} class={`pt-tab${shownTab === 'factory' ? ' is-on' : ''}`} data-testid="tab-factory" onClick={() => setTab('factory')}>
+                공장
+              </button>
+            )}
+            <button type="button" role="tab" aria-selected={shownTab === 'story'} class={`pt-tab${shownTab === 'story' ? ' is-on' : ''}`} data-testid="tab-story" onClick={() => setTab('story')}>
               이야기
             </button>
           </div>
@@ -394,9 +488,44 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
         </p>
       )}
 
-      {tab === 'story' ? (
+      {shownTab === 'story' ? (
         <div class="pt-body pt-body--story">
           <PortStory port={port.id} />
+        </div>
+      ) : shownTab === 'factory' ? (
+        <div class="pt-body" data-testid="factory">
+          <section class="pt-sec" aria-labelledby="pt-fac-h">
+            <div class="pt-sec__head">
+              <h2 id="pt-fac-h" class="pt-sec__title title-font">
+                부산 공장
+              </h2>
+              <span class="pt-sec__help">
+                다른 나라에서 사 온 자원으로 상품을 만들어요. 만든 상품을 다른 나라에 팔면 <Term id="export" />이에요.
+              </span>
+              <span class="st-tag pt-rule-tag" title="공장비와 레시피는 게임 설정이에요(교과서 101쪽)">
+                게임 규칙
+              </span>
+              <span class="pt-hold" data-testid="factory-hold">
+                배 빈칸 {free} · 자금 {formatMoney(me.game.money)}
+              </span>
+            </div>
+            <p class="pt-fac__record" data-testid="factory-record">
+              <b>내 기록</b> {helperLine('importProduceExport', { cls: { votes: cls.votes }, player: me })}
+            </p>
+            {me.game.log.some((e) => e.ref === 'startCargo') && (
+              <p class="pt-limit" data-testid="factory-start-cargo">
+                <span class="st-tag pt-rule-tag">게임 규칙</span> 2차시는 담맘에서 사 온 원유 2상자를 싣고 시작해요. 바로 석유 제품을 만들어 다른 나라에 팔아 보세요.
+              </p>
+            )}
+            <div class="pt-grid pt-grid--fac" data-testid="recipe-list">
+              {facCards.map((c) => (
+                <FactoryCardView key={c.id} c={c} qty={qOf(`m:${c.id}`)} setQty={(n) => setQ(`m:${c.id}`, n)} trading={trading} onMake={() => doMake(c)} />
+              ))}
+            </div>
+            <p class="pt-limit" data-testid="factory-where">
+              재료는 다른 나라 항구에서 사 와요: 원유(담맘·로스앤젤레스), 철광석(포트헤들랜드), 흑연(상하이), 니켈(자카르타), 정밀 화학 원료(요코하마·로테르담).
+            </p>
+          </section>
         </div>
       ) : (
         <div class="pt-body">
@@ -491,6 +620,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
       )}
 
       {sale && <SaleResult sale={sale} port={port.id} onDone={() => setSale(null)} />}
+      {cycle && <CycleCard onClose={() => setCycle(false)} />}
       {concept && <ConceptPop cardId={concept.cardId} stamp={concept.stamp} onClose={() => setConcept(null)} />}
     </section>
   );

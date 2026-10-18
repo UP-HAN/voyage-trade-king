@@ -1,0 +1,373 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { OLD_TEACHER_TERMS } from '../src/teacher/teacher-terms';
+import { openTvMenu } from './support/voyage-ui';
+
+/**
+ * 작업 115 — 2차시 판(차시 한 판 L2) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — teacher-first-time.spec.ts와 같은 기반).
+ * 교사는 '지금 할 일' 카드의 큰 버튼만 누른다(라운드 끝내기 확인 포함). 학생 3명이 각자 맡은 길을 간다:
+ *  - s1 공장: 포트헤들랜드 철광석 → 부산에 1상자 팔기[수입] → [공장] 철강 만들기(첫 생산 순환 카드) (25분 판 — 라운드 3개)
+ *  - s2 중계: 싱가포르 첫 입항 개념 카드 → 쌀 사기 → 담맘에 팔기[중계] (15분 판은 사기까지)
+ *  - s3 수출: 부산 자동차 사기 → 상하이에 팔기[수출]
+ * 공용 화면: 세관 게시판 장면(학급 수입·수출 순위 + 교과서 100쪽). 학습지 ⑤~⑧ 팝업, 2차시 확인 퀴즈, 마무리 → 수업 끝.
+ * 실행: tests/e2e-preview.playwright.config.ts(LESSON2_E2E=1). 스크린숏은 .orch/tasks/115-lesson2-factory-relay/shots/(SHOT_DIR 있으면 그쪽).
+ */
+const RUN = process.env.LESSON2_E2E === '1';
+const SHOTS = process.env.SHOT_DIR ?? join(process.cwd(), '.orch', 'tasks', '115-lesson2-factory-relay', 'shots');
+
+async function shot(page: Page, name: string) {
+  mkdirSync(SHOTS, { recursive: true });
+  await page.evaluate(() => document.fonts.ready).catch(() => undefined);
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: join(SHOTS, name) });
+}
+
+test.use({ actionTimeout: 15_000 });
+
+const stateOf = (t: Page) => t.getByTestId('now-card').getAttribute('data-state');
+const visible = (p: Page, id: string) => p.getByTestId(id).first().isVisible().catch(() => false);
+
+async function checkTerms(t: Page, where: string) {
+  const text = await t.evaluate(() => {
+    const root = document.querySelector('[data-testid="route-teacher"]') as HTMLElement | null;
+    if (!root) return '';
+    const ver = (root.querySelector('[data-testid="schedule-version"]') as HTMLElement | null)?.innerText ?? '';
+    return ver ? root.innerText.replace(ver, '') : root.innerText;
+  });
+  const m = text.match(OLD_TEACHER_TERMS);
+  expect(m ? `${where}: "${m[0]}"` : null).toBeNull();
+  expect(text, `${where}: 교사 화면에 'L2' 개발 용어`).not.toMatch(/\bL2\b/);
+}
+
+async function setup(browser: import('@playwright/test').Browser, baseURL: string | undefined, minutes: number) {
+  const ctx = await browser.newContext({ baseURL, viewport: { width: 1366, height: 768 } });
+  await ctx.clock.install();
+  const t = await ctx.newPage();
+  t.on('pageerror', (e) => {
+    throw e;
+  });
+  await t.goto('./?sync=local#/teacher');
+  await t.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await t.reload();
+  await expect(t.getByTestId('teacher-start')).toBeVisible();
+  await t.getByTestId('btn-new').click();
+  await t.getByTestId('unit-lesson').click();
+  // 판 설정: 1·2차시는 고를 수 있고 3·4차시는 준비 중, 단원 한 판도 준비 중
+  await expect(t.getByTestId('lesson-L1')).toBeEnabled();
+  await expect(t.getByTestId('lesson-L2')).toBeEnabled();
+  await expect(t.getByTestId('lesson-L3')).toBeDisabled();
+  await expect(t.getByTestId('lesson-L4')).toBeDisabled();
+  await expect(t.getByTestId('unit-unit')).toBeDisabled();
+  await t.getByTestId('lesson-L2').click();
+  const custom = t.getByTestId('trade-minutes-custom');
+  await custom.fill(String(minutes));
+  await custom.blur();
+  await expect(custom).toHaveValue(String(minutes));
+  if (minutes === 25) await shot(t, `L2-01-setup-lesson2.png`);
+  await t.getByTestId('btn-open').click();
+  const codeEl = t.getByTestId('room-code');
+  await expect(codeEl).toHaveText(/^\d{6}$/);
+  return { ctx, t, code: (await codeEl.innerText()).trim() };
+}
+
+async function joinStudent(ctx: BrowserContext, as: string, code: string, seat: number, name: string): Promise<Page> {
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => {
+    throw e;
+  });
+  await p.goto(`./?sync=local&as=${as}#/play`);
+  await expect(p.getByTestId('route-student')).toBeVisible();
+  await p.getByTestId('entry-code').fill(code);
+  await p.getByTestId('entry-seat').selectOption(String(seat));
+  await p.getByTestId('entry-name').fill(name);
+  await p.getByTestId('entry-submit').click();
+  await expect(p.getByTestId('found-company')).toBeVisible({ timeout: 15_000 });
+  await p.getByTestId('found-submit').click();
+  await expect(p.getByTestId('prep-wait')).toBeVisible();
+  return p;
+}
+
+/** 가짜 시계 ms(작게 — 거래 연속 클릭 가드 500ms를 넘기려고) */
+async function tick(ctx: BrowserContext, t: Page, ms: number) {
+  await ctx.clock.runFor(ms);
+  await t.waitForTimeout(30);
+}
+
+async function run(ctx: BrowserContext, t: Page, sec: number) {
+  for (let i = 0; i < sec; i++) await tick(ctx, t, 1000);
+}
+
+async function confirmIfAsked(t: Page): Promise<string | null> {
+  const dlg = t.locator('[role="dialog"]');
+  if (!(await dlg.count())) return null;
+  const id = await dlg.first().getAttribute('data-testid');
+  await t.getByTestId('confirm-ok').click();
+  return id;
+}
+
+async function pressBig(t: Page): Promise<{ state: string | null; label: string; confirms: string[] }> {
+  const state = await stateOf(t);
+  const btn = t.getByTestId('now-primary').locator('button');
+  await expect(btn).toBeEnabled();
+  const label = (await btn.innerText()).trim();
+  await btn.click();
+  const confirms: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    await t.waitForTimeout(120);
+    const id = await confirmIfAsked(t);
+    if (!id) break;
+    confirms.push(id);
+  }
+  return { state, label, confirms };
+}
+
+interface Seen {
+  worksheets: Set<string>;
+  quiz: Set<string>;
+  shots: Set<string>;
+  /** 학생이 본 사건 카드(확인 전) */
+  cards: Set<string>;
+  helperCustoms: string | null;
+}
+
+/** 학생 화면에 떠 있는 것 정리(카드 확인·임무 패널·학습지 다 썼어요·확인 퀴즈 답·항구 카드·개념 카드) */
+async function tidy(s: Page, seen: Seen, label: string) {
+  for (let k = 0; k < 6; k++) {
+    let did = false;
+    // 학습지 팝업: 번호 기록 → 다 썼어요
+    if (await visible(s, 'worksheet-popup')) {
+      const ids = await s.locator('[data-testid="worksheet-row"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-id') ?? ''));
+      ids.forEach((id) => seen.worksheets.add(id));
+      const helper = s.locator('[data-testid="worksheet-helper"][data-helper="customsBoard"]');
+      if (await helper.count()) {
+        seen.helperCustoms = (await helper.first().innerText()).trim();
+        if (!seen.shots.has('ws5')) {
+          seen.shots.add('ws5');
+          await shot(s, `L2-07-student-worksheet-05-${label}.png`);
+        }
+      }
+      const done = s.getByTestId('worksheet-done');
+      if ((await done.isVisible().catch(() => false)) && (await done.isEnabled().catch(() => false))) {
+        await done.click();
+        did = true;
+      }
+    }
+    // 확인 퀴즈: 문항마다 첫 보기
+    const qBtns = s.locator('[data-testid="quiz-card"] button[data-testid^="quiz-CQ-"]:not([disabled])');
+    const tids = await qBtns.evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? ''));
+    for (const tid of tids) {
+      const qid = tid.replace(/^quiz-/, '').replace(/-[^-]+$/, '');
+      const key = `${label}:${qid}`;
+      if (seen.quiz.has(key)) continue;
+      seen.quiz.add(key);
+      await s.getByTestId(tid).click();
+      did = true;
+      break;
+    }
+    const cardIds = await s.locator('[data-testid="event-card"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-event') ?? ''));
+    for (const id of cardIds) {
+      if (id === 'L2-E2' && !seen.shots.has(`card-${label}`) && label === 's1') {
+        seen.shots.add(`card-${label}`);
+        await shot(s, `L2-02b-student-factory-open-card.png`);
+      }
+      seen.cards.add(id);
+    }
+    if (await visible(s, 'mission-panel')) seen.cards.add('missions');
+    // 싱가포르 첫 입항 개념 카드(따라잡기 말 없이 'arrival')
+    const arrival = s.locator('[data-testid="catchup"][data-mode="arrival"][data-event="L2-E5"]');
+    if ((await arrival.count()) && !seen.cards.has(`arrival:${label}`)) {
+      seen.cards.add(`arrival:${label}`);
+      await expect(s.getByTestId('catchup-kicker')).toHaveText('처음 온 항구예요');
+      await shot(s, `L2-06-student-singapore-card.png`);
+    }
+    for (const id of ['mission-panel-ok', 'card-confirm', 'port-card-ok', 'concept-ok', 'factory-cycle-ok', 'catchup-ok', 'catchup-next', 'event-result-close']) {
+      if (await visible(s, id)) {
+        // 다른 층(마무리 화면 등)에 가려 눌리지 않는 가벼운 창은 건너뛴다(무한 대기 방지)
+        if (await s.getByTestId(id).first().click({ timeout: 3000 }).then(() => true, () => false)) did = true;
+      }
+    }
+    if (!did) return;
+    await s.waitForTimeout(80);
+  }
+}
+
+async function enterPort(s: Page) {
+  if (!(await s.getByTestId('port-screen').count())) await s.getByTestId('enter-port').click();
+  await expect(s.getByTestId('port-screen')).toBeVisible();
+  if (await visible(s, 'port-card-ok')) await s.getByTestId('port-card-ok').click();
+}
+
+async function sailTo(s: Page, port: string) {
+  if (await s.getByTestId('port-screen').count()) await s.getByTestId('port-back').click();
+  const hit = s.locator(`.wm-port[data-port="${port}"] .wm-port-hit`);
+  const box = await hit.boundingBox();
+  const vp = s.viewportSize()!;
+  if (!box || box.y + box.height / 2 > vp.height - 100 || box.x < 0 || box.x > vp.width) await s.getByRole('button', { name: '전체 보기' }).click();
+  await hit.click();
+  await expect(s.getByTestId('pick-panel')).toHaveAttribute('data-kind', 'ok');
+  await s.getByTestId('pick-confirm').click();
+  await s.getByTestId('set-ready').click();
+  await expect(s.getByTestId('ready-note')).toBeVisible();
+}
+
+/** 수량 n으로 사기·팔기·만들기(거래 가드 500ms를 가짜 시계로 넘김) */
+async function trade(ctx: BrowserContext, t: Page, s: Page, kind: 'buy' | 'sell' | 'make', good: string, n: number) {
+  for (let i = 1; i < n; i++) await s.getByTestId(`${kind}-${good}-plus`).click();
+  await expect(s.getByTestId(`${kind}-${good}-qty`)).toContainText(String(n));
+  await s.getByTestId(`${kind}-${good}`).click();
+  await tick(ctx, t, 600);
+}
+
+for (const minutes of [15, 25, 30] as const) {
+  test(`2차시 ${minutes}분 — 카드 큰 버튼만으로 끝까지(공장·수출·중계·세관 게시판·학습지 ⑤~⑧)`, async ({ browser, baseURL }) => {
+    test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
+    test.setTimeout(900_000);
+    const P = minutes === 25 ? 'L2' : `L2-${minutes}`;
+    const { ctx, t, code } = await setup(browser, baseURL, minutes);
+    await openTvMenu(t);
+    const [scr] = await Promise.all([ctx.waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
+    await scr.setViewportSize({ width: 1920, height: 1080 });
+    await expect(scr.getByTestId('route-screen')).toBeVisible();
+    const s1 = await joinStudent(ctx, `a${minutes}1`, code, 1, '해오름무역');
+    const s2 = await joinStudent(ctx, `a${minutes}2`, code, 2, '바다상회');
+    const s3 = await joinStudent(ctx, `a${minutes}3`, code, 3, '고래해운');
+    const students = [s1, s2, s3];
+    await t.bringToFront();
+    await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ready');
+
+    const seen: Seen = { worksheets: new Set(), quiz: new Set(), shots: new Set(), cards: new Set(), helperCustoms: null };
+    const roundsDone = new Set<number>();
+    const log: string[] = [];
+    const scenes = new Set<string>();
+    let customsShot = false;
+    let ipeDone = false;
+    for (let step = 0; step < 140; step++) {
+      const st = (await stateOf(t)) ?? '';
+      if (st === 'ended') break;
+      for (const [i, s] of students.entries()) await tidy(s, seen, `s${i + 1}`);
+      scenes.add((await scr.getByTestId('route-screen').getAttribute('data-scene')) ?? '');
+      if (step % 4 === 0) await checkTerms(t, `단계 ${step} ${st}`);
+      // (수정 1회차) TV·학생 화면에 개발 용어 L1~L4가 없다
+      for (const [label, pg] of [['TV', scr], ['s1', s1], ['s2', s2], ['s3', s3]] as const) {
+        const txt = await pg.evaluate(() => document.body.innerText);
+        const m = txt.match(/L[1-4]/);
+        expect(m ? `${label} 단계 ${step} ${st}: …${txt.slice(Math.max(0, (m.index ?? 0) - 30), (m.index ?? 0) + 30)}…` : null).toBeNull();
+      }
+      const line = (await t.locator('.t-now__line').innerText().catch(() => '')).trim();
+
+      if (st === 'card' && line.includes('부산 공장 개장') && !seen.shots.has('e2')) {
+        seen.shots.add('e2');
+        await shot(t, `${P}-02-teacher-card-factory-open.png`);
+        await shot(scr, `${P}-03-screen-factory-open.png`);
+      }
+      // 세관 게시판: 공용 화면 장면
+      if (!customsShot && (await scr.getByTestId('route-screen').getAttribute('data-scene')) === 'customs') {
+        customsShot = true;
+        await expect(scr.getByTestId('scene-customs')).toBeVisible();
+        await expect(scr.getByTestId('customs-exports')).toContainText('자동차');
+        await expect(scr.getByTestId('customs-exports')).toContainText('석유 제품');
+        // (수정 1회차) 15분 판에서도 수입 칸이 비지 않는다(공장에서 쓴 원유)
+        await expect(scr.getByTestId('customs-imports')).toContainText('원유');
+        await expect(scr.getByTestId('customs-imports-book')).toContainText('원유');
+        await shot(scr, `${P}-08-screen-customs-board.png`);
+        await shot(t, `${P}-08b-teacher-customs.png`);
+      }
+
+      if (st === 'round') {
+        const r = Number(((await t.getByTestId('round-info').innerText()).match(/라운드 (\d+)/) ?? [])[1]);
+        if (!roundsDone.has(r)) {
+          roundsDone.add(r);
+          await run(ctx, t, 1);
+          for (const [i, s] of students.entries()) await tidy(s, seen, `s${i + 1}`);
+          if (r === 1) {
+            // 임무 3종: 아래 줄 칩
+            for (const s of students) await expect(s.getByTestId('missions')).toBeVisible();
+            await expect(s1.getByTestId('mission-M-IPE')).toBeVisible();
+            await shot(s1, `${P}-04-student-missions.png`);
+            // s1: 처음 화물(담맘 원유 2상자) → 부산 [공장]에서 석유 제품 → 호찌민으로
+            await enterPort(s1);
+            await s1.getByTestId('tab-factory').click();
+            await expect(s1.getByTestId('factory')).toBeVisible();
+            await expect(s1.getByTestId('factory-record')).toContainText('원유 수입(담맘) → 아직 생산 전');
+            await expect(s1.getByTestId('recipe-oilp')).toHaveAttribute('data-max', '2');
+            await shot(s1, `${P}-09-student-factory.png`);
+            await trade(ctx, t, s1, 'make', 'oilp', 2);
+            await expect(s1.getByTestId('factory-cycle-card')).toBeVisible();
+            await shot(s1, `${P}-10-student-factory-cycle-card.png`);
+            await s1.getByTestId('factory-cycle-ok').click();
+            await expect(s1.getByTestId('factory-record')).toContainText('원유 수입(담맘) → 석유 제품 생산 → 아직 수출 전');
+            await sailTo(s1, 'HCM');
+            await sailTo(s2, 'SIN');
+            await enterPort(s3);
+            await trade(ctx, t, s3, 'buy', 'car', 2);
+            await sailTo(s3, 'SHA');
+            await shot(t, `${P}-05-teacher-round.png`);
+          } else if (r === 2) {
+            // s1: 호찌민에 석유 제품 팔기[수출] → 자원 수입 → 생산 → 수출 임무 완료
+            await tidy(s1, seen, 's1');
+            await enterPort(s1);
+            await trade(ctx, t, s1, 'sell', 'oilp', 2);
+            await expect(s1.getByTestId('result-stamp-export')).toBeVisible();
+            await tidy(s1, seen, 's1');
+            await s1.getByTestId('port-back').click();
+            await expect(s1.getByTestId('mission-M-IPE')).toHaveAttribute('data-status', 'done');
+            ipeDone = true;
+            await shot(s1, `${P}-10b-student-ipe-done.png`);
+            // s2: 싱가포르 첫 입항 개념 카드(p.104) → 쌀 사기 → 도감 4유형에 '내가 사고판 상품: 쌀'
+            await tidy(s2, seen, 's2');
+            expect([...seen.cards]).toContain('arrival:s2');
+            await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
+            await enterPort(s2);
+            await trade(ctx, t, s2, 'buy', 'rice', 2);
+            await s2.getByTestId('port-back').click();
+            await s2.getByTestId('hud-dex').click();
+            await s2.getByTestId('dex-tab-exportTypes').click();
+            await expect(s2.locator('[data-testid="dex-mine"][data-card="export-agri"]')).toHaveText('내가 사고판 상품: 쌀');
+            await shot(s2, `${P}-12-student-dex-mine.png`);
+            await s2.keyboard.press('Escape');
+            await expect(s2.getByTestId('dex')).toHaveCount(0);
+            await sailTo(s2, 'DAM');
+            await enterPort(s3);
+            await trade(ctx, t, s3, 'sell', 'car', 2);
+            await expect(s3.getByTestId('result-stamp-export')).toBeVisible();
+            await tidy(s3, seen, 's3');
+          } else if (r === 3) {
+            // s2: 담맘에 쌀 팔기[중계]
+            await tidy(s2, seen, 's2');
+            await enterPort(s2);
+            await trade(ctx, t, s2, 'sell', 'rice', 2);
+            await expect(s2.getByTestId('result-stamp-relay')).toBeVisible();
+            await s2.getByTestId('port-back').click();
+            await expect(s2.getByTestId('mission-M-RELAY')).toHaveAttribute('data-status', 'done');
+            await tidy(s2, seen, 's2');
+          }
+          await t.bringToFront();
+        }
+      }
+      const res = await pressBig(t);
+      log.push(`${res.state}:${res.label}${res.confirms.length ? `(${res.confirms.join('+')})` : ''}`);
+      await run(ctx, t, 1);
+      if ((await stateOf(t)) === 'wrapup' && !seen.shots.has('wrap')) {
+        seen.shots.add('wrap');
+        await shot(t, `${P}-11-teacher-wrapup.png`);
+      }
+    }
+    await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ended');
+    test.info().annotations.push({ type: '누른 순서', description: log.join(' → ') });
+    // 지나간 장면·학습지·임무
+    expect([...scenes]).toContain('customs');
+    expect(customsShot).toBe(true);
+    for (const w of ['W05', 'W06', 'W07', 'W08']) expect([...seen.worksheets], `학습지 ${w} — ${log.join(' / ')}`).toContain(w);
+    expect(seen.helperCustoms ?? '').toContain('자동차');
+    expect(seen.helperCustoms ?? '').toMatch(/들여온 상품: [^/]*원유/);
+    expect(roundsDone.size).toBeGreaterThanOrEqual(2);
+    // 자원 수입 → 생산 → 수출 순환을 끝까지(수정 1회차, 2차시 핵심 p.101)
+    expect(ipeDone).toBe(true);
+    expect([...seen.cards]).toEqual(expect.arrayContaining(['L2-E2', 'missions', 'arrival:s2']));
+    await ctx.close();
+  });
+}

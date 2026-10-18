@@ -180,7 +180,7 @@ function ToolOverlay({
   entry: LogbookEntry;
   onClose: () => void;
 }) {
-  if (which === 'dex') return <Dex collected={me.game.metrics.dex} comeback={Boolean(cls.settings?.comeback)} onClose={onClose} />;
+  if (which === 'dex') return <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings?.comeback)} onClose={onClose} />;
   if (which === 'letters') {
     return (
       <div class="lt-dock ws-letters">

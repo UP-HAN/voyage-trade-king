@@ -165,7 +165,7 @@ test('A. 차시 한 판 L1 40분: 중간마다 팝업·작성 현황·예약·�
     const pop = s.getByTestId('worksheet-popup');
     await expect(pop).toHaveAttribute('data-ids', 'W01');
     await expect(pop.getByTestId('worksheet-head')).toHaveText('잠깐!');
-    await expect(pop.getByTestId('worksheet-tag')).toHaveText('차시 한 판 · L1');
+    await expect(pop.getByTestId('worksheet-tag')).toHaveText('1차시');
     await expect(pop.getByTestId('worksheet-no')).toHaveText('①');
     await expect(pop.getByTestId('worksheet-prompt')).toHaveText(w1.prompt);
     await expect(pop.getByTestId('worksheet-pages')).toHaveText('교과서 95~96쪽');
@@ -196,7 +196,7 @@ test('A. 차시 한 판 L1 40분: 중간마다 팝업·작성 현황·예약·�
   await shot(t, 'A4-teacher-worksheet-panel-1366.png');
   // 기다리는 동안 도감·편지함·항해 기록장을 볼 수 있다
   await s1.getByTestId('worksheet-tool-logbook').click();
-  await expect(s1.getByTestId('logbook-title')).toContainText('항해 기록장 — 차시 한 판 L1 ·');
+  await expect(s1.getByTestId('logbook-title')).toContainText('항해 기록장 — 1차시 ·');
   await expect(s1.getByTestId('logbook-row')).toHaveCount(4);
   await s1.getByTestId('logbook-close').click();
   await t.getByTestId('ws-close-all').click();
@@ -242,7 +242,7 @@ test('A. 차시 한 판 L1 40분: 중간마다 팝업·작성 현황·예약·�
     await expect(read).toHaveAttribute('data-result', 'open');
     qid[n] = (await read.getAttribute('data-question'))!;
     await expect(s.getByTestId('letter-reward')).toHaveText('맞히면: 감사 사례금 — 자금 +30만 원(모두 같은 금액)');
-    await expect(s.getByTestId('letter-tag')).toHaveText(/L1 구간|무역 기초/);
+    await expect(s.getByTestId('letter-tag')).toHaveText(/1차시|무역 기초/);
   }
   expect(qid.s1).not.toBe(qid.s2); // 옆 좌석은 다른 문제
   await shot(s1, 'A5-student-letter-open-1366.png');
@@ -438,14 +438,14 @@ test('C. 차시 한 판 L1 10분: 끝나고 쓰기 목록 + 항해 기록장(판
   await advanceUntil(ctx, t, async () => (await s1.getByTestId('after-worksheets-student').count()) > 0, 30);
   const after = s1.getByTestId('after-worksheets-student');
   await expect(after).toHaveAttribute('data-ids', 'W01,W02,W03,W04'); // ⑱ 없음(L1 판)
-  await expect(after.getByTestId('after-tag')).toHaveText('차시 한 판 · L1');
+  await expect(after.getByTestId('after-tag')).toHaveText('1차시');
   await expect(after.getByTestId('after-title')).toHaveText('오늘 쓸 학습지: ① ② ③ ④');
   await expect(scr.getByTestId('after-worksheets').first()).toContainText('① ② ③ ④');
-  await expect(scr.getByTestId('after-tag').first()).toHaveText('차시 한 판 · L1');
+  await expect(scr.getByTestId('after-tag').first()).toHaveText('1차시');
   await shot(s1, 'C1-student-after-list-1366.png');
   await shot(scr, 'C2-screen-after-list-1920.png');
   await s1.getByTestId('after-logbook').click();
-  await expect(s1.getByTestId('logbook-title')).toHaveText(/^항해 기록장 — 차시 한 판 L1 · \d+월 \d+일$/);
+  await expect(s1.getByTestId('logbook-title')).toHaveText(/^항해 기록장 — 1차시 · \d+월 \d+일$/);
   await expect(s1.getByTestId('logbook-row')).toHaveCount(4);
   await expect(s1.locator('[data-testid="logbook-row"][data-id="W04"] [data-testid="logbook-helper"]')).toContainText('내 기록:');
   await shot(s1, 'C3-student-logbook-1366.png');
@@ -460,7 +460,7 @@ test('C. 차시 한 판 L1 10분: 끝나고 쓰기 목록 + 항해 기록장(판
   await expect(s1.getByTestId('title-logbook')).toBeVisible();
   await s1.reload();
   await s1.getByTestId('title-logbook').click();
-  await expect(s1.getByTestId('logbook-title')).toHaveText(/^항해 기록장 — 차시 한 판 L1 · /);
+  await expect(s1.getByTestId('logbook-title')).toHaveText(/^항해 기록장 — 1차시 · /);
   await expect(s1.getByTestId('logbook-row')).toHaveCount(4);
   await shot(s1, 'C4-title-logbook-after-end-1366.png');
   // [인쇄]: 인쇄 때는 기록장 시트만, A4 한 장(흑백)

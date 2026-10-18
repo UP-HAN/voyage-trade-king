@@ -86,7 +86,8 @@ describe('기록 도우미: helper 키 16개', () => {
     expect(line('byeokrandoResult')).toBe('벽란도 상인 카드 9장 중 7장 맞혔어요');
     expect(line('twoIslandsResult')).toContain('바꾼 뒤 ㉮ 쌀 32·옷 66 / ㉯ 쌀 30·옷 30');
     expect(line('graphiteChoice')).toBe('내 흑연 선택: 상하이에서 샀어요');
-    expect(line('customsBoard')).toContain('많이 들여온 상품: 천연가스');
+    // (작업 115 수정 1회차) 공장에서 쓴 원유도 '부산에 들여온 상품'
+    expect(line('customsBoard')).toBe('우리 반이 부산에 많이 들여온 상품: 원유, 천연가스 / 많이 내보낸 상품: 석유 제품');
     expect(line('importProduceExport')).toBe('원유 수입(담맘) → 석유 제품 생산 → 방콕에 수출');
     expect(line('exportTypes')).toContain('농산물: 쌀 ✓');
     expect(line('exportTypes')).toContain('기술: 로봇 ✓');
@@ -122,11 +123,11 @@ describe('기록 도우미: helper 키 16개', () => {
 
 describe('판 단위 꼬리표', () => {
   it('차시 한 판 · L2 / 단원 한 판 · L3 구간', () => {
-    expect(playUnitTag('lesson', 'L2')).toBe('차시 한 판 · L2');
-    expect(playUnitTag('unit', 'L3')).toBe('단원 한 판 · L3 구간');
-    expect(playScopeTag('lesson', ['L2'])).toBe('차시 한 판 · L2');
-    expect(playScopeTag('unit', ['L1', 'L2', 'L3', 'L4'])).toBe('단원 한 판 · L1~L4');
-    expect(playUnitTitle('lesson', ['L2'])).toBe('차시 한 판 L2');
+    expect(playUnitTag('lesson', 'L2')).toBe('2차시');
+    expect(playUnitTag('unit', 'L3')).toBe('단원 한 판 · 3차시');
+    expect(playScopeTag('lesson', ['L2'])).toBe('2차시');
+    expect(playScopeTag('unit', ['L1', 'L2', 'L3', 'L4'])).toBe('단원 한 판 · 1~4차시');
+    expect(playUnitTitle('lesson', ['L2'])).toBe('2차시');
     expect(playUnitTitle('unit', ['L1', 'L2', 'L3', 'L4'])).toBe('단원 한 판');
   });
 });

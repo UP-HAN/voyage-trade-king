@@ -12,6 +12,7 @@ import type { ScreenData, SceneId } from '../model';
 import { BarsScene } from './BarsScene';
 import { CodeScene } from './CodeScene';
 import { CoverScene, SummaryScene } from './CoverScene';
+import { CustomsScene, customsPicker } from './CustomsScene';
 import { EventScene } from './EventScene';
 import { LeaderboardScene } from './LeaderboardScene';
 import { MapScene } from './MapScene';
@@ -66,3 +67,7 @@ addScenePicker((d) => pickAfterWorksheetScene(d));
 
 // (작업 113) 벽란도·두 섬 결과(이름 없는 막대): 열려 있는 동안 한 명이라도 마치면, 마감 뒤에는 결과 막대 대신
 addScenePicker(minigameResultPicker);
+
+// (작업 115) L2-E6 세관 게시판: 열려 있는 동안 사건 카드 대신 학급 집계 막대 + 교과서 100쪽 비교
+SCENES.customs = CustomsScene;
+addScenePicker(customsPicker);

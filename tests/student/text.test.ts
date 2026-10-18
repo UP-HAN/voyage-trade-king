@@ -93,10 +93,10 @@ describe('표시 도우미', () => {
     expect(prep.trade).toContain('25분');
     const started = { ...snap.class, phase: 'round' as const, round: 2, roundEndsAt: now + 130_000, clock: { ...snap.class.clock, startedAt: now - 60_000, endsAt: now + 24 * 60_000 } };
     const t = timeInfo(publicClass(started), now);
-    expect(t).toMatchObject({ label: 'L1 구간 · 라운드 2', round: '2:10', warn: false });
+    expect(t).toMatchObject({ label: '1차시 · 라운드 2', round: '2:10', warn: false });
     expect(t.trade).toBe('무역 24분 남음');
     expect(timeInfo(publicClass({ ...started, roundEndsAt: now + 20_000 }), now).warn).toBe(true);
-    expect(timeInfo(publicClass({ ...started, phase: 'between', roundEndsAt: null }), now).label).toBe('L1 구간 · 쉬는 중');
+    expect(timeInfo(publicClass({ ...started, phase: 'between', roundEndsAt: null }), now).label).toBe('1차시 · 쉬는 중');
   });
 
   it('항해 규칙 카드: 역전 장치가 꺼지면 2번 숨김', () => {

@@ -148,7 +148,7 @@ describe('편지 화면(S14)', () => {
     expect(pagesText([96, 103])).toBe('교과서 96쪽, 103쪽');
     const s = toRound2();
     const v = letterBox(publicClass(s.class), me(s, 1))[0]!;
-    expect(slotTag(v)).toBe(v.question!.common ? '무역 기초' : 'L1 구간');
+    expect(slotTag(v)).toBe(v.question!.common ? '무역 기초' : '1차시');
     const common = { ...v, question: { ...v.question!, common: true } };
     expect(slotTag(common)).toBe('무역 기초');
   });

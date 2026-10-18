@@ -115,13 +115,18 @@ describe('기억(voyage.teacher.prefs)', () => {
   });
 });
 
-describe('(작업 134) 기능 플래그 FULL_UNIT_READY=false', () => {
-  it('차시 L1만 고를 수 있고 L2~L4·단원 한 판·L2가 든 연속 구간은 준비 중', () => {
+describe('(작업 115) 차시별 준비 표시 LESSON_READY — 1·2차시만', () => {
+  it('차시 1·2만 고를 수 있고 3·4차시·단원 한 판·3차시가 든 연속 구간은 준비 중', () => {
     expect(lessonImplemented('L1')).toBe(true);
-    for (const l of ['L2', 'L3', 'L4'] as const) expect(lessonImplemented(l)).toBe(false);
-    expect(implementedLessons()).toEqual(['L1']);
-    const custom = { ...defaultSetup(), playUnit: 'custom' as const, customScope: ['L1', 'L2'] as SetupValues['customScope'] };
+    expect(lessonImplemented('L2')).toBe(true);
+    for (const l of ['L3', 'L4'] as const) expect(lessonImplemented(l)).toBe(false);
+    expect(implementedLessons()).toEqual(['L1', 'L2']);
+    const l2 = L1({ lesson: 'L2' });
+    expect(openDisabledReason(l2, previewOf(l2), ok)).toBeNull();
+    const custom = { ...defaultSetup(), playUnit: 'custom' as const, customScope: ['L2', 'L3'] as SetupValues['customScope'] };
     expect(openDisabledReason(custom, previewOf(custom), ok)?.text).toBe('고른 구간에 아직 준비 중인 차시가 있어요');
+    const unit = { ...defaultSetup(), playUnit: 'unit' as const };
+    expect(openDisabledReason(unit, previewOf(unit), ok)?.text).toBe('단원 전체 한 판은 아직 준비 중이에요');
   });
   it('기억한 단원 한 판은 고르지 않은 상태로 복원', () => {
     const st = new MemStorage();

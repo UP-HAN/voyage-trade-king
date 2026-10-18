@@ -528,6 +528,11 @@ export interface PublicState {
   certificates: number;
   /** 마무리 단계에서만 */
   awards: AwardResult[] | null;
+  /**
+   * (작업 115) L2-E6 세관 게시판: 학급 전체가 부산에 들여온([수입] 판매) / 다른 나라에 내보낸([수출] 판매) 상자 수(상품별, 이름 없이 합계만).
+   * 판 범위에 2차시가 있을 때만(없거나 거래 전이면 null). 학습지 ⑤ 도우미도 이 값을 읽는다
+   */
+  customsBoard?: { imports: Partial<Record<GoodId, number>>; exports: Partial<Record<GoodId, number>> } | null;
 }
 
 /** 방 전체에 보내는 학급 상태(교사 전용 필드 제외) */

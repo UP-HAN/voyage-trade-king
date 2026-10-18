@@ -218,7 +218,7 @@ describe('그 밖 장면 내용', () => {
     show('map');
     expect(byTest('map-round-left')[0]!.textContent).toMatch(/^2:\d\d$/);
     expect(byTest('map-ready')[0]!.textContent).toMatch(/^출항 준비 \d+\/27$/);
-    expect(byTest('screen-clock-stage')[0]!.textContent).toBe('L1 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
+    expect(byTest('screen-clock-stage')[0]!.textContent).toBe('1차시 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
   });
   it('일시정지: "선생님을 보세요" + 시계 옆 "멈춤"', () => {
     show('pause');
@@ -246,7 +246,7 @@ describe('그 밖 장면 내용', () => {
   });
   it('차시 표지(L1)', () => {
     show('cover');
-    expect(byTest('cover-kicker')[0]!.textContent).toBe('L1 차시');
+    expect(byTest('cover-kicker')[0]!.textContent).toBe('1차시');
     expect(byTest('cover-question')[0]!.textContent).toContain('까닭은 무엇일까요?');
   });
   it('시상: 상 카드 + 회사 이름 + 깃발', () => {

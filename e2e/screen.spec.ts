@@ -187,9 +187,9 @@ test.describe('장면(가짜 호스트 = 실제 교사 리듀서 상태)', () =>
         want: 'cover',
         file: '02-cover-lesson-L1.png',
         check: async () => {
-          await expect(page.getByTestId('cover-kicker')).toHaveText('L1 차시');
+          await expect(page.getByTestId('cover-kicker')).toHaveText('1차시');
           await expect(page.getByTestId('cover-question')).toContainText('생산지가 다양한 까닭');
-          await expect(page.getByTestId('screen-clock-stage')).toHaveText('L1 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
+          await expect(page.getByTestId('screen-clock-stage')).toHaveText('1차시 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
         },
       },
       {
@@ -263,7 +263,7 @@ test.describe('장면(가짜 호스트 = 실제 교사 리듀서 상태)', () =>
       { scene: 'between', opts: { topN: 4, choice: 'leaderboard' }, want: 'leaderboard', file: '11-leaderboard-top4.png', check: async () => expect(page.getByTestId('board-row')).toHaveCount(4) },
       { scene: 'between', opts: { topN: 5, choice: 'leaderboard' }, want: 'leaderboard', file: '12-leaderboard-top5.png', check: async () => expect(page.getByTestId('board-row')).toHaveCount(5) },
       { scene: 'awards', want: 'awards', file: '13-awards.png', check: async () => expect(page.getByTestId('award-card').first()).toBeVisible() },
-      { scene: 'summary', want: 'summary', file: '14-summary-card-L2.png', check: async () => expect(page.getByTestId('scene-summary')).toContainText('L1 요약') },
+      { scene: 'summary', want: 'summary', file: '14-summary-card-L2.png', check: async () => expect(page.getByTestId('scene-summary')).toContainText('1차시 요약') },
       { scene: 'unitL2Cover', opts: { topN: 3 }, want: 'cover', file: '15-cover-unit-L2-top3.png', check: async () => expect(page.getByTestId('cover-top')).toContainText('지금까지 상위 3개 회사') },
       { scene: 'map', opts: { choice: 'black' }, want: 'black', file: '16-black.png' },
     ];
@@ -444,9 +444,9 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     await page.getByTestId('btn-start-trade').click();
     await page.getByTestId('confirm-ok').click();
     await expect.poll(() => sceneOf(screen), { timeout: 4000 }).toBe('cover');
-    await expect(screen.getByTestId('cover-kicker')).toHaveText('L1 차시');
+    await expect(screen.getByTestId('cover-kicker')).toHaveText('1차시');
     await expect(screen.getByTestId('screen-clock')).toHaveAttribute('data-mode', 'trade');
-    await expect(screen.getByTestId('screen-clock-stage')).toContainText('L1 · ');
+    await expect(screen.getByTestId('screen-clock-stage')).toContainText('1차시 · ');
     await shot(screen, 'flow-04-cover.png');
 
     // 다음 사건 [지금] → 사건 카드(표지가 끝난 뒤)

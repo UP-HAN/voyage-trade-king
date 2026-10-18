@@ -76,6 +76,11 @@ export function onSell(
     // 목표(PRD 6.11.4 goal): 부산에서 천연가스 1상자 이상 판매
     completeIfDone(p, 'M-GAS', events, true);
   }
+  // (작업 115) 수출국 4유형: 사거나 팔면 그 유형 칸(PRD 4.4 L2-E4)
+  exportTypeCards.forEach((c, i) => {
+    if (c.goods.includes(sale.good)) setStep(p, 'M-EXPORT4', i, events);
+  });
+  completeIfDone(p, 'M-EXPORT4', events);
   if (sale.stamp === 'import' && IPE_RAW.includes(sale.good)) setStep(p, 'M-IPE', 0, events);
   if (sale.stamp === 'export' && sale.source === 'factory') setStep(p, 'M-IPE', 2, events);
   completeIfDone(p, 'M-IPE', events);

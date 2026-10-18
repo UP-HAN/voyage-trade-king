@@ -70,7 +70,8 @@ export interface HelperInputs {
   /** L2-E6 학급 집계: 부산에 들여온(수입) / 내보낸(수출) 상자 수 */
   customsBoard: { imports: Partial<Record<GoodId, number>>; exports: Partial<Record<GoodId, number>> };
   /** L2-E3 임무 첫 완료 기록(없으면 null) */
-  importProduceExport: { record: { importGood: GoodId; importPort: PortId; product: GoodId; exportPort: PortId } | null };
+  /** (작업 115 수정 1회차) 한 만큼만: 수입만 / 수입·생산 / 셋 다(없는 단계는 null) */
+  importProduceExport: { record: { importGood: GoodId | null; importPort: PortId | null; product: GoodId | null; exportPort: PortId | null } | null };
   /** L2-E4 임무: 유형별로 처음 사거나 판 상품 */
   exportTypes: { done: Partial<Record<ExportTypeId, GoodId>> };
   /** L2-E5 임무: 첫 [중계] 판매(싱가포르에서 산 상품을 다른 나라에 판매) */
@@ -140,10 +141,15 @@ export const helperDefs: { readonly [K in HelperKey]: HelperDef<K> } = {
   },
   importProduceExport: {
     key: 'importProduceExport', source: 'L2-E3 임무', events: ['L2-E3'], emptyText: '아직 못 했어요', isNew: false,
-    format: ({ record }) =>
-      record
-        ? `${goodName(record.importGood)} 수입(${portName(record.importPort)}) → ${goodName(record.product)} 생산 → ${portName(record.exportPort)}에 수출`
-        : '아직 못 했어요',
+    format: ({ record }) => {
+      if (!record || (!record.importGood && !record.product)) return '아직 못 했어요';
+      const parts: string[] = [];
+      if (record.importGood) parts.push(`${goodName(record.importGood)} 수입${record.importPort ? `(${portName(record.importPort)})` : ''}`);
+      if (!record.product) return [...parts, '아직 생산 전'].join(' → ');
+      parts.push(`${goodName(record.product)} 생산`);
+      parts.push(record.exportPort ? `${portName(record.exportPort)}에 수출` : '아직 수출 전');
+      return parts.join(' → ');
+    },
   },
   exportTypes: {
     key: 'exportTypes', source: 'L2-E4 임무', events: ['L2-E4'], emptyText: HELPER_EMPTY_TEXT, isNew: false,

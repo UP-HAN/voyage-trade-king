@@ -63,7 +63,7 @@ export function LogbookSheet({ entry, onClose, className }: { entry: LogbookEntr
                 {g.stage && (
                   <tr class="lb-stage-row">
                     <th colSpan={3} class="lb-stage">
-                      {g.stage === '선택 활동' ? g.stage : `${g.stage} 구간`}
+                      {g.stage === '선택 활동' ? g.stage : `${String(g.stage).replace(/^L/, '')}차시`}
                     </th>
                   </tr>
                 )}

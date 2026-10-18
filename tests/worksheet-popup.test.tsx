@@ -85,7 +85,7 @@ describe('학생 "잠깐!" 팝업', () => {
     let t = NOW + 2000;
     const actFn = mountStudent(snap, 1, () => t);
     expect(text(byTest('worksheet-head')[0])).toBe('잠깐!');
-    expect(text(byTest('worksheet-tag')[0])).toBe('차시 한 판 · L1');
+    expect(text(byTest('worksheet-tag')[0])).toBe('1차시');
     expect(text(byTest('worksheet-no')[0])).toBe('③');
     expect(text(byTest('worksheet-pages')[0])).toBe('교과서 98~99쪽');
     expect(text(byTest('worksheet-helper')[0])).toBe('[내 기록: 아직 기록이 없어요]');
@@ -135,12 +135,12 @@ describe('학생 "잠깐!" 팝업', () => {
     act(() => {
       byTest('worksheet-tool-logbook')[0]!.dispatch('click');
     });
-    expect(text(byTest('logbook-title')[0])).toMatch(/^항해 기록장 — 차시 한 판 L1 · \d+월 \d+일$/);
+    expect(text(byTest('logbook-title')[0])).toMatch(/^항해 기록장 — 1차시 · \d+월 \d+일$/);
   });
 
   it('단원 한 판이면 꼬리표 "단원 한 판 · L3 구간"', () => {
     mountStudent(snapWith(['W09'], { playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'] }));
-    expect(text(byTest('worksheet-tag')[0])).toBe('단원 한 판 · L3 구간');
+    expect(text(byTest('worksheet-tag')[0])).toBe('단원 한 판 · 3차시');
   });
 
   it('떠 있는 팝업이 없으면(늦게 온 학생 — 이미 닫힌 팝업) 아무것도 그리지 않는다', () => {
@@ -155,7 +155,7 @@ describe('학생 "잠깐!" 팝업', () => {
     const s = snapWith([], { phase: 'wrapup' });
     const wrap = { ...s, class: { ...s.class, worksheet: { ...s.class.worksheet, current: null }, schedule: { ...s.class.schedule, wrapup: [{ id: 'afterWorksheet' as const, label: '끝나고 쓰기', minutes: 0, worksheetIds: ['W01', 'W02', 'W03', 'W04'] as WorksheetId[] }] } } };
     mountStudent(wrap);
-    expect(text(byTest('after-tag')[0])).toBe('차시 한 판 · L1');
+    expect(text(byTest('after-tag')[0])).toBe('1차시');
     expect(text(byTest('after-title')[0])).toBe('오늘 쓸 학습지: ① ② ③ ④');
     expect(byTest('after-row')).toHaveLength(4);
     expect(allText()).not.toContain('⑱');
@@ -260,7 +260,7 @@ describe('공용 화면 학습지 장면', () => {
     mount(<WorksheetScene d={d} now={NOW} code="482137" address={{ display: 'x', url: 'x' }} />);
     expect(text(byTest('ws-title')[0])).toBe('잠깐! ③ 학습지를 써요');
     expect(text(byTest('ws-done-count')[0])).toBe('1/2');
-    expect(text(byTest('ws-tag')[0])).toBe('차시 한 판 · L1');
+    expect(text(byTest('ws-tag')[0])).toBe('1차시');
     const all = allText();
     expect(all).not.toMatch(/\d+번/);
     expect(all).not.toContain('해오름');
@@ -281,7 +281,7 @@ describe('공용 화면 학습지 장면', () => {
     expect(pickAfterWorksheetScene({ ...noBoard, cls: { ...noBoard.cls, settings: { ...noBoard.cls.settings, leaderboardTopN: 3 as const } } })).toBeNull();
     mount(<AfterWorksheetBand d={{ ...noBoard, cls: { ...noBoard.cls, settings: { ...noBoard.cls.settings, leaderboardTopN: 3 as const } } }} sceneId="leaderboard" />);
     expect(text(byTest('after-nos')[0])).toBe('① ②');
-    expect(text(byTest('after-tag')[0])).toBe('차시 한 판 · L1');
+    expect(text(byTest('after-tag')[0])).toBe('1차시');
     mount(<AfterWorksheetBand d={noBoard} sceneId="awards" />);
     expect(byTest('after-band')).toHaveLength(0);
   });

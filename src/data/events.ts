@@ -169,7 +169,7 @@ const L1_EVENTS: readonly GameEvent[] = [
   },
   {
     id: 'L1-E8', lesson: 'L1', kind: 'checkQuiz', required: false, trigger: { type: 'teacher' }, fake: false, gameRule: false,
-    title: 'L1 확인 퀴즈',
+    title: '1차시 확인 퀴즈',
     body: '오늘 배운 내용을 확인해요. 공용 화면의 문제를 보고 내 기기에서 답을 골라요.',
     textbook: [],
     pages: [96, 99], effects: [{ type: 'checkQuiz', lesson: 'L1' }], goal: null,
@@ -179,43 +179,63 @@ const L1_EVENTS: readonly GameEvent[] = [
 ];
 
 const L2_EVENTS: readonly GameEvent[] = [
+  // (작업 115) 2차시 본문 — 교과서 인용은 도감 개념 카드(dex.ts)·앞 차시 요약(SUM-L2)과 같은 문장을 쓴다
   skeleton({
     id: 'L2-E1', lesson: 'L2', kind: 'screen', required: true, trigger: { type: 'lessonStart' },
     title: 'L2. 자원을 사 와서 만들어 팔아요 · 세계의 다양한 무역', pages: [100], worksheetAfter: null,
     body: '새 항구 6곳이 열렸어요. 자원을 사 와서 공장에서 만들어 파는 무역을 해 봐요.',
+    textbook: [{ pages: [100], note: '우리나라는 원유, 정밀 화학 원료, 천연가스, 석탄 등을 주로 수입하고, 반도체, 자동차, 무선 통신 기기, 석유 제품 등을 주로 수출해요.' }],
     effects: [{ type: 'unlock', ports: ['JKT', 'DAM', 'SIN', 'MUM', 'ROT', 'LAX'], features: ['factory'] }],
+    teacherPrompts: ['우리나라는 어떤 물건을 사 오고 어떤 물건을 팔까요?'],
     image: 'lessons/l2.png', isCover: true,
     tier: 1, blocking: true, minutes: { full: 0.3, short: 0.3 }, shortForm: null, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
     id: 'L2-E2', lesson: 'L2', kind: 'concept', required: true, title: '부산 공장 개장', pages: [101], worksheetAfter: null,
+    body: '부산에 우리 회사 공장이 문을 열었어요. 천연자원 수입 → 상품 생산 → 상품 수출, 이렇게 무역이 이어져요. 부산 항구에 들어가 [공장]에서 사 온 자원으로 상품을 만들어 보세요.',
+    textbook: [{ pages: [101], note: '우리나라는 원유, 천연가스, 철광석 등 산업 발달에 필요한 천연자원이 부족하지만, 다른 나라에서 수입한 자원으로 다양한 상품을 생산할 수 있는 기술이 발달했어요.' }],
     effects: [{ type: 'dexCard', card: 'korea-trade' }],
+    teacherPrompts: ['우리나라는 왜 원유를 사 와서 석유 제품을 만들어 팔까요?'],
     tier: 1, blocking: true, minutes: { full: 2, short: 1 }, shortForm: { blocking: true, note: '순환 그림 카드만' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
     id: 'L2-E3', lesson: 'L2', kind: 'mission', required: true, trigger: { type: 'roundStart', round: 1 },
     title: '임무: 자원 수입 → 생산 → 수출', pages: [101, 104], worksheetAfter: null,
+    body: '원유·철광석·흑연 중 하나를 다른 나라에서 사서 부산으로 가져와요. 부산 공장에서 상품을 만들어요. 만든 상품을 다른 나라 항구에 팔아 [수출] 도장을 받아요.',
+    textbook: [{ pages: [104], note: '우리나라는 천연자원을 수입한 후 상품을 생산하여 수출하는 무역이 발달했어요.' }],
     effects: [{ type: 'mission', ref: 'M-IPE' }], catchUp: 'replay',
     tier: 1, blocking: false, minutes: { full: 0, short: 0 }, shortForm: null, needsRounds: 1, anchor: 'round:1',
   }),
   skeleton({
     id: 'L2-E4', lesson: 'L2', kind: 'mission', required: false, trigger: { type: 'roundStart', round: 1 },
     title: '임무: 수출국 4유형', pages: [103], worksheetAfter: null,
+    body: '농산물(쌀), 천연자원(원유·철광석·천연가스·니켈), 기술(로봇·백신), 문화(온라인 동영상 서비스·K-콘텐츠) 상품을 하나씩 사거나 팔아 보세요. 하나 할 때마다 도감의 수출국 4유형 칸이 채워져요.',
+    textbook: [
+      { pages: [103], note: '넓은 땅에서 많은 농산물을 생산하거나, 풍부한 천연자원을 가지고 있는 나라들이 있어요. 이 나라들은 전 세계에 농산물과 천연자원을 수출해요.' },
+      { pages: [103], note: '뛰어난 기술을 바탕으로 생산한 물자나 서비스를 수출하는 나라들도 있어요. 또한 전 세계 사람들은 다른 나라에서 수입한 영화, 드라마, 음악 등 다양한 문화 상품을 즐겨요.' },
+    ],
     effects: [{ type: 'mission', ref: 'M-EXPORT4' }], catchUp: 'replay',
     tier: 2, priority: 2, blocking: false, minutes: { full: 0, short: 0 }, shortForm: null, needsRounds: 2, anchor: 'round:1',
   }),
   skeleton({
     id: 'L2-E5', lesson: 'L2', kind: 'concept', required: false, trigger: { type: 'firstArrival', port: 'SIN' },
-    title: '싱가포르의 비밀 + 중계 임무', pages: [104], worksheetAfter: null,
+    title: '싱가포르의 비밀', pages: [104], worksheetAfter: null,
+    body: '싱가포르는 서울보다 약간 넓은 면적의 나라로, 유럽과 아시아를 잇는 항로에 자리 잡고 있어요. 큰 항구에 여러 나라에서 생산한 상품들이 모이고, 필요한 나라에 다시 팔려요. 싱가포르에서 산 상품을 다른 나라에 팔면 [중계] 도장을 받아요.',
+    textbook: [{ pages: [104], note: '싱가포르는 유럽과 아시아를 잇는 항로에 자리 잡고 있어요. 싱가포르 정부가 큰 항구를 만들자 여러 나라에서 생산한 상품들이 모이기 시작했고, 이 상품들을 필요한 나라에 다시 파는 형태의 무역이 발달했어요.' }],
     effects: [{ type: 'dexCard', card: 'relay' }, { type: 'mission', ref: 'M-RELAY' }], catchUp: 'replay',
+    teacherPrompts: ['싱가포르는 자원이 많지 않은데 어떻게 무역이 발달했을까?'],
     tier: 2, priority: 1, blocking: false, minutes: { full: 0, short: 0 }, shortForm: null, needsRounds: 1, anchor: 'round:1',
   }),
   skeleton({
     id: 'L2-E6', lesson: 'L2', kind: 'screen', required: false, title: '세관 게시판', pages: [100], worksheetAfter: 'W05',
+    body: '우리 반이 부산에 들여온 상품과 다른 나라에 내보낸 상품 순위예요. 교과서 100쪽의 우리나라 주요 수입품·수출품과 비교해 봐요.',
+    textbook: [{ pages: [100], note: '우리나라는 원유, 정밀 화학 원료, 천연가스, 석탄 등을 주로 수입하고, 반도체, 자동차, 무선 통신 기기, 석유 제품 등을 주로 수출해요.' }],
+    teacherPrompts: ['우리 반 세관 게시판과 교과서 그림은 무엇이 닮았나?'],
     tier: 2, priority: 3, blocking: true, minutes: { full: 3, short: 1 }, shortForm: { blocking: true, note: '공용 화면 비교 막대만' }, needsRounds: 0, anchor: 'stageEnd',
   }),
   skeleton({
-    id: 'L2-E7', lesson: 'L2', kind: 'checkQuiz', required: false, title: 'L2 확인 퀴즈', pages: [100, 104], worksheetAfter: ['W06', 'W07', 'W08'],
+    id: 'L2-E7', lesson: 'L2', kind: 'checkQuiz', required: false, title: '2차시 확인 퀴즈', pages: [100, 104], worksheetAfter: ['W06', 'W07', 'W08'],
+    body: '오늘 배운 내용을 확인해요. 공용 화면의 문제를 보고 내 기기에서 답을 골라요.',
     effects: [{ type: 'checkQuiz', lesson: 'L2' }], needsResponse: true, catchUp: 'none',
     tier: 3, blocking: true, minutes: { full: 2, short: null }, shortForm: null, needsRounds: 0, anchor: 'stageEnd',
   }),

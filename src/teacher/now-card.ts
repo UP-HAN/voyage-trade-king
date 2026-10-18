@@ -188,6 +188,13 @@ function eventTitle(c: ClassState, id: string): string {
   return def ? teacherTitle(def.title) : id;
 }
 
+/** 응답 없는 소식 패널 줄 — 2차시~ 임무·첫 입항 사건은 학생 화면 '○차시 임무' 패널 */
+function newsLine(c: ClassState, id: string): string {
+  const def = eventsById[id];
+  if (def && def.lesson !== 'L1' && (def.kind === 'mission' || def.trigger.type === 'firstArrival')) return `학생 화면에 '${lessonText(def.lesson)} 임무' 안내가 떠 있어요`;
+  return `학생 화면에 '${eventTitle(c, id)}' 소식이 떠 있어요`;
+}
+
 /** 라운드 앞 사전 활동(표지·편지·라운드 안 비차단 활동 제외) */
 function preActivities(c: ClassState): ScheduleItem[] {
   const items = c.schedule.items;
@@ -564,8 +571,8 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         sub.push({ text: `${eventTitle(c, ce.id)} 결과를 TV에 보여 주는 중 · ${leftText((ce.resultUntil! - now) / 1000)}`, testId: 'tl-result', eventId: ce.id, strong: true });
         secondary = { label: '결과 닫기', kind: 'endResult', testId: 'btn-end-result' };
       } else if (ce && !ce.closed) {
-        // 응답 없는 소식 패널(천연가스 소식 등)
-        sub.push({ text: `학생 화면에 '${eventTitle(c, ce.id)}' 소식이 떠 있어요`, testId: 'now-news' });
+        // 응답 없는 소식 패널(천연가스 소식 등). (작업 115 수정 1회차) 2차시 차시 시작 임무·첫 입항 사건은 학생 화면에 '임무' 패널로 뜬다
+        sub.push({ text: newsLine(c, ce.id), testId: 'now-news' });
       }
       const endBtn: NowButton = { label: '라운드 끝내기', kind: 'endRound', testId: 'btn-end-round', tone: allReady ? 'primary' : 'secondary' };
       // 수동 진행: 라운드 중에 열 수 있는 항목(라운드에 붙은 소식·결정 패널)을 선생님이 기다리고 있으면 보조 정보 + 작은 글자 [열기: ○○](옛 [발동])
@@ -588,7 +595,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
     }
     // 11. 다음 항목을 기다림
     // (다듬기) 라운드 밖에서 응답 없는 소식 패널이 떠 있으면(수동 진행에서 라운드 뒤 [다음으로]로 연 소식 등) 그것도 보인다 — 다음 항목을 열 때까지
-    const news: NowSub[] = ce && !ce.closed && !needsResponse(ce.id) ? [{ text: `학생 화면에 '${eventTitle(c, ce.id)}' 소식이 떠 있어요`, testId: 'now-news' }] : [];
+    const news: NowSub[] = ce && !ce.closed && !needsResponse(ce.id) ? [{ text: newsLine(c, ce.id), testId: 'now-news' }] : [];
     if (next) {
       const wait = Math.max(0, next.at - e);
       const isRound = next.kind === 'round';

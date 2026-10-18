@@ -24,7 +24,10 @@ import { LayerFrame } from '../layer';
 import type { MeView } from '../predict';
 import type { StudentState, StudentStore } from '../store';
 import { optionFacts } from './facts';
-import { catchUpPlan, hasDone, liveEvent, resultEvent, shapeOf, type CatchUpItem, type LiveEvent } from './logic';
+import { missionsById } from '../../data/missions';
+import { helperText } from '../../data/worksheetHelpers';
+import type { PublicState } from '../../core';
+import { catchUpPlan, hasDone, isMissionIntro, liveEvent, resultEvent, shapeOf, type CatchUpItem, type LiveEvent } from './logic';
 import { Tutorial } from './Tutorial';
 import './events.css';
 
@@ -37,7 +40,7 @@ export function EventLayer({ store, st }: EventLayerProps) {
   const me = st.peer.me;
   const cls = st.peer.public?.class ?? null;
   if (!me || !cls) return null;
-  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} />;
+  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} board={st.peer.public?.public?.customsBoard ?? null} />;
 }
 
 const WAIT_TEXT = '선생님이 다음으로 넘어갈 때까지 기다려요';
@@ -56,7 +59,7 @@ function decisionChoice(me: MeView, id: string): { choice: string | null; noResp
   return { choice: typeof r.choice === 'string' ? r.choice : null, noResponse: r.noResponse === true };
 }
 
-function EventLayerInner({ store, me, cls, pid, code }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null }) {
+function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null; board: PublicState['customsBoard'] }) {
   const [queue, setQueue] = useState<CatchUpItem[]>([]);
   const [queueTotal, setQueueTotal] = useState(0);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -103,7 +106,9 @@ function EventLayerInner({ store, me, cls, pid, code }: { store: StudentStore; m
         return shape !== 'none' && shape !== 'quiz';
       });
     if (!ids.length) return;
-    setQueue((q) => [...q, ...ids.filter((id) => !q.some((x) => x.mode !== 'summary' && x.id === id)).map((id) => ({ mode: 'resend' as const, id }))]);
+    // (작업 115) 첫 입항 사건(L2-E5 싱가포르)은 'arrival' — "놓친 활동" 말 없이 개념 카드 한 장
+    const mode = (id: string) => (eventsById[id]?.trigger.type === 'firstArrival' ? ('arrival' as const) : ('resend' as const));
+    setQueue((q) => [...q, ...ids.filter((id) => !q.some((x) => x.mode !== 'summary' && x.id === id)).map((id) => ({ mode: mode(id), id }))]);
     setQueueTotal((n) => n + ids.length);
     setDismissed((d) => {
       const n = new Set(d);
@@ -165,8 +170,12 @@ function EventLayerInner({ store, me, cls, pid, code }: { store: StudentStore; m
       } else if (live.blocking && hasDone(me, live.id)) {
         modal = <Waiting title={live.def.title} onDex={() => setDexOpen(true)} />;
       }
+    } else if (isMissionIntro(live.def) && !live.blocking) {
+      if (!dismissed.has(`missions:${live.def.lesson}`)) {
+        panel = <MissionPanel me={me} lesson={live.def.lesson} folded={folded} setFolded={setFolded} onClose={() => dismiss(`missions:${live.def.lesson}`)} />;
+      }
     } else if (live.blocking) {
-      modal = <LiveBlocking live={live} me={me} cls={cls} scope={scope} picked={picked} setPicked={setPicked} send={send} respond={respond} onDex={() => setDexOpen(true)} />;
+      modal = <LiveBlocking live={live} me={me} cls={cls} scope={scope} board={board} picked={picked} setPicked={setPicked} send={send} respond={respond} onDex={() => setDexOpen(true)} />;
     } else if (!dismissed.has(live.id)) {
       panel = <LivePanel live={live} me={me} cls={cls} scope={scope} folded={folded} setFolded={setFolded} respond={respond} dismiss={dismiss} />;
     }
@@ -229,7 +238,7 @@ function EventLayerInner({ store, me, cls, pid, code }: { store: StudentStore; m
       <Tutorial me={me} cls={cls} pid={pid} code={code} />
       {panel}
       {modal}
-      {dexOpen && <Dex collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} onClose={() => setDexOpen(false)} />}
+      {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} onClose={() => setDexOpen(false)} />}
     </>
   );
 }
@@ -260,6 +269,7 @@ function LiveBlocking({
   me,
   cls,
   scope,
+  board,
   picked,
   setPicked,
   send,
@@ -270,6 +280,7 @@ function LiveBlocking({
   me: MeView;
   cls: PublicClass;
   scope: readonly ('L1' | 'L2' | 'L3' | 'L4')[];
+  board?: PublicState['customsBoard'];
   picked: Record<string, Answer>;
   setPicked: (f: (p: Record<string, Answer>) => Record<string, Answer>) => void;
   send: (a: Action) => boolean;
@@ -334,6 +345,16 @@ function LiveBlocking({
   }
   // 카드: 확인하면 닫힘. 응답이 필요한 카드(드묾)면 응답 뒤 기다리기
   const done = hasDone(me, live.id);
+  // (작업 115) 공용 화면 중심 활동(L2-E6 세관 게시판): 확인한 뒤에도 TV를 보며 기다리는 동안 학급 집계 한 줄 + 기다림 안내
+  if (done && def.kind === 'screen' && !def.isCover) {
+    return (
+      <Waiting title={def.title} onDex={onDex}>
+        <p class="ev-wait__board" data-testid="event-wait-board">
+          {def.id === 'L2-E6' ? helperText('customsBoard', board ?? null) : 'TV 화면을 함께 봐요.'}
+        </p>
+      </Waiting>
+    );
+  }
   if (done && !def.needsResponse) return null;
   if (done) return <Waiting title={def.title} onDex={onDex} />;
   return (
@@ -417,6 +438,67 @@ function LivePanel({
   );
 }
 
+// ─── (작업 115) 이번 차시 임무 패널 ─────────────────────────
+
+function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; lesson: string; folded: boolean; setFolded: (b: boolean) => void; onClose: () => void }) {
+  const list = Object.entries(me.game.missions).filter(([id]) => missionsById[id]?.lesson === lesson);
+  if (!list.length) return null;
+  const no = lesson.replace(/^L/, '');
+  if (folded) {
+    return (
+      <div class="ev-panel ev-panel--folded" data-testid="event-panel-folded" data-event="missions" style={{ zIndex: 55 }}>
+        <button type="button" class="btn btn--secondary ev-panel__unfold" data-testid="event-panel-unfold" onClick={() => setFolded(false)}>
+          {no}차시 임무 펼치기
+        </button>
+      </div>
+    );
+  }
+  return (
+    <aside class="ev-panel" aria-label={`${no}차시 임무`} data-testid="mission-panel" style={{ zIndex: 55 }}>
+      <button type="button" class="link-small ev-panel__fold" data-testid="event-panel-fold" onClick={() => setFolded(true)}>
+        접기
+      </button>
+      <article class="vc vc--student vc--panel">
+        <div class="vc__band vc__band--concept" data-band="concept">
+          <span class="vc__band-text">임무</span>
+        </div>
+        <h2 class="vc__title">{no}차시 임무 {list.length}가지</h2>
+        <ol class="ev-missions">
+          {list.map(([id, m]) => {
+            const def = missionsById[id]!;
+            return (
+              <li key={id} data-testid={`mission-intro-${id}`} data-status={m.status}>
+                <b>{def.title}</b>
+                {m.status === 'done' && <span class="ev-missions__done"> · 완료</span>}
+                <ul>
+                  {def.steps.map((stp, i) => (
+                    <li key={i} class={m.status === 'done' || m.steps[i] ? 'is-done' : ''}>
+                      {m.status === 'done' || m.steps[i] ? '✓ ' : '· '}
+                      {stp}
+                    </li>
+                  ))}
+                </ul>
+                <span class="ev-summary__pages">{linkPages(def.pages)}</span>
+              </li>
+            );
+          })}
+        </ol>
+        {me.game.log.some((e) => e.ref === 'startCargo') && (
+          <p class="ev-panel__note" data-testid="mission-start-cargo">
+            게임 규칙: 우리 배에 담맘에서 사 온 원유 2상자가 실려 있어요. 부산 항구의 [공장]에서 바로 석유 제품을 만들 수 있어요.
+          </p>
+        )}
+        <p class="ev-panel__note">진행은 아래 임무 칸과 도감에서 볼 수 있어요.</p>
+        <div class="vc__foot">
+          <button type="button" class="btn btn--primary" data-testid="card-confirm" data-role="mission-panel-ok" onClick={onClose}>
+            확인
+          </button>
+        </div>
+      </article>
+    </aside>
+  );
+}
+
 // ─── 따라잡기 ─────────────────────────────────────────────
 
 function CatchUp({
@@ -440,11 +522,16 @@ function CatchUp({
   store: StudentStore;
   onNext: () => void;
 }) {
-  const kicker = (
-    <p class="ev-catchup__kicker" data-testid="catchup-kicker">
-      놓친 활동 따라잡기 {index}/{total}
-    </p>
-  );
+  const kicker =
+    item.mode === 'arrival' ? (
+      <p class="ev-catchup__kicker" data-testid="catchup-kicker">
+        처음 온 항구예요
+      </p>
+    ) : (
+      <p class="ev-catchup__kicker" data-testid="catchup-kicker">
+        놓친 활동 따라잡기 {index}/{total}
+      </p>
+    );
   if (item.mode === 'summary') {
     return (
       <LayerFrame name="event">

@@ -258,6 +258,15 @@ export function tradeErrorText(code: string): string {
       return '이 항구에서는 살 수 없어요';
     case 'NO_CARGO':
       return '팔 상품이 없어요';
+    // (작업 115) 부산 공장
+    case 'NO_INPUT':
+      return '재료가 모자라요';
+    case 'NOT_AT_BUSAN':
+      return '공장은 부산 항구에 있어요';
+    case 'NO_FACTORY':
+      return '공장은 2차시부터 열려요';
+    case 'LOCKED_RECIPE':
+      return '아직 만들 수 없는 상품이에요';
     default:
       return '지금은 할 수 없어요';
   }

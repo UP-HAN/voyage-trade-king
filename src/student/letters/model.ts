@@ -35,9 +35,9 @@ export const STATUS_TEXT: Record<LetterStatus, string> = {
   expired: letterExpiry.expiredText,
 };
 
-/** 편지 머리 꼬리표: 구간 은행이면 "L1 구간", 무역 기초(common) 문항이면 "무역 기초" */
+/** 편지 머리 꼬리표: 구간 은행이면 "1차시"(작업 115 — 학생 화면에 개발 용어 'L1 구간' 대신), 무역 기초(common) 문항이면 "무역 기초" */
 export function slotTag(v: LetterView): string {
-  return v.question?.common ? '무역 기초' : `${v.slot.stage} 구간`;
+  return v.question?.common ? '무역 기초' : `${v.slot.stage.replace(/^L/, '')}차시`;
 }
 
 /** 발신 형식 이름 */

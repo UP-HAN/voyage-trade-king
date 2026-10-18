@@ -438,6 +438,11 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
                   );
                 })}
               </div>
+              {values.lesson === 'L2' && values.tradeMinutes < 25 && (
+                <p class="t-note" data-testid="lesson2-time-hint">
+                  2차시는 무역 25분 이상을 권해요. 라운드가 3개 이상이어야 공장에서 만든 상품을 수출하고 세관 게시판을 채울 시간이 넉넉해요.
+                </p>
+              )}
             </>
           )}
           {values.playUnit === 'unit' && (

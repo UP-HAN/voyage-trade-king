@@ -32,7 +32,8 @@ export interface TimeInfo {
 
 /** 시간 표시 계산(순수) */
 export function timeInfo(cls: PublicClass, now: number): TimeInfo {
-  const stage = `${cls.stage} 구간`;
+  // (작업 115) 차시 한 판이면 "2차시"(개발 용어 'L2 구간' 대신). 단원 한 판은 그대로
+  const stage = `${cls.stage.replace(/^L/, '')}차시`;
   const tradeLeft = tradeClock.remaining(cls.clock, now);
   const started = cls.clock.startedAt !== null;
   const trade = !started ? `무역 ${formatMinutes(cls.clock.durationSec)} · 시작 전` : cls.tradeEnded ? '무역 끝' : `무역 ${formatMinutes(tradeLeft)} 남음`;

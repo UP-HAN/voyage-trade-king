@@ -247,7 +247,7 @@ const ALL_PORTS: readonly PortId[] = [...L1_PORTS, 'JKT', 'DAM', 'SIN', 'MUM', '
 /** 판마다 새 회사로 시작한다(차시 한 판·단원 한 판 공통). 범위의 첫 구간 줄로 시작 */
 export const stageStart: readonly StageStart[] = [
   { lesson: 'L1', money: 500, ports: L1_PORTS, features: ['market'], summaryCardIds: [], tutorial: true, remark: '500만 원 + 벽란도·두 섬 보상' },
-  { lesson: 'L2', money: 800, ports: ALL_PORTS, features: ['market', 'factory'], summaryCardIds: ['SUM-L1'], tutorial: false, remark: '첫 화면에 L1 요약 카드(무역·수입·수출, 무역하는 까닭)' },
+  { lesson: 'L2', money: 800, ports: ALL_PORTS, features: ['market', 'factory'], summaryCardIds: ['SUM-L1'], tutorial: false, startCargo: [{ good: 'crude', qty: 2, unitCost: 42, boughtAt: 'DAM' }], remark: '첫 화면에 L1 요약 카드(무역·수입·수출, 무역하는 까닭). (작업 115 수정 1회차) 담맘에서 사 온 원유 2상자를 싣고 시작 — 라운드 3개 안에 수입 → 생산 → 수출' },
   { lesson: 'L3', money: 1000, ports: ALL_PORTS, features: ['market', 'factory', 'shipyard'], summaryCardIds: ['SUM-L1', 'SUM-L2'], tutorial: false, remark: 'L1~L2 요약 카드' },
   { lesson: 'L4', money: 1200, ports: ALL_PORTS, features: ['market', 'factory', 'shipyard'], summaryCardIds: ['SUM-L1', 'SUM-L2', 'SUM-L3'], tutorial: false, remark: 'L1~L3 요약 카드' },
 ];
@@ -257,10 +257,11 @@ export const stageStartByLesson: Readonly<Record<LessonId, StageStart>> = Object
 ) as Record<LessonId, StageStart>;
 
 /**
- * (작업 134, 오케스트레이터 결정 2026-10-10) 기능 플래그 — L2~L4 본편(작업 115~118)이 끝나기 전에는 false.
- * false 면 판 설정에서 '단원 전체 한 판'·차시 L2~L4·L2~L4가 든 연속 구간을 '준비 중'으로 막고 차시 L1만 고를 수 있다.
- * 115~118이 끝나면 true 로 바꾼다(다른 곳은 고치지 않아도 됨).
+ * (작업 134 → 115, 교사 결정 2026-10-19) 차시별 준비 표시. 판 설정에서 true 인 차시만 고를 수 있다.
+ * 단원 전체 한 판은 모든 차시가 true 일 때만 열린다(`FULL_UNIT_READY`). 3·4차시(작업 116~118)가 끝나면 true 로 바꾼다.
  */
-export const FULL_UNIT_READY = false;
-/** 플래그가 꺼져 있을 때 고를 수 있는 차시 */
-export const READY_LESSONS_BEFORE_FULL: readonly LessonId[] = ['L1'];
+export const LESSON_READY: Readonly<Record<LessonId, boolean>> = { L1: true, L2: true, L3: false, L4: false };
+/** 단원 전체 한 판을 고를 수 있는가(모든 차시가 준비됨) */
+export const FULL_UNIT_READY: boolean = (Object.values(LESSON_READY) as boolean[]).every(Boolean);
+/** 단원 한 판이 열리기 전에 고를 수 있는 차시(LESSON_READY 에서) */
+export const READY_LESSONS_BEFORE_FULL: readonly LessonId[] = (['L1', 'L2', 'L3', 'L4'] as const).filter((l) => LESSON_READY[l]);

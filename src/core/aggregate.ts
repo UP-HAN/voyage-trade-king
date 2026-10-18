@@ -11,6 +11,7 @@ import { checkQuizFor } from '../data/checkQuiz';
 import { eventsById } from '../data/events';
 import type { WorksheetId } from '../data/types';
 import { VOTE_OPTIONS, voteCounts } from './activities';
+import { boardFrom } from './worksheet-helpers';
 import { awards, hasCertificate, leaderboard, publicCompanyName } from './scoring';
 import type { ClassState, HostSnapshot, LeaderEntry, Player, PublicClass, PublicPayload, PublicState, SessionMeta } from './types';
 
@@ -156,6 +157,7 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
           nameReview,
         })
       : null,
+    customsBoard: cs.settings.scope.includes('L2') ? boardFrom(list) : null,
   };
 }
 

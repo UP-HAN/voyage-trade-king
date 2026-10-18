@@ -279,6 +279,8 @@ export interface GameEvent {
 // ─── 임무 ────────────────────────────────────────────────
 
 export interface Mission {
+  /** (작업 115) 학생 화면 아래 줄 칩에 쓰는 짧은 이름(임무가 여럿일 때) */
+  short?: string;
   id: string;
   eventId: string;
   lesson: LessonId;
@@ -438,6 +440,11 @@ export interface StageStart {
   /** 첫 화면에 이어 나오는 앞 차시 요약 카드(dex.summaryCards ID) */
   summaryCardIds: readonly string[];
   tutorial: boolean;
+  /**
+   * (작업 115 수정 1회차, 오케스트레이터 결정) 이 구간으로 시작하는 판의 처음 화물 [게임 설정] — 해외에서 사 온 원자재.
+   * 2차시 단독 판(라운드 3개)에서 '자원 수입 → 생산 → 수출'을 끝까지 해 볼 수 있게 한다.
+   */
+  startCargo?: readonly { good: GoodId; qty: number; unitCost: number; boughtAt: PortId }[];
   /** 비고(PRD 4.2.3 표) */
   remark: string;
 }

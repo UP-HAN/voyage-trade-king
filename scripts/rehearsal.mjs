@@ -1,6 +1,6 @@
 // 작업 135 — 가상 학생 25명 리허설: `npm run rehearsal [-- 옵션]`
 //
-//   npm run rehearsal                         로컬에서 시나리오 a~e(빌드 → /voyage/ 정적 서버 + 로컬 중계 서버)
+//   npm run rehearsal                         로컬에서 시나리오 a~f(빌드 → /voyage/ 정적 서버 + 로컬 중계 서버)
 //   npm run rehearsal -- --scenario a         시나리오 하나(쉼표로 여러 개: --scenario a,e)
 //   npm run rehearsal -- --target https://lab.ches.es.kr/voyage/ --scenario a
 //                                             운영 서버 점검(방 1개·시나리오 a만·끝나면 방 닫기). 교사 승인 범위에서만 쓴다.
@@ -26,11 +26,11 @@ const opt = (name) => {
 };
 const flag = (name) => argv.includes(name);
 
-const ALL = ['a', 'b', 'c', 'd', 'e'];
+const ALL = ['a', 'b', 'c', 'd', 'e', 'f'];
 const scenarios = (opt('--scenario') ?? ALL.join(',')).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const bad = scenarios.filter((s) => !ALL.includes(s));
 if (bad.length) {
-  console.error(`알 수 없는 시나리오: ${bad.join(', ')} (a~e)`);
+  console.error(`알 수 없는 시나리오: ${bad.join(', ')} (a~f)`);
   process.exit(2);
 }
 const target = opt('--target') ?? '';

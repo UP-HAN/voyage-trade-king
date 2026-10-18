@@ -45,7 +45,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof
 export function applyFiredEventToPlayer(cs: ClassState, p: Player, def: EventDef, events: GameEvent[]): void {
   for (const e of def.effects) {
     if (e.type === 'mission') activateMission(p, e.ref);
-    if (e.type === 'dexCard' && !def.needsResponse) grantDex(p, e.card, events);
+    // 첫 입항 사건(L2-E5 싱가포르)의 개념 카드는 그 항구에 처음 들어갈 때(voyage.ts) 준다 — 학급 발동 때는 임무만
+    if (e.type === 'dexCard' && !def.needsResponse && def.trigger.type !== 'firstArrival') grantDex(p, e.card, events);
   }
   if (def.id === 'L4-E3') applyVNReport(p, vnDecisionOf(p), events);
   void cs;

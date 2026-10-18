@@ -3,7 +3,7 @@
  * 탐지한 문제로는 시험이 실패하지 않는다(보고서에 모은다). 도구 자체가 멈추면 그 시나리오만 '중단'으로 적고 다음으로 간다.
  *
  * REHEARSAL_OUT       보고서 폴더(tmp/rehearsal/<시각>)
- * REHEARSAL_SCENARIOS a,b,c,d,e
+ * REHEARSAL_SCENARIOS a,b,c,d,e,f
  * REHEARSAL_TARGET    비우면 로컬(빌드본 /voyage/ + 로컬 중계 서버), 주소면 운영 점검(방 1개·시나리오 a만)
  * REHEARSAL_SPEED     빨리 감기 배속(기본 8, 1이면 실제 시간)
  * REHEARSAL_BREAKS    고장 플래그(쉼표) — 탐지기 확인용
@@ -21,7 +21,7 @@ import { BREAKS, SCENARIOS, type BreakId } from './scenarios';
 const OUT = process.env.REHEARSAL_OUT ?? join(ROOT, 'tmp', 'rehearsal', `run-${Date.now()}`);
 const TARGET = process.env.REHEARSAL_TARGET?.trim() || null;
 const SPEED = Math.max(1, Number(process.env.REHEARSAL_SPEED ?? 8) || 8);
-const IDS = (process.env.REHEARSAL_SCENARIOS ?? 'a,b,c,d,e').split(',').map((s) => s.trim()).filter(Boolean);
+const IDS = (process.env.REHEARSAL_SCENARIOS ?? 'a,b,c,d,e,f').split(',').map((s) => s.trim()).filter(Boolean);
 const BRK = (process.env.REHEARSAL_BREAKS ?? '').split(',').map((s) => s.trim()).filter((s): s is BreakId => s in BREAKS);
 const SEED = Number(process.env.REHEARSAL_SEED ?? 135) || 135;
 

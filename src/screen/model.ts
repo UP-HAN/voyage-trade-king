@@ -93,7 +93,8 @@ export interface ClockInfo {
 export function clockInfo(d: ScreenData, now: number): ClockInfo {
   const { cls } = d;
   const lesson = lessonsById[cls.stage];
-  const stageLabel = `${cls.stage} · ${shortTitle(lesson?.title ?? '')}`;
+  // (작업 115 수정 1회차) 개발 용어 'L2' 대신 '2차시'
+  const stageLabel = `${cls.stage.replace(/^L/, '')}차시 · ${shortTitle(lesson?.title ?? '')}`;
   const sec = tradeRemainingSec(cls, now);
   const base = { stageLabel, remaining: mmss(sec), remainingSec: sec, paused: !!cls.paused };
   if (cls.phase === 'wrapup' || cls.phase === 'ended' || cls.tradeEnded) return { ...base, mode: 'hidden' };
@@ -158,7 +159,10 @@ export function pickScene(d: ScreenData, now: number): SceneId {
   if (cls.worksheet.current && cls.worksheet.current.length) return 'worksheet';
   if (liveItem(cls, (it) => it.kind === 'stageCover' && it.variant === 'summary')) return 'summary';
   const ce = cls.currentEvent;
-  if (ce && !ce.closed) {
+  // (작업 115 수정 1회차) 2차시~ 라운드 시작 임무(L2-E3·E4)·첫 입항 사건(L2-E5)은 학생 화면의 임무 패널 — TV는 라운드 해도 그대로
+  const introDef = ce && !ce.closed ? eventsById[ce.id] : undefined;
+  const missionIntro = !!introDef && introDef.lesson !== 'L1' && (introDef.kind === 'mission' || introDef.trigger.type === 'firstArrival');
+  if (ce && !ce.closed && !(missionIntro && cls.phase === 'round')) {
     if (isCoverEvent(ce.id)) return 'cover';
     const def = eventsById[ce.id];
     if (def?.kind === 'vote' && pub.vote?.id === ce.id && pub.vote.revealed) return 'bars';
@@ -365,7 +369,7 @@ export function coverFor(d: ScreenData, eventId: string): CoverModel {
   return {
     lesson,
     variant,
-    kicker: variant === 'lesson' ? `${lesson} 차시` : `학습 구간 ${lesson}`,
+    kicker: variant === 'lesson' ? `${lesson.replace(/^L/, '')}차시` : `단원 한 판 · ${lesson.replace(/^L/, '')}차시`,
     title: card?.title ?? lessonsById[lesson]?.title ?? '',
     question: card?.question ?? '',
     pages: card ? `교과서 ${card.pages}쪽` : '',

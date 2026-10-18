@@ -309,7 +309,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       await unitBtn.click();
     } else {
       await t.getByTestId('unit-lesson').click();
-      await t.getByTestId('lesson-L1').click();
+      await t.getByTestId(`lesson-${sc.lesson ?? 'L1'}`).click();
     }
     const custom = t.getByTestId('trade-minutes-custom');
     await custom.fill(String(sc.minutes));
@@ -327,7 +327,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     await t.getByTestId('btn-open').click();
     await t.getByTestId('room-code').waitFor({ timeout: 20_000 });
     code = (await t.getByTestId('room-code').innerText()).trim();
-    step(`교사: 방 열기(${sc.unit ? '단원 한 판' : '차시 L1'} ${sc.minutes}분 ${sc.manual ? '수동' : '자동'}) — 방 코드 받음`);
+    step(`교사: 방 열기(${sc.unit ? '단원 한 판' : `차시 ${sc.lesson ?? 'L1'}`} ${sc.minutes}분 ${sc.manual ? '수동' : '자동'}) — 방 코드 받음`);
     // 공용 화면 창(작업 137: 위쪽 띠 [TV 화면 ▾] 안)
     await t.getByTestId('tv-menu').click();
     const [screenPage] = await Promise.all([t.context().waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);

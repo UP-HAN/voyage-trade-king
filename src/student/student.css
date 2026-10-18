@@ -1252,3 +1252,38 @@
 .st-modal--soft .st-modal__title {
   font-size: 22px;
 }
+
+/* (작업 115) 임무가 여럿일 때(2차시 3종): 아래 줄에 칩 3개 */
+.st-missions {
+  display: flex;
+  flex: 0 1 520px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.st-mission--chip {
+  flex: 1 1 0;
+  padding: 4px 6px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 8px;
+  background: var(--parchment-mid);
+}
+
+.st-mission--chip .st-mission__title {
+  font-size: 15px;
+}
+
+.st-mission--chip.is-complete {
+  border-color: var(--team-3);
+}
+
+/* (작업 115 수정 1회차) 도감 수출국 4유형: 내가 사고판 상품 */
+.st-dex-card__mine {
+  font-size: 14px;
+  color: var(--team-3, #2f7d4f);
+  font-weight: 700;
+}
+
+.st-dex-detail__mine {
+  font-size: 18px;
+}

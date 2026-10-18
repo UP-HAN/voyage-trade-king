@@ -156,7 +156,7 @@ export const dex = {
  */
 export const summaryCards: readonly SummaryCard[] = [
   {
-    id: 'SUM-L1', lesson: 'L1', title: 'L1 요약 — 무역과 무역이 이루어지는 까닭',
+    id: 'SUM-L1', lesson: 'L1', title: '1차시 요약 — 무역과 무역이 이루어지는 까닭',
     lines: [
       { text: '나라와 나라 사이에 물자나 서비스를 사고팔거나 교환하는 일을 무역이라고 해요.', pages: [96] },
       { text: '다른 나라에서 물자나 서비스를 사 오는 것은 수입, 다른 나라에 파는 것은 수출이에요.', pages: [96] },
@@ -166,7 +166,7 @@ export const summaryCards: readonly SummaryCard[] = [
     ],
   },
   {
-    id: 'SUM-L2', lesson: 'L2', title: 'L2 요약 — 우리나라와 세계의 다양한 무역',
+    id: 'SUM-L2', lesson: 'L2', title: '2차시 요약 — 우리나라와 세계의 다양한 무역',
     lines: [
       { text: '우리나라는 원유, 정밀 화학 원료, 천연가스, 석탄 등을 주로 수입하고, 반도체, 자동차, 무선 통신 기기, 석유 제품 등을 주로 수출해요.', pages: [100] },
       { text: '우리나라는 천연자원을 수입한 후 상품을 생산하여 수출하는 무역이 발달했어요.', pages: [104] },
@@ -174,7 +174,7 @@ export const summaryCards: readonly SummaryCard[] = [
     ],
   },
   {
-    id: 'SUM-L3', lesson: 'L3', title: 'L3 요약 — 상호 의존과 경쟁',
+    id: 'SUM-L3', lesson: 'L3', title: '3차시 요약 — 상호 의존과 경쟁',
     lines: [
       { text: '여러 나라의 우수한 물자를 한데 모아서 새로운 제품을 생산하기도 하고, 각자 잘하는 분야를 중심으로 협력하기도 해요.', pages: [106] },
       { text: '세계 여러 나라는 물자나 서비스를 수출하여 더 많은 이익을 얻으려고 서로 경쟁해요.', pages: [107] },

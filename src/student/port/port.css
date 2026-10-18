@@ -595,3 +595,114 @@
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- (작업 115) 부산 공장: 재료 → 공장 → 상품 3칸(레시피 한 줄에 하나) ---------- */
+.pt-grid--fac {
+  grid-template-columns: 1fr;
+}
+
+.pt-fac__belt {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) auto minmax(110px, auto) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 6px;
+}
+
+.pt-fac__cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 2px dashed var(--ink-soft);
+  border-radius: 10px;
+  background: var(--parchment-light);
+  font-size: 18px;
+}
+
+.pt-fac__cell--mid {
+  flex-direction: column;
+  justify-content: center;
+  border-style: solid;
+  background: var(--parchment-mid);
+}
+
+.pt-fac__label {
+  flex: 0 0 100%;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.pt-fac__cell--mid .pt-fac__label {
+  flex: 0 0 auto;
+}
+
+.pt-fac__arrow {
+  align-self: center;
+  font-size: 26px;
+  color: var(--ink-soft);
+}
+
+.pt-fac__in,
+.pt-fac__out {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pt-fac__in.is-short small {
+  color: #a3361f;
+  font-weight: 700;
+}
+
+.pt-fac__belt .pt-goodicon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+}
+
+.pt-fac__fee {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pt-fac .pt-card__act {
+  justify-content: flex-end;
+}
+
+.pt-cycle__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pt-cycle__steps li {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--parchment-mid);
+}
+
+.pt-cycle__no {
+  display: inline-block;
+  min-width: 1.4em;
+  border-radius: 50%;
+  background: var(--brass);
+  color: #fff;
+  text-align: center;
+}
+
+.pt-fac__record {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-left: 4px solid var(--brass);
+  background: var(--parchment-light);
+  font-size: 18px;
+}

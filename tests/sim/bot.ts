@@ -7,6 +7,7 @@ import { mailbox } from '../../src/core/letters';
 import { byeokrandoItems } from '../../src/data/byeokrando';
 import { checkQuiz } from '../../src/data/checkQuiz';
 import { eventsById } from '../../src/data/events';
+import { factoryCards } from '../../src/student/port/factory';
 import { classForPredict, playerForPredict } from '../../src/student/predict';
 import type { StudentStore } from '../../src/student/store';
 
@@ -105,6 +106,11 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
   const c = classForPredict(cls);
   const p = playerForPredict(me);
   const view = marketView(c, p, me.game.port);
+  // (작업 115) 2차시~: 부산에서 재료가 있으면 공장에서 만든다
+  if (cls.features.includes('factory') && me.game.port === 'BUS' && rand() < 0.6) {
+    const can = factoryCards(c, p).find((f) => f.max > 0);
+    if (can) return { type: 'produce', recipe: can.id, qty: Math.max(1, Math.min(can.max, 1 + Math.floor(rand() * can.max))) };
+  }
   const r = rand();
   if (r < 0.35 && me.game.cargo.length) {
     const lot = me.game.cargo[Math.floor(rand() * me.game.cargo.length)]!;

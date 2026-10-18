@@ -71,12 +71,21 @@ export function hasDone(me: MeView, id: string): boolean {
   return me.game.responses[id] !== undefined;
 }
 
+/**
+ * (작업 115) 2차시~ 차시 시작 임무(L2-E3·E4)와 첫 입항 사건(L2-E5)의 학급 발동은 카드 한 장씩이 아니라
+ * '이번 차시 임무' 패널 하나로 보인다(같은 순간 셋이 발동해 마지막 것만 보이는 문제를 막음).
+ */
+export function isMissionIntro(def: EventDef): boolean {
+  return def.lesson !== 'L1' && (def.kind === 'mission' || def.trigger.type === 'firstArrival');
+}
+
 /** 응답 필요 사건에 실제로 응답했나('응답 없음' 기본값 제외) — 교사 표·응답 수와 같은 규칙 */
 export function hasResponded(me: MeView, id: string): boolean {
   return respondedTo(id, playerForPredict(me));
 }
 
-export type CatchUpItem = { mode: 'replay'; id: string } | { mode: 'summary'; ids: string[] } | { mode: 'resend'; id: string };
+/** (작업 115) 'arrival' = 첫 입항 개념 카드(L2-E5 싱가포르) — 따라잡기가 아니라 그 항구에 처음 들어갈 때 한 번 */
+export type CatchUpItem = { mode: 'replay'; id: string } | { mode: 'summary'; ids: string[] } | { mode: 'resend'; id: string } | { mode: 'arrival'; id: string };
 
 /**
  * 입장·재입장 때 따라잡기 계획(PRD 6.11.2): 놓친 공용 화면 중심 사건 요약 카드 1장(있으면 맨 앞) → 개인 응답 필수 사건(발동 순).
@@ -90,6 +99,8 @@ export function catchUpPlan(cls: PublicClass, me: MeView): CatchUpItem[] {
     const def = eventsById[id];
     if (!def || id === liveId || replay.includes(id)) return false;
     if (def.catchUp === 'none' || shapeOf(def) === 'none') return false;
+    // (작업 115) 첫 입항 사건(L2-E5)은 그 항구에 처음 갈 때 카드가 뜬다 — 요약에 넣지 않는다
+    if (def.trigger.type === 'firstArrival') return false;
     // 개인 응답이 필요한 사건은 replay 쪽(마감이 지나 응답할 수 없는 것은 뺀다)
     if (def.needsResponse) return false;
     return me.game.responses[id] === undefined;

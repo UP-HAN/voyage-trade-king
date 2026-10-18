@@ -16,10 +16,11 @@ process.env.WSL112_E2E = '1';
 process.env.PORT_E2E = '1';
 process.env.ROUNDSTART_E2E = '1';
 process.env.FIRSTTIME_E2E = '1';
+process.env.LESSON2_E2E = '1';
 
 export default defineConfig({
   testDir: '../e2e',
-  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time)\.spec\.ts$/,
+  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time|lesson2-full)\.spec\.ts$/,
   outputDir: '../test-results/e2e-preview',
   reporter: [['list']],
   fullyParallel: false,

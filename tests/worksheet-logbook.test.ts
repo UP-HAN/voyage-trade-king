@@ -35,11 +35,11 @@ function lesson(scope: 'L1' | 'L2', seed = 1): HostSnapshot {
 }
 
 describe('항해 기록장 모델', () => {
-  it('제목 "항해 기록장 — 차시 한 판 L2 · 10월 14일", 이번 판 번호(⑤~⑧)만', () => {
+  it('제목 "항해 기록장 — 2차시 · 10월 14일", 이번 판 번호(⑤~⑧)만', () => {
     const s = withSchedule(lesson('L2'), ['W05', 'W06', 'W07', 'W08']);
     const e = buildLogbookEntry({ cls: publicClass(s.class), me: playerView(s.players[seatKey(1)]), code: '482137', now: DAY + 60_000 });
-    expect(logbookTitle(e)).toBe('항해 기록장 — 차시 한 판 L2 · 10월 14일');
-    expect(logbookTitle(e, '6-3')).toBe('항해 기록장 — 6-3 · 차시 한 판 L2 · 10월 14일');
+    expect(logbookTitle(e)).toBe('항해 기록장 — 2차시 · 10월 14일');
+    expect(logbookTitle(e, '6-3')).toBe('항해 기록장 — 6-3 · 2차시 · 10월 14일');
     expect(e.rows.map((r) => r.id)).toEqual(['W05', 'W06', 'W07', 'W08']);
     expect(e.rows.map((r) => r.helper)).toEqual(['customsBoard', 'importProduceExport', 'exportTypes', 'relayTrade']);
     expect(e.endedAt).toBeNull();

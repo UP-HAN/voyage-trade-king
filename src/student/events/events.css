@@ -296,3 +296,31 @@
   border: 2px solid var(--sea-teal);
   font-weight: 700;
 }
+
+/* (작업 115) 이번 차시 임무 패널 */
+.ev-missions {
+  margin: 6px 0;
+  padding-left: 22px;
+  font-size: 17px;
+}
+
+.ev-missions > li {
+  margin-bottom: 8px;
+}
+
+.ev-missions ul {
+  margin: 2px 0;
+  padding-left: 4px;
+  list-style: none;
+  font-size: 16px;
+}
+
+.ev-missions .is-done {
+  color: var(--team-3, #2f7d4f);
+  font-weight: 700;
+}
+
+.ev-missions__done {
+  color: var(--team-3, #2f7d4f);
+}
+.ev-wait__board { margin: 8px 0; font-size: 20px; line-height: 1.4; }

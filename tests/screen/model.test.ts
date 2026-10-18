@@ -131,14 +131,14 @@ describe('무역 시계', () => {
   it('구간 이름 + 남은 시간, 준비 단계·마무리', () => {
     const c = clockInfo(data('map'), NOW);
     expect(c.mode).toBe('trade');
-    expect(c.stageLabel).toBe('L1 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
+    expect(c.stageLabel).toBe('1차시 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
     expect(c.remaining).toMatch(/^2[01]:\d\d$/);
     expect(clockInfo(data('prep'), NOW).mode).toBe('prep');
     expect(clockInfo(data('awards'), NOW).mode).toBe('hidden');
     expect(clockInfo(data('pause'), NOW).paused).toBe(true);
   });
   it('차시 한 판 L2는 L2 이름 하나', () => {
-    expect(clockInfo(data('summary'), NOW).stageLabel).toBe('L2 · 자원을 사 와서 만들어 팔아요');
+    expect(clockInfo(data('summary'), NOW).stageLabel).toBe('2차시 · 자원을 사 와서 만들어 팔아요');
   });
 });
 
@@ -147,13 +147,13 @@ describe('표지·요약 카드', () => {
     const d = data('cover');
     const m = coverFor(d, 'L1-COVER');
     expect(m.variant).toBe('lesson');
-    expect(m.kicker).toBe('L1 차시');
+    expect(m.kicker).toBe('1차시');
     expect(m.question).toContain('생산지가 다양한 까닭');
     expect(m.topCompanies).toBeNull();
   });
   it('차시 한 판 L2: 표지 뒤 앞 차시 요약 카드', () => {
     const cards = summaryFor(data('summary'));
-    expect(cards.map((c) => c.title)).toEqual(['L1 요약 — 무역과 무역이 이루어지는 까닭']);
+    expect(cards.map((c) => c.title)).toEqual(['1차시 요약 — 무역과 무역이 이루어지는 까닭']);
   });
   it('단원 한 판 L2 표지: "지금까지 상위 N개 회사"(N=0이면 없음)', () => {
     const m = coverFor(data('unitL2Cover', { topN: 4 }), 'L2-E1');

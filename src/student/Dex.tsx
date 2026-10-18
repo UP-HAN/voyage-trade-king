@@ -4,7 +4,9 @@
  * 모은 카드 판정은 내 상태 `metrics.dex`(상품 'good:x', 항구 'port:X', 개념·수출국 카드 ID) — 호스트가 정한다.
  */
 import { useState } from 'preact/hooks';
+import { helperInputs, type HelperPlayer } from '../core/worksheet-helpers';
 import { conceptCards, exportTypeCards } from '../data/dex';
+import { goodsById } from '../data/goods';
 import { goods } from '../data/goods';
 import { portLabel, ports } from '../data/ports';
 import { Img } from '../ui/common/Img';
@@ -54,10 +56,20 @@ export function pagesText(pages: readonly number[]): string {
   return pages.length ? `교과서 ${pages.join('·')}쪽` : '';
 }
 
-export function Dex({ collected, comeback, onClose }: { collected: readonly string[]; comeback: boolean; onClose: () => void }) {
+/** (작업 115 수정 1회차) 수출국 4유형 카드마다 내가 처음 사거나 판 상품 이름(학습지 ⑦ [내 기록]과 같은 계산) */
+export function myExportTypeGoods(player: HelperPlayer | null | undefined): Partial<Record<string, string>> {
+  if (!player) return {};
+  const done = helperInputs({ cls: { votes: {} }, player }).exportTypes?.done ?? {};
+  const out: Partial<Record<string, string>> = {};
+  for (const [id, g] of Object.entries(done)) if (g) out[id] = goodsById[g]?.name ?? g;
+  return out;
+}
+
+export function Dex({ collected, comeback, onClose, player }: { collected: readonly string[]; comeback: boolean; onClose: () => void; player?: HelperPlayer | null }) {
   const [tab, setTab] = useState<DexTab>('goods');
   const [open, setOpen] = useState<DexCardView | null>(null);
   const have = new Set(collected);
+  const mine = myExportTypeGoods(player);
   const count = (t: DexTab) => {
     if (t === 'rules') {
       const n = visibleRuleCards(comeback).length;
@@ -108,6 +120,11 @@ export function Dex({ collected, comeback, onClose }: { collected: readonly stri
                     </span>
                   )}
                   <span class="st-dex-card__title">{c.title}</span>
+                  {got && mine[c.id] && (
+                    <span class="st-dex-card__mine" data-testid="dex-mine" data-card={c.id}>
+                      내가 사고판 상품: {mine[c.id]}
+                    </span>
+                  )}
                   {!got && <span class="st-dex-card__lock">아직 못 모았어요</span>}
                 </button>
               </li>
@@ -126,6 +143,11 @@ export function Dex({ collected, comeback, onClose }: { collected: readonly stri
                 <li key={e}>{e}</li>
               ))}
             </ul>
+          )}
+          {mine[open.id] && (
+            <p class="st-dex-detail__mine" data-testid="dex-detail-mine">
+              내가 사고판 상품: <b>{mine[open.id]}</b>
+            </p>
           )}
           <p class="st-dex-detail__pages">{pagesText(open.pages)}</p>
         </Modal>
