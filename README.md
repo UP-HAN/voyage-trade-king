@@ -6,6 +6,7 @@
 - **수업에 쓰려는 선생님**: [`docs/teacher-setup.md`](docs/teacher-setup.md) — 이미 운영 중인 서버(`https://lab.ches.es.kr/voyage`)를 그대로 쓰면 설치가 필요 없다.
 - **자기 서버에 설치하려는 선생님**: 아래 [내 서버에 설치하기](#내-서버에-설치하기).
 - 기획 문서: `docs/PRD.md`, 서버 운영자 문서: `docs/server-setup.md`
+- **작업을 이어받는 사람**(새 컴퓨터로 옮기는 경우 포함): [`HANDOFF.md`](HANDOFF.md)
 
 ---
 
