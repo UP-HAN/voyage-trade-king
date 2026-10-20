@@ -72,11 +72,41 @@ interface Bot {
   inAfterBackAt: number | null;
   /** 응답을 미룬 사건(slow) */
   delayUntil: Record<string, number>;
+  /** 학습지 팝업별 뜬 시각·끝낸 시각(빠른 시계) */
+  wsLog: Record<string, { shown: number; done: number | null; during: boolean; closed?: number }>;
+  /** 끊기기 직전·돌아온 직후 상태(잃은 것이 없는지 비교) */
+  preDrop: Snap | null;
+  postBack: Snap | null;
+  lost: string[];
   unsub: (() => void) | null;
+}
+
+export interface Snap {
+  money: number;
+  loan: number;
+  ship: string;
+  port: string;
+  cargo: string;
+  missions: Record<string, { status: string; steps: boolean[] }>;
+  worksheetDone: string[];
+  duringDone: string[];
+  responses: string[];
+  lettersAnswered: string[];
+  recipes: string[];
+  checkQuiz: string[];
 }
 
 export interface BotStatus {
   seat: number;
+  wsLog: Record<string, { shown: number; done: number | null; during: boolean; closed?: number }>;
+  preDrop: Snap | null;
+  postBack: Snap | null;
+  lost: string[];
+  loan: number | null;
+  startMoney: number | null;
+  ship: string | null;
+  missions: Record<string, { status: string; steps: boolean[] }>;
+  cargo: string;
   name: string;
   profile: BotProfile;
   status: string;
@@ -231,12 +261,73 @@ function canActInRound(b: Bot): boolean {
   return false;
 }
 
+function snapOf(b: Bot): Snap | null {
+  const me = b.store?.getState().peer.me;
+  if (!me) return null;
+  const g = me.game;
+  return {
+    money: g.money,
+    loan: g.loan,
+    ship: String(g.ship),
+    port: String(g.port),
+    cargo: JSON.stringify(g.cargo),
+    missions: JSON.parse(JSON.stringify(g.missions ?? {})),
+    worksheetDone: [...g.worksheetDone],
+    duringDone: [...(g.duringDone ?? [])],
+    responses: Object.keys(g.responses ?? {}),
+    lettersAnswered: [...(g.letters?.answered ?? [])],
+    recipes: [...(g.unlockedRecipes ?? [])],
+    checkQuiz: Object.keys(g.checkQuiz ?? {}),
+  };
+}
+
+/** 돌아온 뒤 잃은 것(있어야 하는데 없는 것) 목록 */
+function lostOf(a: Snap, z: Snap): string[] {
+  const out: string[] = [];
+  const miss = (what: string, x: string[], y: string[]) => {
+    const m = x.filter((i) => !y.includes(i));
+    if (m.length) out.push(`${what} 사라짐: ${m.join(',')}`);
+  };
+  miss('학습지 완료', a.worksheetDone, z.worksheetDone);
+  miss('지금 쓰기 완료', a.duringDone, z.duringDone);
+  miss('사건 응답', a.responses, z.responses);
+  miss('편지 답', a.lettersAnswered, z.lettersAnswered);
+  miss('열린 제조법', a.recipes, z.recipes);
+  miss('확인 퀴즈 답', a.checkQuiz, z.checkQuiz);
+  for (const [id, m] of Object.entries(a.missions)) {
+    const n = z.missions[id];
+    if (!n) out.push(`임무 ${id} 사라짐`);
+    else {
+      if (m.status === 'done' && n.status !== 'done') out.push(`임무 ${id} 완료 취소됨`);
+      m.steps.forEach((v, i) => { if (v && !n.steps[i]) out.push(`임무 ${id} ${i + 1}단계 체크 사라짐`); });
+    }
+  }
+  if (a.ship !== z.ship) out.push(`배 바뀜: ${a.ship} → ${z.ship}`);
+  return out;
+}
+
 function tick() {
   for (const b of bots.values()) {
     const store = b.store;
     if (!store) continue;
     const st = store.getState();
     const pub = st.peer.public as PublicPayload | null;
+    // 학습지 팝업 기록·돌아온 직후 상태
+    if (st.peer.status === 'in' && pub && st.peer.me) {
+      const dur = Boolean(pub.class.worksheet.during);
+      const doneList = dur ? (st.peer.me.game.duringDone ?? []) : st.peer.me.game.worksheetDone;
+      for (const w of pub.class.worksheet.current ?? []) {
+        const k = `${w}${dur ? '★' : ''}`;
+        const e = (b.wsLog[k] ??= { shown: Date.now(), done: null, during: dur });
+        if (e.done === null && doneList.includes(w)) e.done = Date.now();
+      }
+      const curKeys = new Set((pub.class.worksheet.current ?? []).map((w) => `${w}${dur ? '★' : ''}`));
+      for (const [k, e] of Object.entries(b.wsLog)) if (e.closed === undefined && !curKeys.has(k)) e.closed = Date.now();
+      if (b.backAt !== null && !b.postBack && st.peer.me.company.founded) {
+        b.postBack = snapOf(b);
+        if (b.preDrop && b.postBack) b.lost = lostOf(b.preDrop, b.postBack);
+      }
+    }
     // 라운드 중 행동 가능 여부(탐지기)
     if (st.peer.status === 'in' && pub && pub.class.phase === 'round' && !pub.class.paused) {
       if (canActInRound(b)) b.noActionSince = null;
@@ -252,10 +343,16 @@ function tick() {
       // 성격: 사건·학습지·퀴즈·편지 응답을 미루거나 안 함
       const isTask = a.type === 'respondEvent' || a.type === 'markWorksheetDone' || a.type === 'answerCheckQuiz' || a.type === 'answerLetter';
       if (isTask && b.spec.profile === 'idle' && rand() < 0.92) continue;
+      if (a.type === 'markWorksheetDone' && b.spec.profile === 'good') {
+        // 초6이 학습지를 쓰는 시간: 게임 시계로 50~140초(느린 아이는 아래 slow가 더 길게)
+        b.delayUntil.ws ??= Date.now() + 50_000 + rand() * 90_000;
+        if (Date.now() < b.delayUntil.ws) continue;
+        delete b.delayUntil.ws;
+      }
       if (isTask && b.spec.profile === 'slow') {
         const key = a.type === 'respondEvent' ? a.eventId : a.type;
         if (rand() < 0.5 && b.delayUntil[key] === undefined) b.delayUntil[key] = Number.POSITIVE_INFINITY; // 안 함
-        b.delayUntil[key] ??= Date.now() + 20_000 + rand() * 30_000;
+        b.delayUntil[key] ??= Date.now() + (a.type === 'markWorksheetDone' ? 90_000 + rand() * 120_000 : 20_000 + rand() * 30_000);
         if (Date.now() < b.delayUntil[key]!) continue;
       }
       const r = store.act(a);
@@ -295,6 +392,10 @@ window.__rb = {
       backAt: null,
       inAfterBackAt: null,
       delayUntil: {},
+      wsLog: {},
+      preDrop: null,
+      postBack: null,
+      lost: [],
       unsub: null,
     };
     bots.set(spec.seat, b);
@@ -304,6 +405,9 @@ window.__rb = {
   drop(seat) {
     const b = bots.get(seat);
     if (!b?.store) return;
+    b.preDrop = snapOf(b);
+    b.postBack = null;
+    b.lost = [];
     b.unsub?.();
     b.unsub = null;
     b.store.dispose();
@@ -363,6 +467,15 @@ window.__rb = {
         inAfterBackAt: b.inAfterBackAt,
         versionMismatch: Boolean(st?.peer.versionMismatch),
         statusLog: b.statusLog,
+        wsLog: b.wsLog,
+        preDrop: b.preDrop,
+        postBack: b.postBack,
+        lost: b.lost,
+        loan: me ? me.game.loan : null,
+        startMoney: me ? me.game.startMoney : null,
+        ship: me ? String(me.game.ship) : null,
+        missions: me ? JSON.parse(JSON.stringify(me.game.missions ?? {})) : {},
+        cargo: me ? JSON.stringify(me.game.cargo) : '',
       };
     });
   },

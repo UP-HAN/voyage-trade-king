@@ -16,6 +16,7 @@ import { startRelayProcess, ROOT, type RelayProcess, getJson } from '../../e2e/s
 import { startSite, type SiteServer } from './static';
 import { newContext, type Env } from '../../e2e/support/voyage-ui';
 import { openBotPage, readAppVersion } from './bots';
+import { chaosAct, newChaosStats } from './chaos';
 import type { BotSpec, BotStatus, PubSummary } from './bot-page';
 import {
   Collector,
@@ -445,11 +446,21 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
 
     // ── 학생 두뇌(브라우저 4명): 화면 훑기 → 한 가지 행동 ──
     const wsKey = () => (pub?.worksheet.current.length ? `${pub.worksheet.current.join('+')}${pub.worksheet.during ? '*' : ''}` : '');
+    const CHAOS_SEATS = new Set(process.env.REHEARSAL_CHAOS ? [2, 3, 4] : []);
+    const chaosStats = newChaosStats();
     const brain = async (slot: Slot) => {
       while (!stop) {
         const p = slot.page;
         if (!p || p.isClosed() || slot.busy) {
           await sleep(300);
+          continue;
+        }
+        if (CHAOS_SEATS.has(slot.seat) && rand() < 0.55) {
+          const what = await chaosAct(p, rand, chaosStats);
+          if (chaosStats.clicks + chaosStats.dbl + chaosStats.burst + chaosStats.typed + chaosStats.keys < 6 || what.includes('앱 밖') || what.startsWith('실패') && chaosStats.fails < 4) step(`말썽 학생${slot.seat}: ${what}`);
+          const tot = chaosStats.clicks + chaosStats.dbl + chaosStats.burst + chaosStats.typed + chaosStats.keys;
+          if (tot % 60 === 0) step(`말썽 학생 누적: 클릭 ${chaosStats.clicks} · 더블 ${chaosStats.dbl} · 연타 ${chaosStats.burst} · 입력 ${chaosStats.typed} · 키 ${chaosStats.keys} · 새로고침 ${chaosStats.reloads} · 뒤로 ${chaosStats.backs} · 앱 이탈 ${chaosStats.strays} · 실패 ${chaosStats.fails}`);
+          await sleep(120 + Math.floor(rand() * 250));
           continue;
         }
         const pr = await probeStudent(p);
@@ -634,6 +645,22 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       }
     };
 
+    const uiSnap = async (pg: Page | null | undefined) => {
+      if (!pg || pg.isClosed()) return null;
+      return pg.evaluate(() => {
+        const q = (x: string) => document.querySelector(x) as HTMLElement | null;
+        const missions = [...document.querySelectorAll('[data-testid="mission"]')].map((e) => ({ id: e.getAttribute('data-mission') ?? '?', status: e.getAttribute('data-status') ?? '', done: Number(e.getAttribute('data-done') ?? 0) || 0 }));
+        return {
+          hud: Boolean(q('[data-testid="hud"]') || q('[data-testid="student-game"]')),
+          money: (q('[data-testid="hud-money"]')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+          company: (q('[data-testid="hud-company"]')?.innerText ?? '').trim(),
+          letters: Number(q('[data-testid="hud-letters"]')?.getAttribute('data-count') ?? 0) || 0,
+          missions,
+          missionPanel: Boolean(q('[data-testid="mission-panel"]')),
+        };
+      }).catch(() => null);
+    };
+
     const doCrowd = async (op: CrowdOp) => {
       try {
         switch (op.op) {
@@ -652,7 +679,29 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
             s.busy = true;
             reconnects.push({ who: s.label, kind: 'browser', seat: s.seat, startReal: Date.now(), startFast: now(), done: false, limitRealMs: 30_000 });
             step(`${s.label} 새로 고침`);
+            const before = await uiSnap(s.page);
             await s.page.reload().catch(() => undefined);
+            // 돌아온 화면(HUD)이 뜰 때까지 기다린 뒤 전후 비교
+            let after = null as Awaited<ReturnType<typeof uiSnap>>;
+            for (let i = 0; i < 40; i++) {
+              await sleep(500);
+              after = await uiSnap(s.page);
+              if (after?.hud) break;
+            }
+            const diffs: string[] = [];
+            if (!after?.hud) diffs.push('30초 안에 게임 화면(HUD)이 돌아오지 않음');
+            if (before && after?.hud) {
+              if (before.company !== after.company) diffs.push(`회사 이름 바뀜: ${before.company} → ${after.company}`);
+              for (const m of before.missions) {
+                const n = after.missions.find((x) => x.id === m.id);
+                if (!n) diffs.push(`임무 ${m.id} 안 보임`);
+                else if (m.done > n.done || (m.status === 'done' && n.status !== 'done')) diffs.push(`임무 ${m.id} 진행 줄어듦(${m.done}→${n.done}, ${m.status}→${n.status})`);
+              }
+              if (before.letters > after.letters) diffs.push(`편지 수 줄어듦 ${before.letters}→${after.letters}`);
+            }
+            step(`${s.label} 새로 고침 전후: 돈 ${before?.money ?? '-'} → ${after?.money ?? '-'} · 임무 ${before?.missions.map((m) => `${m.id}:${m.done}`).join(',') ?? '-'} → ${after?.missions.map((m) => `${m.id}:${m.done}`).join(',') ?? '-'} · 편지 ${before?.letters ?? '-'} → ${after?.letters ?? '-'}${diffs.length ? ' · ✗ ' + diffs.join(' / ') : ' · ✓ 유지'}`);
+            metrics.refreshChecks = [...((metrics.refreshChecks as unknown[]) ?? []), { who: s.label, at: at(), before, after, diffs }];
+            if (diffs.length && !CHAOS_SEATS.has(s.seat)) await problem({ kind: 'reconnect', severity: '막힘', key: `refresh-lost-${s.seat}-${at()}`, title: `${s.label}: 새로 고침 뒤 정보가 유지되지 않음`, detail: diffs.join(' / '), who: [s.label], page: s.page });
             s.busy = false;
             break;
           }
@@ -1123,6 +1172,24 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
         worksheetDone: bsEnd.reduce((a, b) => a + b.worksheetDone.length, 0),
         noActionMaxSec: Math.round(Math.max(0, ...bsEnd.map((b) => b.noActionMaxMs)) / 1000),
       };
+      // ── (측정) 회사별 결과·학습지·돌아온 학생 비교 ──
+      {
+        const fastSec = (ms: number) => Math.round(ms / 1000);
+        const rows = bsEnd.map((b) => {
+          const ws = Object.entries(b.wsLog ?? {});
+          const done = ws.filter(([, e]) => e.done !== null);
+          const secs = done.map(([, e]) => fastSec((e.done ?? 0) - e.shown));
+          const mDone = Object.values(b.missions ?? {}).filter((m) => m.status === 'done').length;
+          return { seat: b.seat, profile: b.profile, money: b.money, startMoney: b.startMoney, loan: b.loan, ship: b.ship, missions: `${mDone}/${Object.keys(b.missions ?? {}).length}`, wsShown: ws.length, wsDone: done.length, wsSecAvg: secs.length ? Math.round(secs.reduce((a, c) => a + c, 0) / secs.length) : null, wsSecMax: secs.length ? Math.max(...secs) : null, letters: b.lettersAnswered, dropped: Boolean(b.preDrop), lost: b.lost ?? [], afterBackShown: b.backAt ? ws.filter(([, e]) => e.shown >= b.backAt!).length : null, afterBackDone: b.backAt ? ws.filter(([, e]) => e.shown >= b.backAt! && e.done !== null).length : null, wsList: ws.map(([k, e]) => `${k}:${e.done === null ? '미완' : fastSec(e.done - e.shown) + '초'}(팝업 ${e.closed ? fastSec(e.closed - e.shown) + '초 열림' : '안 닫힘'})`).join(' '), wsDetail: ws.map(([k, e]) => ({ id: k, openSec: e.closed ? fastSec(e.closed - e.shown) : null, doneSec: e.done === null ? null : fastSec(e.done - e.shown) })) };
+        });
+        metrics.botTable = rows.length;
+        try { (await import('node:fs')).writeFileSync(join(o.outDir, `bots-${sc.id}.json`), JSON.stringify(rows, null, 1)); } catch { /* 보고서 본문에는 요약만 */ }
+        const rich = rows.filter((r) => r.money !== null);
+        const gain = rich.map((r) => (r.money as number) - (r.startMoney ?? 0));
+        metrics.economy = { companies: rich.length, avgGain: Math.round(gain.reduce((a, c) => a + c, 0) / Math.max(1, gain.length)), minGain: Math.min(...gain), maxGain: Math.max(...gain), inLoan: rich.filter((r) => (r.loan ?? 0) > 0).length, missionsAllDone: rows.filter((r) => r.missions.split('/')[0] === r.missions.split('/')[1] && r.missions !== '0/0').length };
+        for (const r of rows.filter((x) => x.lost.length)) await problem({ kind: 'reconnect', severity: '막힘', key: `rejoin-lost-${r.seat}`, title: `${r.seat}번(봇): 끊겼다 돌아온 뒤 정보가 사라짐`, detail: r.lost.join(' / '), who: [`${r.seat}번(봇)`] });
+        for (const r of rows.filter((x) => x.dropped && (x.afterBackShown ?? 0) > (x.afterBackDone ?? 0) && x.profile === 'good')) await problem({ kind: 'reconnect', severity: '참고', key: `rejoin-ws-${r.seat}`, title: `${r.seat}번(봇): 돌아온 뒤 뜬 학습지를 끝내지 못함`, detail: `뜬 ${r.afterBackShown} · 끝낸 ${r.afterBackDone}. ${r.wsList}`, who: [`${r.seat}번(봇)`] });
+      }
       for (const b of bsEnd.filter((x) => x.noActionMaxMs > 20_000)) await problem({ kind: 'no-action', severity: '막힘', key: `bot-no-action-${b.seat}`, title: `${b.seat}번(봇): 라운드 중 ${Math.round(b.noActionMaxMs / 1000)}초 할 수 있는 행동 없음`, detail: '갈 수 있는 항구·살 수 있는 물건·팔 수 있는 짐이 모두 없었어요.', who: [`${b.seat}번(봇)`] });
       // 학생 화면에서 같은 버튼이 계속 눌리지 않음 — 정상 층(사건·학습지·편지 등)에 가린 것은 층을 먼저 처리했으므로 빼고(metrics.layerFirst),
       // 정상 층이 아닌 것에 가렸거나 다른 이유로 실패한 것만 참고로(맨 위 요소·스크린숏 첨부). 고장 플래그로 숨긴 것은 뺀다

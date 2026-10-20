@@ -315,6 +315,12 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
     if (!mem.delayUntil.has(key)) mem.delayUntil.set(key, now + ms * (1 - o.diligence) * (0.5 + o.rand()));
     return now < mem.delayUntil.get(key)!;
   };
+  // 초6이 학습지를 쓰는 시간(게임 시계): 50~140초, 덜 성실한 학생은 1.5~2배
+  const writing = (key: string) => {
+    const now = (o.now ?? Date.now)();
+    if (!mem.delayUntil.has(key)) mem.delayUntil.set(key, now + (50_000 + o.rand() * 90_000) * (o.diligence >= 0.9 ? 1 : o.diligence >= 0.6 ? 1.5 : 2));
+    return now < mem.delayUntil.get(key)!;
+  };
   try {
     if (pr.founding) {
       await click('found-submit');
@@ -328,7 +334,7 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
     // 학습지 층(z 70)은 사건·따라잡기 층(z 60) 위 — 학습지부터(실제 학생도 위에 뜬 것부터 한다)
     if (pr.worksheet) {
       mem.seen.add(`ws:${pr.worksheetDuring ? 'during' : 'popup'}`);
-      if (pr.worksheetDone && !later(`ws${pr.text.slice(0, 30)}`, 25_000)) {
+      if (pr.worksheetDone && !writing(`ws${pr.text.slice(0, 30)}`)) {
         await click('worksheet-done');
         return 'worksheet-done';
       }

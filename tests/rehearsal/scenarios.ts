@@ -141,6 +141,13 @@ export const SCENARIOS: Scenario[] = [
       { at: 0.2, phase: 'round', do: { op: 'refresh', student: 2 } },
       { at: 0.4, do: { op: 'botDrop', seat: 9, backAfterSec: 40 } },
       { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
+      // 보강: 임무 진행 중·학습지 팝업 중·편지 도착 뒤에 나갔다 오는 학생들(정보 유지 확인)
+      { at: 0.1, do: { op: 'botDrop', seat: 6, backAfterSec: 30 } },
+      { at: 0.28, do: { op: 'botDrop', seat: 7, backAfterSec: 45 } },
+      { at: 0.35, do: { op: 'refresh', student: 1 } },
+      { at: 0.55, do: { op: 'botDrop', seat: 8, backAfterSec: 30 } },
+      { at: 0.62, do: { op: 'refresh', student: 1 } },
+      { at: 0.7, do: { op: 'botDrop', seat: 12, backAfterSec: 60 } },
     ],
   },
 ];
