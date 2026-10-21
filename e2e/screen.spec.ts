@@ -259,6 +259,22 @@ test.describe('장면(가짜 호스트 = 실제 교사 리듀서 상태)', () =>
           await expect(page.getByTestId('ws-done-count')).toHaveText('18/27');
         },
       },
+      {
+        // (10-22) 학습지 ⑤: TV는 세관 게시판을 그대로 보이고 아래에 '잠깐! ⑤' 띠
+        scene: 'worksheetCustoms',
+        want: 'worksheet',
+        file: '07b-worksheet-5-customs.png',
+        check: async () => {
+          await expect(page.getByTestId('scene-customs')).toBeVisible();
+          await expect(page.getByTestId('ws-title')).toHaveText('잠깐! ⑤ 학습지를 써요');
+          await expect(page.getByTestId('ws-done-count')).toHaveText('18/27');
+          // 띠가 게시판 아래에 있고(위로 겹치지 않음) 화면 안에 다 보인다
+          const strip = await page.locator('.scr-ws__strip').boundingBox();
+          const board = await page.getByTestId('scene-customs').boundingBox();
+          expect(strip && board && strip.y >= board.y + board.height - 2).toBeTruthy();
+          expect(strip && strip.y + strip.height <= 1080).toBeTruthy();
+        },
+      },
       { scene: 'pause', want: 'pause', file: '08-pause.png', check: async () => expect(page.getByTestId('screen-clock-paused')).toBeVisible() },
       { scene: 'worksheet', want: 'worksheet', file: '09-worksheet-single.png', check: async () => expect(page.getByTestId('ws-title')).toHaveText('잠깐! ③ 학습지를 써요') },
       { scene: 'between', opts: { topN: 0, choice: 'leaderboard' }, want: 'leaderboard', file: '10-leaderboard-top0.png', check: async () => expect(page.getByTestId('board-hidden')).toHaveText('순위는 시상식에서 공개해요') },
@@ -462,9 +478,9 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     await expectNoPrivate(screen, ['500만']);
     await shot(screen, 'flow-05-event.png');
 
-    // 일시정지 → "선생님을 보세요" + 시계 멈춤, 이어서 하기
+    // 일시정지 → 시계 멈춤. (10-22 교사 피드백) TV에 설명할 내용(사건 카드·슬라이드)이 떠 있으면 '선생님을 보세요' 대신 그 장면을 그대로 둔다
     await page.getByTestId('btn-pause').click();
-    await expect.poll(() => sceneOf(screen), { timeout: 2000 }).toBe('pause');
+    await expect.poll(() => sceneOf(screen), { timeout: 2000 }).toMatch(/^(event|bars)$/);
     await expect(screen.getByTestId('screen-clock-paused')).toBeVisible();
     const sec1 = await screen.getByTestId('screen-clock').getAttribute('data-sec');
     await screen.waitForTimeout(2200);
