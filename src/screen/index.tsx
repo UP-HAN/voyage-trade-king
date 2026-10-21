@@ -39,10 +39,18 @@ export function hashParam(hash: string, name: string): string | null {
   return new URLSearchParams(q).get(name);
 }
 
+/** 멈춤 중에도 TV에 그대로 두는 '설명할 수 있는' 장면 */
+export const PAUSE_EXPLAIN_SCENES: ReadonlySet<string> = new Set(['cover', 'summary', 'event', 'bars', 'customs', 'worksheet']);
+
 /** '자동'이면 확장 고르기(115~118) → 기본 규칙 */
 export function resolveScene(d: ScreenData, now: number): string {
   if (d.choice !== 'auto') return d.choice;
-  if (d.cls.paused && d.cls.phase !== 'ended') return 'pause';
+  if (d.cls.paused && d.cls.phase !== 'ended') {
+    // (10-22 교사 피드백) [잠깐 멈춤] 중 TV에 설명할 내용(개념 슬라이드·사건 카드·세관 게시판·학습지)이 있으면 '선생님을 보세요' 대신 그 장면을 둔다.
+    // 학생 화면은 그대로 '선생님을 보세요'. 설명할 것이 없으면(라운드 중 해도 등) 예전처럼 멈춤 장면.
+    const alt = resolveScene({ ...d, cls: { ...d.cls, paused: false } }, now);
+    return PAUSE_EXPLAIN_SCENES.has(alt) ? alt : 'pause';
+  }
   for (const p of SCENE_PICKERS) {
     const id = p(d, now);
     if (id) return id;
