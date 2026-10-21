@@ -271,3 +271,25 @@ describe('ServiceFooter [이용 안내] 창 포커스 가두기(131 최소 수�
     expect(src).toMatch(/e\.key === 'Tab'\) trapFocus\(e, dialogRef\.current\)/);
   });
 });
+
+describe('판 설정 미리보기 학습지 순서 한 줄(작업 153, preview-ws-order)', () => {
+  it.each([
+    [{ ...L1, tradeMinutes: 25 }, 'each', '학습지: 활동마다 바로 ① → ② → ③ → ④'],
+    [{ ...L1, lesson: 'L2' as const, tradeMinutes: 25 }, 'each', '학습지: 활동마다 바로 ⑤ → ⑥ → ⑦ → ⑧'],
+    [{ ...L1, tradeMinutes: 10 }, 'stageEnd', '학습지: 차시 끝에 한 번에 ①②③④'],
+    [{ ...L1, tradeMinutes: 25, worksheetMode: 'after' as const }, 'after', '학습지: 게임 끝나고 마무리에서'],
+  ])('%#: %s', async (values, mode, line) => {
+    const f = fakeRooms(health(1));
+    await mountSetup(f.store, values);
+    const el = byId(dom.root, 'preview-ws-order');
+    expect(el?.getAttribute('data-mode')).toBe(mode);
+    expect(text(el)).toBe(line);
+    expect(byId(dom.root, 'preview-during')).toBeUndefined();
+  });
+
+  it("'학습지 안 씀'이면 줄이 없다", async () => {
+    const f = fakeRooms(health(1));
+    await mountSetup(f.store, { ...L1, worksheetMode: 'off' });
+    expect(byId(dom.root, 'preview-ws-order')).toBeUndefined();
+  });
+});

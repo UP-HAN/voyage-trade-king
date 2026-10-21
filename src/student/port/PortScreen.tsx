@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Action, GameEvent, StampKind } from '../../core';
-import { cargoCapacity, cargoUsed } from '../../core';
+import { canTrade, cargoCapacity, cargoUsed } from '../../core';
 import { conceptCards } from '../../data/dex';
 import { goodsById, serviceRules } from '../../data/goods';
 import { factoryCycleCard } from '../../data/recipes';
@@ -395,7 +395,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   const cs = classForPredict(cls);
   const player = playerForPredict(me);
   const port = portsById[me.game.port];
-  const trading = cls.phase === 'round' && !cls.paused;
+  const trading = canTrade(cs); // (작업 153 추가) 자유 항해 판은 라운드 사이에도
   const sells = sellCards(cs, player);
   const buys = buyCards(cs, player);
   const wanted = wantedGoods(cs, player);

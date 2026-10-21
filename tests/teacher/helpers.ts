@@ -11,7 +11,7 @@ export function gameWith(n: number, o: { playUnit?: 'lesson' | 'unit'; minutes?:
     playUnit: o.playUnit ?? 'lesson',
     scope: o.playUnit === 'unit' ? ['L1', 'L2', 'L3', 'L4'] : ['L1'],
     tradeMinutes: o.minutes ?? 10,
-    settings: {},
+    settings: { worksheetMode: 'after' }, // (작업 153) 차시 한 판 '알아서'가 v0.3.8에서 '활동마다 바로'가 됨 → 시험 배치는 '게임 끝나고'로 고정
     overrides: {},
     seed: 11,
     now: 0,

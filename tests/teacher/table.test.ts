@@ -7,7 +7,8 @@ import { aggregate, seatKey } from '../../src/core';
 import { checkQuizFor } from '../../src/data/checkQuiz';
 import { eventsById } from '../../src/data/events';
 import type { TeacherGame } from '../../src/teacher/game';
-import { FILTERS, HELP_FILTERS, MORE_FILTERS, buildRows, currentResponseCount, filterCounts, filterRows, matchesFilter, sortRows, summaryText, type StudentRow } from '../../src/teacher/table';
+import { FILTERS, HELP_FILTERS, MORE_FILTERS, buildRows, currentResponseCount, filterCounts, filterRows, matchesFilter, nowTaskOf, sortRows, summaryText, type StudentRow } from '../../src/teacher/table';
+import type { ClassState, Player } from '../../src/core';
 
 const demo = makeDemo(30, Date.UTC(2026, 9, 9, 1, 0, 0));
 const rows = buildRows(demo.game, demo.view);
@@ -24,7 +25,7 @@ describe('?demo=30 학생 표', () => {
   });
 
   it('필터: 전체 + 도움이 필요해요 + [더 보기] 7종(쉬운 말 — 작업 137)', () => {
-    expect(FILTERS.map((f) => f.label)).toEqual(['전체', '도움이 필요해요', '들어오지 않음', '응답 안 함', '항해 준비 안 함', '임무 아직', '학습지 안 씀', '다시 들어오기 요청', '이름 확인']);
+    expect(FILTERS.map((f) => f.label)).toEqual(['전체', '도움이 필요해요', '들어오지 않음', '응답 안 함', '출항 준비 안 함', '임무 아직', '학습지 안 씀', '다시 들어오기 요청', '이름 확인']);
     expect(MORE_FILTERS).toEqual(['offline', 'noResponse', 'notReady', 'missionTodo', 'noWorksheet', 'rejoin', 'nameCheck']);
     const c = filterCounts(rows);
     expect(c.all).toBe(30);
@@ -46,16 +47,19 @@ describe('?demo=30 학생 표', () => {
     const union = new Set<number>();
     for (const f of HELP_FILTERS) for (const r of filterRows(rows, f)) union.add(r.seat);
     expect(HELP_FILTERS).toEqual(['offline', 'noResponse', 'noWorksheet', 'rejoin', 'nameCheck']);
+    for (const r of rows) if (r.now.done === false) union.add(r.seat); // (작업 148) 지금 할 일을 아직 안 한 학생
     expect(filterRows(rows, 'help').map((r) => r.seat)).toEqual([...union].sort((a, b) => a - b));
     expect(filterCounts(rows).help).toBe(union.size);
-    // 항해 준비 안 함·임무 아직만 걸린 학생은 '도움이 필요해요'에 들지 않는다
-    const base: StudentRow = { ...rows[0]!, online: true, responded: true, worksheetDone: true, rejoinRequested: false, nameStatus: 'ok', ready: false, missionsDone: 0, missionsTotal: 2 };
+    // 출항 준비 안 함·임무 아직만 걸린 학생(지금 할 일은 없음)은 '도움이 필요해요'에 들지 않는다
+    const base: StudentRow = { ...rows[0]!, online: true, responded: true, worksheetDone: true, rejoinRequested: false, nameStatus: 'ok', ready: false, missionsDone: 0, missionsTotal: 2, now: { text: '기다리는 중', done: null } };
     expect(matchesFilter(base, 'help')).toBe(false);
     expect(matchesFilter({ ...base, online: false }, 'help')).toBe(true);
     expect(matchesFilter({ ...base, responded: false }, 'help')).toBe(true);
     expect(matchesFilter({ ...base, worksheetDone: false }, 'help')).toBe(true);
     expect(matchesFilter({ ...base, rejoinRequested: true }, 'help')).toBe(true);
     expect(matchesFilter({ ...base, nameStatus: 'checkRealName' }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, now: { text: '목적지 고르는 중', done: false } }, 'help')).toBe(true);
+    expect(matchesFilter({ ...base, now: { text: '출항 준비 끝', done: true } }, 'help')).toBe(false);
     // 응답할 활동·학습지가 없으면(null) 걸리지 않는다
     expect(matchesFilter({ ...base, responded: null, worksheetDone: null }, 'help')).toBe(false);
   });
@@ -70,11 +74,11 @@ describe('?demo=30 학생 표', () => {
     expect(sortRows(sortRows(rows, 'money'), 'seat').map((r) => r.seat)).toEqual(rows.map((r) => r.seat));
   });
 
-  it('요약 칩 "들어옴 n/m · 항해 준비 r · 응답 안 함 k"(쉬운 말 — 작업 137)', () => {
+  it('요약 칩 "들어옴 n/m · 출항 준비 r · 응답 안 함 k"(쉬운 말 — 작업 137)', () => {
     const online = rows.filter((r) => r.online).length;
     const ready = rows.filter((r) => r.ready).length;
     const nr = rows.filter((r) => r.responded === false).length;
-    expect(summaryText(rows)).toBe(`들어옴 ${online}/30 · 항해 준비 ${ready} · 응답 안 함 ${nr}`);
+    expect(summaryText(rows)).toBe(`들어옴 ${online}/30 · 출항 준비 ${ready} · 응답 안 함 ${nr}`);
   });
 
   it('마지막 접속 시각은 미접속 학생에게만', () => {
@@ -142,5 +146,106 @@ describe('응답 판정 — 103 aggregate와 같은 규칙(수정 1회차)', () 
     expect(agg).not.toBeNull();
     expect(buildRows(g, demo.view).filter((x) => x.responded === true).length).toBe(agg!.responded);
     expect(currentResponseCount(g)).toEqual({ responded: agg!.responded, total: agg!.total });
+  });
+});
+
+/** (작업 148) 데모 판의 반 상태·학생 1번을 바꿔 끼우기 — 학생 1번은 회사를 만든 상태로 */
+function gameWith(cls: Partial<ClassState>, game: Partial<Player['game']> = {}, founded = true): TeacherGame {
+  const players = { ...demo.game.players };
+  const k = seatKey(1);
+  const p = players[k]!;
+  players[k] = { ...p, company: { ...p.company, founded }, game: { ...p.game, ...game } };
+  return { ...demo.game, class: { ...demo.game.class, ...cls }, players };
+}
+const P1 = (g: TeacherGame) => g.players[seatKey(1)]!;
+const task = (g: TeacherGame) => nowTaskOf(g, P1(g));
+const noWs: ClassState['worksheet'] = { ...demo.game.class.worksheet, current: null, during: false };
+const started: ClassState['clock'] = { ...demo.game.class.clock, startedAt: 1 };
+const live = { clock: started, paused: false, tradeEnded: false };
+const openEv = (id: string): ClassState['currentEvent'] => ({ id, openedAt: 0, closesAt: null, closed: false, short: false });
+
+describe("작업 148 '지금 할 일'(nowTaskOf) — 9줄 규칙", () => {
+  const needResp = Object.values(eventsById).find((e) => e.needsResponse && e.kind !== 'checkQuiz')!;
+  const noResp = Object.values(eventsById).find((e) => !e.needsResponse)!;
+
+  it('1) 학생 없음·무역 끝 → "·" null', () => {
+    expect(nowTaskOf(demo.game, undefined)).toEqual({ text: '·', done: null });
+    expect(task(gameWith({ ...live, tradeEnded: true }))).toEqual({ text: '·', done: null });
+    expect(task(gameWith({ ...live, phase: 'wrapup' }))).toEqual({ text: '·', done: null });
+    expect(task(gameWith({ ...live, phase: 'ended' }))).toEqual({ text: '·', done: null });
+  });
+
+  it('2) 회사 안 만듦 → 회사 만드는 중 false', () => {
+    expect(task(gameWith({ ...live }, {}, false))).toEqual({ text: '회사 만드는 중', done: false });
+  });
+
+  it('3) 무역 시작 전 → 회사 만듦 true', () => {
+    expect(task(gameWith({ ...live, clock: { ...started, startedAt: null }, phase: 'prep' }))).toEqual({ text: '회사 만듦', done: true });
+  });
+
+  it('4) 멈춤 → 멈춤 null', () => {
+    expect(task(gameWith({ ...live, paused: true }))).toEqual({ text: '멈춤', done: null });
+  });
+
+  it('5) 학습지 팝업(묶음) → 다 씀 / 쓰는 중', () => {
+    const cls = { ...live, phase: 'worksheet' as const, worksheet: { ...noWs, current: ['W01'] } as ClassState['worksheet'] };
+    expect(task(gameWith(cls, { worksheetDone: ['W01'] }))).toEqual({ text: '학습지 다 씀', done: true });
+    expect(task(gameWith(cls, { worksheetDone: [] }))).toEqual({ text: '학습지 쓰는 중', done: false });
+  });
+
+  it('6) 라운드 밖 응답 필요 사건 → 응답함 / 응답하는 중', () => {
+    const cls = { ...live, phase: 'event' as const, worksheet: noWs, currentEvent: openEv(needResp.id) };
+    expect(task(gameWith(cls, { responses: { [needResp.id]: 'a' } }))).toEqual({ text: '응답함', done: true });
+    expect(task(gameWith(cls, { responses: {} }))).toEqual({ text: '응답하는 중', done: false });
+  });
+
+  it('7) 라운드 밖 응답 없는 카드·표지 → 카드 읽음 / 카드 읽는 중', () => {
+    const cls = { ...live, phase: 'event' as const, worksheet: noWs, currentEvent: openEv(noResp.id) };
+    expect(task(gameWith(cls, { responses: { [noResp.id]: true } }))).toEqual({ text: '카드 읽음', done: true });
+    expect(task(gameWith(cls, { responses: {} }))).toEqual({ text: '카드 읽는 중', done: false });
+  });
+
+  it('8) 라운드 중 → 출항 준비 끝 / 목적지 … 출항 준비 아직 / 목적지 고르는 중', () => {
+    const cls = { ...live, phase: 'round' as const, worksheet: noWs, currentEvent: null };
+    expect(task(gameWith(cls, { ready: true }))).toEqual({ text: '출항 준비 끝', done: true });
+    expect(task(gameWith(cls, { ready: false, dest: 'SHA' }))).toEqual({ text: '목적지 상하이 · 출항 준비 아직', done: false });
+    expect(task(gameWith(cls, { ready: false, dest: null }))).toEqual({ text: '목적지 고르는 중', done: false });
+    // 라운드 중 열린 사건이 있어도 라운드 규칙(6·7줄은 라운드 밖만)
+    expect(task(gameWith({ ...cls, currentEvent: openEv(noResp.id) }, { ready: false, dest: null, responses: {} }))).toEqual({ text: '목적지 고르는 중', done: false });
+  });
+
+  it('151 자유 항해 라운드 → 사고팔기 ✓ · 항해 k번 / 아직 사고팔기 전 · 항해 k번', () => {
+    const settings = { ...demo.game.class.settings, voyageMode: 'free' as const };
+    const cls = { ...live, phase: 'round' as const, worksheet: noWs, currentEvent: null, settings, round: 2 };
+    const buy = { round: 2, stage: 'L1' as const, kind: 'buy' as const, amount: 10 };
+    const old = { round: 1, stage: 'L1' as const, kind: 'sell' as const, amount: 10 };
+    expect(task(gameWith(cls, { log: [buy], sailsThisRound: 2 }))).toEqual({ text: '사고팔기 ✓ · 항해 2번', done: true });
+    expect(task(gameWith(cls, { log: [old], sailsThisRound: 0 }))).toEqual({ text: '아직 사고팔기 전 · 항해 0번', done: false });
+  });
+
+  it('9) 그 밖(사건 사이) → 기다리는 중 null', () => {
+    expect(task(gameWith({ ...live, phase: 'between', worksheet: noWs, currentEvent: null }))).toEqual({ text: '기다리는 중', done: null });
+    // 닫힌 사건도 '기다리는 중'
+    expect(task(gameWith({ ...live, phase: 'between', worksheet: noWs, currentEvent: { ...openEv(noResp.id)!, closed: true } }))).toEqual({ text: '기다리는 중', done: null });
+  });
+
+  it('★ 지금 쓰기 중 duringDone만 있는 학생 → 학습지 칸 다 씀, 지금 할 일 "학습지 다 씀"', () => {
+    const g = gameWith({ ...live, phase: 'worksheet', worksheet: { ...noWs, current: ['W01'], during: true } }, { worksheetDone: [], duringDone: ['W01'] });
+    const r = buildRows(g, demo.view).find((x) => x.seat === 1)!;
+    expect(r.worksheetDone).toBe(true);
+    expect(r.now).toEqual({ text: '학습지 다 씀', done: true });
+    expect(matchesFilter(r, 'noWorksheet')).toBe(false);
+    // 반대로 번호만 끝내고(worksheetDone) ★ 칸을 안 쓴 학생은 아직
+    const g2 = gameWith({ ...live, phase: 'worksheet', worksheet: { ...noWs, current: ['W01'], during: true } }, { worksheetDone: ['W01'], duringDone: [] });
+    const r2 = buildRows(g2, demo.view).find((x) => x.seat === 1)!;
+    expect(r2.worksheetDone).toBe(false);
+    expect(r2.now).toEqual({ text: '학습지 쓰는 중', done: false });
+  });
+
+  it("라운드 중 출항 준비 안 한 학생이 '도움이 필요해요'에 든다", () => {
+    const g = gameWith({ ...live, phase: 'round', worksheet: noWs, currentEvent: null }, { ready: false, dest: null });
+    const r = buildRows(g, demo.view);
+    expect(r.find((x) => x.seat === 1)!.now.done).toBe(false);
+    expect(filterRows(r, 'help').map((x) => x.seat)).toContain(1);
   });
 });

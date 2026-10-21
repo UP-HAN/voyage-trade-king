@@ -1196,7 +1196,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       for (const s of slots.values())
         for (const [id, n] of s.mem.fails) {
           if (n < 3 || (breaks.has('no-actions') && s.seat === 2) || (breaks.has('hide-worksheet') && s.seat === 4) || breakSeats.has(s.seat)) continue;
-          if (s.mem.coverTop.has(id) && /^(enter-port|set-ready|pick-confirm|worksheet-done|항구 )/.test(id)) continue; // 이미 [문제]로 올림
+          if (s.mem.coverTop.has(id) && /^(enter-port|set-ready|pick-confirm|pick-sail|worksheet-done|항구 )/.test(id)) continue; // 이미 [문제]로 올림
           const top = s.mem.coverTop.get(id);
           const pr = col.add({ kind: 'harness', severity: '참고', key: `fail-${id}`, title: `학생 화면 [${id}] 조작이 여러 번 실패${top ? '(정상 층이 아닌 것에 가림)' : ''}`, detail: `${s.label} ${n}번. 마지막 이유: ${s.mem.failWhy.get(id) ?? '?'}${top ? ` — 맨 위 요소: ${top}` : ''} — 버튼이 보이는데 눌리지 않으면 앱 문제일 수 있어요(확인 필요).`, at: '-', who: [s.label] });
           for (const f of s.mem.coverShots.get(id) ?? []) if (!pr.shots.includes(f)) pr.shots.push(f);

@@ -65,8 +65,14 @@ export async function newContext(env: Env, viewport: { width: number; height: nu
   return ctx;
 }
 
-/** 교사: 시작 화면 → 판 설정(차시 L1 또는 단원) → 무역 n분 → [방 열기] */
-export async function openTeacher(env: Env, o: { unit?: boolean; minutes: number; label?: string }): Promise<{ ctx: BrowserContext; t: Page; code: string }> {
+/**
+ * 교사: 시작 화면 → 판 설정(차시 L1 또는 단원) → 무역 n분 → [방 열기].
+ * (작업 151) voyage: 항해 방식([고급 설정]) — 주지 않으면 판 기본(1차시 차시 판 = 자유롭게)
+ */
+export async function openTeacher(
+  env: Env,
+  o: { unit?: boolean; minutes: number; label?: string; voyage?: 'free' | 'round'; /** (작업 153) 학습지 넣는 때 */ ws?: 'auto' | 'each' | 'stageEnd' | 'after' | 'off' },
+): Promise<{ ctx: BrowserContext; t: Page; code: string }> {
   const ctx = await newContext(env);
   const t = await ctx.newPage();
   watchErrors(t, o.label ?? 'teacher', env.errors);
@@ -82,6 +88,8 @@ export async function openTeacher(env: Env, o: { unit?: boolean; minutes: number
   await custom.fill(String(o.minutes));
   await custom.blur();
   await expect(custom).toHaveValue(String(o.minutes));
+  if (o.voyage) await pickVoyageMode(t, o.voyage);
+  if (o.ws) await pickWorksheetMode(t, o.ws);
   await expect(t.getByTestId('btn-open')).toBeEnabled();
   await t.getByTestId('btn-open').click();
   const codeEl = t.getByTestId('room-code');
@@ -115,6 +123,18 @@ export async function pickProgressMode(t: Page, mode: 'auto' | 'manual'): Promis
   const b = t.locator(`[data-testid="progress-mode"] button[data-value="${mode}"]`);
   await b.click();
   await expect(b).toHaveAttribute('aria-pressed', 'true');
+}
+
+/**
+ * (작업 151) 판 설정에서 항해 방식 고르기(값: free = 자유롭게 / round = 라운드마다). 1·2차시 차시 판 기본은 자유롭게.
+ * 출항 준비 흐름을 보는 시험은 'round'를 고른다.
+ */
+export async function pickVoyageMode(t: Page, mode: 'free' | 'round'): Promise<void> {
+  await openAdvanced(t);
+  const b = t.locator(`[data-testid="voyage-mode"] button[data-value="${mode}"]`);
+  await b.click();
+  await expect(b).toHaveAttribute('aria-pressed', 'true');
+  await expect(t.getByTestId('preview-voyage')).toHaveAttribute('data-mode', mode);
 }
 
 /** (작업 138) 판 설정에서 학습지 넣는 때 고르기(값: auto/each/stageEnd/after/off) */
@@ -228,18 +248,19 @@ export async function finishMinigame(s: Page): Promise<void> {
       await q.getByTestId(`bk-q-${w}`).click();
     }
   } else if (id === 'L1-E5') {
-    if (await s.getByTestId('ti-example').count()) {
-      await s.getByTestId('ti-example').click();
-    } else {
-      while ((await mg.getAttribute('data-step')) !== 'stage3') {
-        await s.getByTestId('ti-next').click();
-        await pause();
-      }
-      await s.getByTestId('ti-A-slider').fill('2');
-      await s.getByTestId('ti-B-slider').fill('10');
-      for (let i = 0; i < 10; i++) await s.getByTestId('ti-units-plus').click();
+    // (작업 150) ㉮·㉯ 나라 3장면·버튼 2번: [잘하는 것을 많이 만들어 보기] → [옷 30벌 ↔ 쌀 20포대 바꾸기] → [다 했어요]
+    if ((await mg.getAttribute('data-step')) === 'scene1') {
+      await s.getByTestId('ti-focus').click();
       await pause();
-      await s.getByTestId('ti-complete').click();
+    }
+    if ((await mg.getAttribute('data-step')) === 'scene2') {
+      await s.getByTestId('ti-trade').click();
+      await pause();
+    }
+    if (await s.getByTestId('ti-done').count()) {
+      await s.getByTestId('ti-done').click();
+      await expect(s.locator(`[data-testid="minigame"][data-event="${id}"]`)).toHaveCount(0);
+      return;
     }
   }
   await pause();
@@ -247,7 +268,11 @@ export async function finishMinigame(s: Page): Promise<void> {
   await expect(s.locator(`[data-testid="minigame"][data-event="${id}"]`)).toHaveCount(0);
 }
 
-export async function sailTo(s: Page, port: string): Promise<void> {
+/**
+ * 항해 도우미(작업 151 — 방식에 따라): 자유 항해면 [여기로 출발](`pick-sail`) → 바로 도착해 항구 화면이 열림,
+ * 라운드마다면 [여기로 정하기](`pick-confirm`) → [출항 준비](`set-ready`). 돌려주는 값: 어느 방식이었는가
+ */
+export async function sailTo(s: Page, port: string): Promise<'free' | 'round'> {
   if (await s.getByTestId('port-screen').count()) await s.getByTestId('port-back').click();
   const hit = s.locator(`.wm-port[data-port="${port}"] .wm-port-hit`);
   const box = await hit.boundingBox();
@@ -255,9 +280,15 @@ export async function sailTo(s: Page, port: string): Promise<void> {
   if (!box || box.y + box.height / 2 > vp.height - 100 || box.x < 0 || box.x > vp.width) await s.getByRole('button', { name: '전체 보기' }).click();
   await hit.click();
   await expect(s.getByTestId('pick-panel')).toHaveAttribute('data-kind', 'ok');
+  if (await s.getByTestId('pick-sail').isVisible().catch(() => false)) {
+    await s.getByTestId('pick-sail').click();
+    await expect(s.getByTestId('port-screen')).toBeVisible();
+    return 'free';
+  }
   await s.getByTestId('pick-confirm').click();
   await s.getByTestId('set-ready').click();
   await expect(s.getByTestId('ready-note')).toBeVisible();
+  return 'round';
 }
 
 /** 떠 있는 가벼운 창 닫기(항구 카드·개념 팝업·튜토리얼) */

@@ -10,7 +10,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
-import type { ItemForm, SchedulePreview } from '../core';
+import { tradeWorksheets, type ItemForm, type SchedulePreview } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes, type WorksheetMode } from '../data/schedule';
 import type { LessonId } from '../data/types';
@@ -31,6 +31,10 @@ import {
   orderSummaryOf,
   previewOf,
   savePrefs,
+  freeVoyageAvailable,
+  VOYAGE_MODE_SHORT,
+  VOYAGE_MODE_TEXT,
+  voyageModeOf,
   type SetupValues,
 } from './setup';
 import { duringPreviewLine, worksheetNo } from './schedule-view';
@@ -67,7 +71,7 @@ function Seg<T extends string | number | boolean>({
 }: {
   label: string;
   value: T;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; /** (작업 151) 이 칸만 회색 '준비 중' */ soon?: boolean }[];
   onPick: (v: T) => void;
   disabled?: boolean;
   testId: string;
@@ -87,10 +91,11 @@ function Seg<T extends string | number | boolean>({
             class="t-seg__btn"
             aria-pressed={o.value === value}
             data-value={String(o.value)}
-            disabled={disabled}
+            disabled={disabled || o.soon}
             onClick={() => onPick(o.value)}
           >
             {o.label}
+            {o.soon && <span class="t-soon">준비 중</span>}
           </button>
         ))}
       </div>
@@ -116,6 +121,19 @@ export const PROGRESS_TEXT: Record<'auto' | 'manual', string> = { auto: '시간 
 /** 활동 등급 꼬리표 */
 export const TIER_TEXT: Record<1 | 2 | 3, string> = { 1: '꼭 할 활동', 2: '하면 좋은 활동', 3: '시간 나면 하는 활동' };
 const MODE_TEXT: Record<string, string> = WORKSHEET_MODE_TEXT;
+/**
+ * 차시 한 판 미리보기 한 줄(작업 153, PRD 4.3.3 v0.3.8): 이 차시 학습지 번호가 언제 뜨는지.
+ * 'each' → `학습지: 활동마다 바로 ① → ② → ③ → ④`, 'stageEnd' → `학습지: 차시 끝에 한 번에 ①②③④`, 'after' → `학습지: 게임 끝나고 마무리에서`
+ */
+export function worksheetOrderLine(mode: string, stage: LessonId): string | null {
+  const nos = tradeWorksheets(stage).map(worksheetNo);
+  if (!nos.length) return null;
+  if (mode === 'each') return `학습지: 활동마다 바로 ${nos.join(' → ')}`;
+  if (mode === 'stageEnd') return `학습지: 차시 끝에 한 번에 ${nos.join('')}`;
+  if (mode === 'after') return '학습지: 게임 끝나고 마무리에서';
+  return null;
+}
+
 /** 'L1 무역은…' → '1차시 무역은…' (구간 띠 이름) */
 const bandName = (label: string) => label.replace(/^L(\d)/, '$1차시');
 
@@ -154,10 +172,18 @@ function PreviewPanel({
       <p class="t-expected" data-testid="expected-time">
         예상 수업 시간 <b>{preview.expected.text}</b>
       </p>
+      <p class="t-preview__facts" data-testid="preview-voyage" data-mode={voyageModeOf(values)}>
+        항해: {VOYAGE_MODE_SHORT[voyageModeOf(values)]}
+      </p>
       <div class="t-sheet" data-testid="preview-worksheets">
         <span class="t-sheet__label">{values.playUnit === 'lesson' ? '이 차시 학습지' : '학습지'}</span>
         <WorksheetPdfMenu variant="inline" highlightLesson={values.playUnit === 'lesson' ? values.lesson : 'unit'} />
       </div>
+      {values.playUnit === 'lesson' && preview.bands[0] && worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage) && (
+        <p class="t-preview__facts" data-testid="preview-ws-order" data-mode={preview.bands[0].worksheetMode}>
+          {worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage)}
+        </p>
+      )}
       <div class="t-bands" data-testid="preview-bands" aria-label="구간 띠">
         {preview.bands.map((b) => (
           <div key={b.stage} class="t-band" data-testid="preview-band" style={{ flex: `${Math.max(0.05, b.ratio)} 1 0` }} title={bandName(b.label)}>
@@ -371,6 +397,17 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
           { value: 'manual', label: PROGRESS_TEXT.manual },
         ]}
         onPick={(v) => set({ progressMode: v })}
+      />
+      {/* (작업 151, PRD 4.3.7.1) 항해 방식 — 1·2차시 차시 판만 '자유롭게'를 고를 수 있다(기억하지 않음) */}
+      <Seg
+        label="항해 방식"
+        testId="voyage-mode"
+        value={voyageModeOf(values)}
+        options={[
+          { value: 'free', label: VOYAGE_MODE_TEXT.free, soon: !freeVoyageAvailable(values) },
+          { value: 'round', label: VOYAGE_MODE_TEXT.round },
+        ]}
+        onPick={(v) => set({ voyageMode: v })}
       />
     </>
   );

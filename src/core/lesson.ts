@@ -348,8 +348,13 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
       if (cs.letters.delivered.includes(action.slotId)) return err(cs, 'ALREADY_DELIVERED');
       return ok({ ...cs, letters: { ...cs.letters, skipped: [...cs.letters.skipped, action.slotId] } });
     }
-    case 'updateSettings':
-      return ok({ ...cs, settings: sanitizeSettings(cs.settings, action.settings ?? {}) });
+    case 'updateSettings': {
+      const settings = sanitizeSettings(cs.settings, action.settings ?? {});
+      // (작업 151) 항해 방식은 판 시작 전(준비 단계·무역 시작 전)에만 바꾼다
+      const v = action.settings?.voyageMode;
+      if ((v === 'round' || v === 'free') && cs.phase === 'prep' && cs.round === 0 && cs.clock.startedAt === null) settings.voyageMode = v;
+      return ok({ ...cs, settings });
+    }
     case 'endTrade': {
       if (cs.tradeEnded) return err(cs, 'TRADE_ENDED');
       const side: SideEffect[] = [];

@@ -123,13 +123,29 @@ export const TUTORIAL_TEXT: Readonly<Record<Exclude<TutorialStep, 'done'>, strin
   buyGas: '④ 천연가스를 사요. 그다음 부산으로 가서 팔면 [수입] 도장을 받아요.',
 };
 
+/** (작업 151, PRD 4.3.7.1) 자유 항해 판의 첫 라운드 안내 순서(brief 문구 그대로) */
+export const TUTORIAL_FREE_ORDER = '① 항구에 들어가 사고팔기 → ② 지도에서 다음 항구를 누르고 [여기로 출발] → 도착하면 바로 사고팔 수 있어요. 운항비는 라운드가 끝날 때 한꺼번에 내요.';
+
+/** (작업 151) 자유 항해 판의 단계 문구(출항 준비 단계가 없다 — 고르면 바로 도착) */
+export const TUTORIAL_FREE_TEXT: Readonly<Partial<Record<Exclude<TutorialStep, 'done'>, string>>> = {
+  pickDest: `${TUTORIAL_FREE_ORDER} 먼저 포트헤들랜드로 가 봐요.`,
+};
+
 export const TUTORIAL_PORT = 'PHE';
 
-/** 튜토리얼 지금 단계(학생 상태 + 지금 화면이 항구인지) */
-export function tutorialStep(me: MeView, inPort: boolean): TutorialStep {
+const isFree = (cls?: Pick<PublicClass, 'settings'> | null) => cls?.settings?.voyageMode === 'free';
+
+/** 튜토리얼 말풍선 문구(자유 항해 판이면 그 갈래) */
+export function tutorialText(step: Exclude<TutorialStep, 'done'>, cls?: Pick<PublicClass, 'settings'> | null): string {
+  return (isFree(cls) ? TUTORIAL_FREE_TEXT[step] : undefined) ?? TUTORIAL_TEXT[step];
+}
+
+/** 튜토리얼 지금 단계(학생 상태 + 지금 화면이 항구인지). cls 가 자유 항해 판이면 '출항 준비' 단계 없이 고르면 바로 도착 */
+export function tutorialStep(me: MeView, inPort: boolean, cls?: Pick<PublicClass, 'settings'> | null): TutorialStep {
   const g = me.game;
   if (g.cargo.some((c) => c.good === 'gas') || g.missions['M-GAS']?.status === 'done' || g.missions['M-GAS']?.steps[0]) return 'done';
   if (g.port === TUTORIAL_PORT) return inPort ? 'buyGas' : 'enterPort';
+  if (isFree(cls)) return 'pickDest';
   if (g.dest !== TUTORIAL_PORT) return 'pickDest';
   if (!g.ready) return 'ready';
   return 'arrive';

@@ -3,7 +3,7 @@
  *
  * - 벽란도 시장(L1-E1): 카드 묶음(전체 9장 / 짧은 형태 5장), 채점, 보너스(맞힌 수 × 20만 원, 짧은 형태 × 36만 원, 최대 180만 원),
  *   틀린 카드 이유(p.95), 재분류 질문(p.96 — 비단 = 수입, 인삼 = 수출).
- * - 두 섬 이야기(L1-E5): 배분(쌀에 쓰는 날) + 교환 단위로 두 섬 결과·섬별 ✓/✗·성공 판정.
+ * - 두 섬 이야기(L1-E5): 배분(쌀에 쓰는 날) + 교환 단위로 두 나라 결과·성공 판정, 화면 3장면 숫자(`twoIslandsScenes`, 작업 150).
  *   기준은 core(`respondToEvent`)와 같은 **1단계 기본 배분(5일:5일)** 이고, 교환을 1단위 이상 해야 성공이다(103 규칙).
  * - 진행 저장(새로 고침해도 단계 유지): 기기 localStorage. 실패해도 화면은 그대로 동작한다.
  *
@@ -194,10 +194,27 @@ export function exampleSetup(): { riceDays: RiceDays; units: number } {
   return { riceDays: { ...twoIslands.example.riceDays }, units: twoIslands.example.units };
 }
 
-/** [예시 따라 하기]를 보여 줄까: 짧은 형태·따라잡기·마감 뒤에는 처음부터, 아니면 시작 뒤 3분(helpAfterSec) */
-export function showExample(o: { short: boolean; catchUp: boolean; closed: boolean; startedAt: number; now: number }): boolean {
-  if (o.short || o.catchUp || o.closed) return true;
-  return o.now - o.startedAt >= twoIslands.helpAfterSec * 1000;
+/** 두 나라 이야기 3장면 숫자(작업 150): ① 혼자 살 때(5일:5일) ② 잘하는 것을 많이 만들기(검산 예 배분) ③ 서로 바꾼 뒤(검산 예 교환) */
+export interface TwoIslandsScenes {
+  alone: IslandPair;
+  focus: IslandPair;
+  traded: IslandPair;
+  riceDays: RiceDays;
+  units: number;
+  /** ③에서 ㉮ → ㉯로 가는 옷, ㉯ → ㉮로 가는 쌀 */
+  give: { clothes: number; rice: number };
+}
+
+export function twoIslandsScenes(): TwoIslandsScenes {
+  const ex = exampleSetup();
+  return {
+    alone: baseStocks(),
+    focus: produceBoth(ex.riceDays),
+    traded: judgeTwoIslands(ex.riceDays, ex.units).after,
+    riceDays: ex.riceDays,
+    units: ex.units,
+    give: { clothes: twoIslands.exchange.clothes * ex.units, rice: twoIslands.exchange.rice * ex.units },
+  };
 }
 
 // ─────────────────────────── 진행 저장 ───────────────────────────

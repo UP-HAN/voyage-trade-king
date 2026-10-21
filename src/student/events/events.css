@@ -324,3 +324,115 @@
   color: var(--team-3, #2f7d4f);
 }
 .ev-wait__board { margin: 8px 0; font-size: 20px; line-height: 1.4; }
+
+/* (작업 152) 개념 카드 — "TV 화면을 함께 봐요" 짧은 카드(긴 글은 공용 화면 슬라이드·도감에서) */
+.ev-tv-wrap {
+  width: min(560px, 100%);
+  margin: auto;
+}
+.ev-tv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px 18px;
+  text-align: center;
+  background: var(--parchment-light);
+  border: 3px solid var(--brass-dark);
+  border-radius: var(--radius);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.ev-tv__band {
+  margin: 0;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--sea-deep);
+  color: var(--parchment-light);
+  font-size: var(--text-small, 15px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.ev-tv__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+.ev-tv__big {
+  margin: 4px 0;
+  font-size: 30px;
+  line-height: 1.25;
+}
+.ev-tv__note {
+  margin: 0;
+  font-size: var(--text-small, 15px);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.ev-tv__confirm {
+  min-width: 180px;
+  margin-top: 6px;
+}
+.ev-tv__read-here {
+  min-height: var(--touch-min, 44px);
+  padding: 0 10px;
+  font-size: var(--text-small, 15px);
+  color: var(--ink-soft);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* (작업 153) 2차시 임무 패널 — '먼저 할 일' 상자, '시간 나면' 꼬리표.
+   1366×768에서 처음 열어도 '먼저 할 일'과 [확인]이 스크롤 없이 보이게, 넘치면 임무 목록만 패널 안에서 스크롤 */
+.ev-panel--missions {
+  overflow: hidden;
+}
+
+.ev-panel--missions > .vc {
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+.ev-panel--missions .ev-missions {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ev-panel--missions .vc__title,
+.ev-panel--missions .ev-first,
+.ev-panel--missions .ev-panel__note,
+.ev-panel--missions .vc__foot,
+.ev-panel--missions .vc__band {
+  flex-shrink: 0;
+}
+
+.ev-first {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #fff6dc;
+  border: 2px solid var(--brass, #b8862b);
+  border-radius: 8px;
+}
+
+.ev-first__main {
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.ev-first__sub {
+  font-size: var(--text-small);
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.ev-missions__opt {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}

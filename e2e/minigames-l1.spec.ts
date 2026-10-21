@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { openActivities, openTvMenu } from './support/voyage-ui';
+import { openActivities, openTvMenu, pickWorksheetMode } from './support/voyage-ui';
 
 /**
  * 작업 113 미니게임 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 1366×768).
@@ -50,6 +50,8 @@ async function openTeacher(ctx: BrowserContext, o: { minutes: number; forms?: Re
   await custom.fill(String(o.minutes));
   await custom.blur();
   await expect(custom).toHaveValue(String(o.minutes));
+  // (작업 153 정리) 차시 한 판 '알아서'가 '활동마다 바로'가 되어 학습지 팝업이 미니게임 사이에 끼므로, 이 시험은 '게임 끝나고'로 고정
+  await pickWorksheetMode(page, 'after');
   if (Object.keys(o.forms ?? {}).length) await openActivities(page); // (작업 138) [활동 직접 고치기] 안
   for (const [id, label] of Object.entries(o.forms ?? {})) {
     await page.getByTestId(`act-${id}`).getByRole('button', { name: label }).click();
@@ -184,24 +186,15 @@ async function finishDefine(p: Page, reclass: boolean) {
   await p.waitForTimeout(550);
 }
 
-async function setDays(p: Page, island: 'A' | 'B', days: number) {
-  const box = p.getByTestId(`ti-island-${island}`);
-  for (let i = 0; i < 12; i++) {
-    const cur = Number(await box.getAttribute('data-rice-days'));
-    if (cur === days) return;
-    await p.getByTestId(`ti-${island}-rice-${cur < days ? 'plus' : 'minus'}`).click();
-  }
-  await expect(box).toHaveAttribute('data-rice-days', String(days));
-}
-
-async function setUnits(p: Page, units: number) {
-  const tr = p.getByTestId('ti-trade');
-  for (let i = 0; i < 30; i++) {
-    const cur = Number(await tr.getAttribute('data-units'));
-    if (cur === units) return;
-    await p.getByTestId(cur < units ? 'ti-units-plus' : 'ti-units-minus').click();
-  }
-  await expect(tr).toHaveAttribute('data-units', String(units));
+/** (작업 153 정리) 두 섬 새 흐름(150): [ti-focus] → [ti-trade] → [ti-done] — 연속 클릭 가드 사이 0.55초 */
+async function tiFinish(p: Page) {
+  await expect(p.locator('[data-testid="minigame"][data-event="L1-E5"]')).toHaveAttribute('data-step', 'scene1');
+  await p.getByTestId('ti-focus').click();
+  await p.waitForTimeout(550);
+  await p.getByTestId('ti-trade').click();
+  await p.waitForTimeout(550);
+  await p.getByTestId('ti-done').click();
+  await expect(p.locator('[data-testid="minigame"][data-event="L1-E5"]')).toHaveCount(0);
 }
 
 async function screenResult(scr: Page, id: string): Promise<Locator> {
@@ -318,82 +311,36 @@ test('A. 전체 형태: 벽란도·두 섬 — 끌어 놓기·정답 공개·보
   await advanceUntil(ctx, t, async () => (await mg(s1, 'L1-E5').count()) > 0 && (await mg(s2, 'L1-E5').count()) > 0, 900);
   const afterBk1 = await money(s1);
   const afterBk2 = await money(s2);
-  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'stage1');
-  await expect(s1.getByTestId('ti-island-A')).toContainText('하루 일하면 쌀 6 또는 옷 12');
-  await expect(s1.getByTestId('ti-island-B')).toContainText('하루 일하면 쌀 5 또는 옷 2');
-  await expect(s1.getByTestId('ti-A-made')).toHaveAttribute('data-rice', '30');
-  await expect(s1.getByTestId('ti-A-made')).toHaveAttribute('data-clothes', '60');
-  await expect(s1.getByTestId('ti-B-made')).toHaveAttribute('data-rice', '25');
-  await expect(s1.getByTestId('ti-B-made')).toHaveAttribute('data-clothes', '10');
-  await expect(s1.getByTestId('ti-example')).toHaveCount(0); // 3분 전에는 없음
-  // 숫자 큰 글씨(24px 이상)
-  const fs = await s1.getByTestId('ti-A-made').locator('.mg-num').first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
-  expect(fs).toBeGreaterThanOrEqual(24);
+  // (작업 153 정리) 150의 새 흐름: 장면 1(혼자) [ti-focus] → 장면 2(잘하는 것 많이) [ti-trade] → 장면 3(바꾼 뒤) [ti-done]
+  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'scene1');
+  await expect(s1.getByTestId('ti-nation-A')).toHaveAttribute('data-rice', '30');
+  await expect(s1.getByTestId('ti-nation-A')).toHaveAttribute('data-clothes', '60');
+  await expect(s1.getByTestId('ti-nation-B')).toHaveAttribute('data-rice', '25');
+  await expect(s1.getByTestId('ti-nation-B')).toHaveAttribute('data-clothes', '10');
   await expectNoScroll(s1);
-  await shot(s1, 'A-student-ti-stage1-1366.png');
-  // 1단계: 슬라이더로 바꿔 보기(생산량 즉시)
-  await s1.getByTestId('ti-A-slider').fill('7');
-  await expect(s1.getByTestId('ti-A-made')).toHaveAttribute('data-rice', '42');
-  await s1.getByTestId('ti-A-slider').fill('5');
-  await s1.getByTestId('ti-next').click();
-  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'stage2');
-  await s1.waitForTimeout(550);
-  await s1.getByTestId('ti-hint').click();
-  await expect(s1.getByTestId('ti-hint-text')).toContainText('㉯섬은 쌀에, ㉮섬은 옷에 더 많은 날을 써 보세요.');
-  await setDays(s1, 'A', 2);
-  await setDays(s1, 'B', 10);
-  await expect(s1.getByTestId('ti-A-made')).toHaveAttribute('data-clothes', '96');
-  await expect(s1.getByTestId('ti-B-made')).toHaveAttribute('data-rice', '50');
+  await shot(s1, 'A-student-ti-scene1-1366.png');
+  await s1.getByTestId('ti-focus').click();
+  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'scene2');
+  await expect(s1.getByTestId('ti-nation-A')).toHaveAttribute('data-clothes', '96');
+  await expect(s1.getByTestId('ti-nation-B')).toHaveAttribute('data-rice', '50');
   await expectNoScroll(s1);
-  await shot(s1, 'A-student-ti-stage2-1366.png');
+  await shot(s1, 'A-student-ti-scene2-1366.png');
   await s1.waitForTimeout(550);
-  await s1.getByTestId('ti-next').click();
-  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'stage3');
-  await expect(s1.getByTestId('ti-status')).toHaveAttribute('data-success', '0');
-  await expect(s1.getByTestId('ti-complete')).toBeDisabled();
-  await setUnits(s1, 4);
-  await expect(s1.getByTestId('ti-A-judge')).toHaveAttribute('data-ok', '0');
-  await expect(s1.getByTestId('ti-A-judge')).toContainText('모자라요');
-  await shot(s1, 'A-student-ti-stage3-partial-1366.png');
-  await setUnits(s1, 10);
+  await s1.getByTestId('ti-trade').click();
+  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'scene3');
   await expect(s1.getByTestId('ti-give-clothes')).toHaveText('30');
   await expect(s1.getByTestId('ti-give-rice')).toHaveText('20');
-  await expect(s1.getByTestId('ti-A-after')).toHaveAttribute('data-rice', '32');
-  await expect(s1.getByTestId('ti-A-after')).toHaveAttribute('data-clothes', '66');
-  await expect(s1.getByTestId('ti-B-after')).toHaveAttribute('data-rice', '30');
-  await expect(s1.getByTestId('ti-B-after')).toHaveAttribute('data-clothes', '30');
-  await expect(s1.getByTestId('ti-A-judge')).toContainText('목표 달성');
-  await expect(s1.getByTestId('ti-B-judge')).toHaveAttribute('data-ok', '1');
-  await expect(s1.getByTestId('ti-status')).toHaveAttribute('data-success', '1');
+  await expect(s1.getByTestId('ti-nation-A')).toHaveAttribute('data-rice', '32');
+  await expect(s1.getByTestId('ti-nation-A')).toHaveAttribute('data-clothes', '66');
+  await expect(s1.getByTestId('ti-nation-B')).toHaveAttribute('data-rice', '30');
+  await expect(s1.getByTestId('ti-nation-B')).toHaveAttribute('data-clothes', '30');
+  await expect(s1.getByTestId('ti-end')).toContainText('99');
   await expectNoScroll(s1);
-  await shot(s1, 'A-student-ti-stage3-success-1366.png');
-  await s1.waitForTimeout(550);
-  await s1.getByTestId('ti-complete').click();
-  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'result');
-  await expect(s1.getByTestId('ti-chart')).toBeVisible();
-  await expect(s1.getByTestId('ti-bar-s1')).toHaveCount(4);
-  await expect(s1.getByTestId('ti-end')).toContainText('각 나라가 잘 만드는 것을 수출하고, 만들기 어려운 것을 수입하면 더 좋은 상품을 더 싸게 쓸 수 있어요.');
-  await expect(s1.getByTestId('ti-end')).toContainText('p.99');
-  await expectNoScroll(s1);
-  await shot(s1, 'A-student-ti-result-1366.png');
+  await shot(s1, 'A-student-ti-scene3-1366.png');
 
-  // s2: 1단계 그대로 + 교환 0이면 실패(완료 버튼 꺼짐), 1단계 그대로 교환해도 실패
-  await s2.getByTestId('ti-next').click();
-  await s2.waitForTimeout(550);
-  await s2.getByTestId('ti-next').click();
-  await expect(mg(s2, 'L1-E5')).toHaveAttribute('data-step', 'stage3');
-  await expect(s2.getByTestId('ti-status')).toHaveAttribute('data-success', '0');
-  await expect(s2.getByTestId('ti-complete')).toBeDisabled();
-  // 교환 0: 섬별 ✓ 없이 "아직 바꾸지 않았어요"(수정 1회차)
-  for (const k of ['A', 'B']) {
-    await expect(s2.getByTestId(`ti-${k}-judge`)).toHaveAttribute('data-ok', '0');
-    await expect(s2.getByTestId(`ti-${k}-judge`)).toContainText('아직 바꾸지 않았어요');
-  }
-  await setUnits(s2, 1);
-  await expect(s2.getByTestId('ti-status')).toHaveAttribute('data-success', '0');
-  await expect(s2.getByTestId('ti-complete')).toBeDisabled();
-
-  // 교사 일시정지 → 미니게임 위를 덮음
+  // s2: 장면 2까지 간 채 교사 일시정지 → 미니게임 위를 덮음
+  await s2.getByTestId('ti-focus').click();
+  await expect(mg(s2, 'L1-E5')).toHaveAttribute('data-step', 'scene2');
   await t.getByTestId('btn-pause').click();
   await expect(s2.locator('[data-layer="pause"]')).toBeVisible();
   const z = await s2.evaluate(() => {
@@ -405,19 +352,16 @@ test('A. 전체 형태: 벽란도·두 섬 — 끌어 놓기·정답 공개·보
   await shot(s2, 'A-student-ti-paused-1366.png');
   await t.getByTestId('btn-resume-trade').click();
   await expect(s2.locator('[data-layer="pause"]')).toHaveCount(0);
-
-  // 3분 뒤 [예시 따라 하기]
-  await advanceUntil(ctx, t, async () => (await s2.getByTestId('ti-example').count()) > 0, 200);
-  await expect(mg(s2, 'L1-E5')).toBeVisible();
-  await s2.getByTestId('ti-example').click();
-  await expect(mg(s2, 'L1-E5')).toHaveAttribute('data-step', 'result');
-  await expect(s2.getByTestId('ti-success')).toContainText('예시를 따라 했어요');
   await s2.waitForTimeout(550);
-  await s2.getByTestId('minigame-finish').click();
+  await s2.getByTestId('ti-trade').click();
+  await expect(mg(s2, 'L1-E5')).toHaveAttribute('data-step', 'scene3');
+  await s2.waitForTimeout(550);
+  await s2.getByTestId('ti-done').click();
   await expect(mg(s2)).toHaveCount(0);
   await expect.poll(() => money(s2)).toBe(afterBk2 + 50);
 
-  await s1.getByTestId('minigame-finish').click();
+  await s1.waitForTimeout(550);
+  await s1.getByTestId('ti-done').click();
   await expect(mg(s1)).toHaveCount(0);
   await expect.poll(() => money(s1)).toBe(afterBk1 + 50);
 
@@ -438,17 +382,8 @@ test('A. 전체 형태: 벽란도·두 섬 — 끌어 놓기·정답 공개·보
   const s3 = await joinStudent(ctx, 'm03', code, 3, '늦은배무역', errors);
   await expect(mg(s3, 'L1-E5')).toBeVisible({ timeout: 15_000 });
   const start3 = await money(s3);
-  // 3단계까지 가서 직접 성공
-  await s3.getByTestId('ti-next').click();
-  await s3.waitForTimeout(550);
-  await s3.getByTestId('ti-next').click();
-  await setDays(s3, 'A', 2);
-  await setDays(s3, 'B', 10);
-  await setUnits(s3, 10);
-  await s3.waitForTimeout(550);
-  await s3.getByTestId('ti-complete').click();
-  await s3.waitForTimeout(550);
-  await s3.getByTestId('minigame-finish').click();
+  // (작업 153 정리) 새 흐름 세 버튼으로 끝까지
+  await tiFinish(s3);
   await expect(r5.getByTestId('mg-result-count')).toHaveText(/성공\s*3\s*명/);
   // 지금 사건이 열려 있는 동안은 "기다려요"(111) — 교사가 마감하면 따라잡기가 뜬다
   await expect(s3.getByTestId('event-waiting')).toBeVisible();
@@ -547,34 +482,19 @@ test('B. 짧은 형태: 벽란도 5장(×36만)·마감 때 결과 보내기, �
   await expect(r1).toHaveAttribute('data-done', '2');
   await shot(scr, 'B-screen-bk-short-result-1920.png');
 
-  // 두 섬(짧게): 3단계부터, 예시 버튼 처음부터
+  // 두 섬(짧게): (작업 150) 짧은 형태도 같은 3장면 — 꼬리표 '짧게'
   await advanceUntil(ctx, t, async () => (await mg(s1, 'L1-E5').count()) > 0 && (await mg(s2, 'L1-E5').count()) > 0, 600);
   const m1 = await money(s1);
   const m2 = await money(s2);
   for (const s of [s1, s2]) {
-    await expect(mg(s, 'L1-E5')).toHaveAttribute('data-step', 'stage3');
-    await expect(s.getByTestId('ti-example')).toBeVisible();
-    await expect(s.getByTestId('ti-guide')).toContainText('쌀 30·옷 60');
-    await expect(s.getByTestId('ti-A-judge')).toHaveAttribute('data-ok', '0');
-    await expect(s.getByTestId('ti-B-judge')).toContainText('아직 바꾸지 않았어요');
+    await expect(mg(s, 'L1-E5')).toHaveAttribute('data-step', 'scene1');
+    await expect(s.getByTestId('minigame-short')).toBeVisible();
   }
   await expectNoScroll(s1);
-  await shot(s1, 'B-student-ti-short-stage3-1366.png');
-  await s1.getByTestId('ti-example').click();
-  await expect(mg(s1, 'L1-E5')).toHaveAttribute('data-step', 'result');
-  await expect(s1.getByTestId('ti-end')).toContainText('p.99');
-  await s1.waitForTimeout(550);
-  await s1.getByTestId('minigame-finish').click();
+  await shot(s1, 'B-student-ti-short-scene1-1366.png');
+  await tiFinish(s1);
   await expect.poll(() => money(s1)).toBe(m1 + 50);
-  // s2: 직접
-  await setDays(s2, 'A', 2);
-  await setDays(s2, 'B', 10);
-  await setUnits(s2, 10);
-  await expect(s2.getByTestId('ti-status')).toHaveAttribute('data-success', '1');
-  await s2.waitForTimeout(550);
-  await s2.getByTestId('ti-complete').click();
-  await s2.waitForTimeout(550);
-  await s2.getByTestId('minigame-finish').click();
+  await tiFinish(s2);
   await expect.poll(() => money(s2)).toBe(m2 + 50);
   const r5 = await screenResult(scr, 'L1-E5');
   await expect(r5.getByTestId('mg-result-count')).toHaveText(/성공\s*2\s*명/);

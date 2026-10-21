@@ -1,27 +1,28 @@
 /**
  * 두 섬 이야기 미니게임 (L1-E5, PRD 6.12.2, p.98~99) — 생산량·교환 비율은 [게임 설정].
- * 교과서의 ㉮·㉯ 나라 이야기(p.98)를 두 섬으로 옮겼다. 정답은 하나가 아니다.
+ * 화면 표기는 교과서처럼 ㉮ 나라·㉯ 나라(v0.3.8, 작업 150). 사건 이름 '두 섬 이야기'(events.ts)는 그대로.
  *
- * 1단계 "혼자 살기": 각 섬 10일을 쌀/옷에 나눔(1일 단위, 기본 5:5).
- * 2단계 "잘하는 것에 집중하기": 다시 나눔.
- * 3단계 "바꾸기": 옷 3 = 쌀 2 고정, 3상자(옷 3 ↔ 쌀 2) 단위. 목표: 두 섬 모두 1단계보다 쌀과 옷을 같거나 더 많이.
+ * 화면은 3장면·버튼 2번(작업 150): ① 혼자 살 때(5일:5일) → ② 잘하는 것을 많이 만들기(`example.riceDays`)
+ * → ③ 서로 바꾼 뒤(`example.units` 단위, 옷 3 = 쌀 2). 숫자·채점 규칙(core)은 그대로.
  */
 export type IslandId = 'A' | 'B';
 
 export const twoIslands = {
-  title: '두 섬 이야기',
+  /** 미니게임 화면 제목(사건 이름 '두 섬 이야기'와 별개) */
+  title: '㉮ 나라와 ㉯ 나라 이야기',
   scene: 'scenes/two-islands.png',
   islands: {
-    A: { id: 'A', label: '㉮섬', ricePerDay: 6, clothesPerDay: 12 },
-    B: { id: 'B', label: '㉯섬', ricePerDay: 5, clothesPerDay: 2 },
+    A: { id: 'A', label: '㉮ 나라', ricePerDay: 6, clothesPerDay: 12 },
+    B: { id: 'B', label: '㉯ 나라', ricePerDay: 5, clothesPerDay: 2 },
   },
   days: 10,
   /** 1단계 기본 배분(쌀에 쓰는 날) */
   defaultRiceDays: { A: 5, B: 5 },
-  /** 교환: ㉮섬이 옷 clothes 를 주고 ㉯섬이 쌀 rice 를 준다(1단위) */
+  /** 교환: ㉮ 나라가 옷 clothes 를 주고 ㉯ 나라가 쌀 rice 를 준다(1단위) */
   exchange: { clothes: 3, rice: 2 },
-  hint: '㉯섬은 쌀에, ㉮섬은 옷에 더 많은 날을 써 보세요.',
-  /** 검산 예(PRD 6.12.2) */
+  /** (작업 150부터 화면에서 쓰지 않음 — 슬라이더·[힌트] 없앰) */
+  hint: '㉯ 나라는 쌀에, ㉮ 나라는 옷에 더 많은 날을 써 보세요.',
+  /** 검산 예(PRD 6.12.2) = 화면 장면 2(잘하는 것에 집중)·장면 3(바꾸기) 값 */
   example: { riceDays: { A: 2, B: 10 }, units: 10 },
   endSentence: { text: '각 나라가 잘 만드는 것을 수출하고, 만들기 어려운 것을 수입하면 더 좋은 상품을 더 싸게 쓸 수 있어요.', pages: [99] },
   textbook: [
@@ -29,14 +30,14 @@ export const twoIslands = {
     { pages: [99], note: '여러 나라가 각각 효율적으로 생산하는 상품을 수출하고, 효율적으로 생산하기 어려운 상품을 수입하면 더 우수한 품질의 상품을 저렴한 가격으로 사용할 수 있습니다.' },
   ],
   reward: { money: 50, dexCard: 'trade-benefit' },
-  /** 이 시간(초) 안에 못 마치면 [힌트 보기 → 예시 따라 하기](보상 동일) */
+  /** (작업 150부터 쓰지 않음 — [예시 따라 하기]·3분 기다림 없앰. 값은 그대로 둠) */
   helpAfterSec: 180,
   gameRule: true,
 } as const;
 
 export interface IslandStock { rice: number; clothes: number }
 
-/** 쌀에 riceDays 일을 쓴 섬의 생산량 */
+/** 쌀에 riceDays 일을 쓴 나라의 생산량 */
 export function produce(island: IslandId, riceDays: number): IslandStock {
   const s = twoIslands.islands[island];
   return { rice: s.ricePerDay * riceDays, clothes: s.clothesPerDay * (twoIslands.days - riceDays) };

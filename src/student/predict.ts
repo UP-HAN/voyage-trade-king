@@ -16,8 +16,12 @@ import type { Action, ClassState, GameEvent, Player, PlayerView, PublicClass, Pu
 /** 학생이 받는 내 개인 상태(`state.me`): PlayerView + (있으면) 호스트가 실어 보낸 연출 이벤트 */
 export type MeView = PlayerView & { events?: GameEvent[] };
 
-/** 공개 정보만으로 계산할 수 없어 미리 보여 주지 않는 행동 */
-export const HOST_ONLY_ACTIONS: ReadonlySet<Action['type']> = new Set<Action['type']>(['setCompanyName']);
+/**
+ * 공개 정보만으로 계산할 수 없어 미리 보여 주지 않는 행동.
+ * (작업 151) 자유 항해 `sailTo`도 호스트 확정을 기다린다(그동안 '보내는 중') — 도착 사건(첫 입항 카드·싱가포르 개념 카드)을
+ * 호스트 결과(ack 이벤트)로 받아야 사건 층이 한 번만 정확히 띄운다(brief 위험 표: 학생 예측과 호스트 결과 어긋남)
+ */
+export const HOST_ONLY_ACTIONS: ReadonlySet<Action['type']> = new Set<Action['type']>(['setCompanyName', 'sailTo']);
 
 export class NoPredictError extends Error {
   constructor(readonly code: string) {

@@ -83,22 +83,31 @@ describe('판 단위', () => {
 });
 
 describe('기억(voyage.teacher.prefs)', () => {
-  it('저장·복원: 판 단위·차시·무역 시간·설정값, 학생 정보·고정값(overrides)은 없음', () => {
+  it('저장·복원: 판 단위·차시·무역 시간·설정값, 학생 정보·고정값(overrides)·진행 방식·학습지 방식은 없음', () => {
     const st = new MemStorage();
     const v = L1({ tradeMinutes: 10, className: '6-3', worksheetMode: 'stageEnd', leaderboardTopN: 5, progressMode: 'manual', overrides: { 'L1-E1': 'dropped' } });
     savePrefs(v, st);
     const raw = JSON.parse(st.getItem(PREFS_KEY) as string) as Record<string, unknown>;
     expect(Object.keys(raw).sort()).toEqual(
-      ['activityRatio', 'className', 'comeback', 'customScope', 'incidentFreq', 'leaderboardTopN', 'lesson', 'playUnit', 'progressMode', 'tradeMinutes', 'worksheetMode'].sort(),
+      ['activityRatio', 'className', 'comeback', 'customScope', 'incidentFreq', 'leaderboardTopN', 'lesson', 'playUnit', 'tradeMinutes'].sort(),
     );
     const back = loadPrefs(st);
     expect(back.playUnit).toBe('lesson');
     expect(back.lesson).toBe('L1');
     expect(back.tradeMinutes).toBe(10);
-    expect(back.worksheetMode).toBe('stageEnd');
+    expect(back.worksheetMode).toBe('auto');
     expect(back.leaderboardTopN).toBe(5);
-    expect(back.progressMode).toBe('manual');
+    expect(back.progressMode).toBe('auto');
     expect(back.overrides).toEqual({});
+  });
+
+  it('(작업 147) 예전에 기억한 진행 방식·학습지 방식이 남아 있어도 판마다 기본값(auto)으로 시작', () => {
+    const st = new MemStorage();
+    st.setItem(PREFS_KEY, JSON.stringify({ playUnit: 'lesson', lesson: 'L2', progressMode: 'manual', worksheetMode: 'after' }));
+    const v = loadPrefs(st);
+    expect(v.lesson).toBe('L2');
+    expect(v.progressMode).toBe('auto');
+    expect(v.worksheetMode).toBe('auto');
   });
 
   it('없거나 깨진 값이면 기본값(선택 없음), 범위 밖 시간은 5~90으로', () => {
@@ -132,5 +141,28 @@ describe('(작업 115) 차시별 준비 표시 LESSON_READY — 1·2차시만', 
     const st = new MemStorage();
     savePrefs({ ...defaultSetup(), playUnit: 'unit' }, st);
     expect(loadPrefs(st).playUnit).toBeNull();
+  });
+});
+
+describe('(작업 151) 항해 방식 — 1·2차시 차시 판 기본 자유롭게, 기억하지 않음', () => {
+  it('voyageModeOf: L1·L2 차시 판은 자유롭게(고르면 라운드마다), 그 밖은 라운드마다만', async () => {
+    const { voyageModeOf, freeVoyageAvailable } = await import('../../src/teacher/setup');
+    const base = defaultSetup();
+    expect(base.voyageMode).toBeNull();
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L1' })).toBe('free');
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L2' })).toBe('free');
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L2', voyageMode: 'round' })).toBe('round');
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L3', voyageMode: 'free' })).toBe('round');
+    expect(voyageModeOf({ ...base, playUnit: 'unit', voyageMode: 'free' })).toBe('round');
+    expect(voyageModeOf({ ...base, playUnit: 'custom', voyageMode: 'free' })).toBe('round');
+    expect(freeVoyageAvailable({ playUnit: 'lesson', lesson: 'L1' })).toBe(true);
+    expect(freeVoyageAvailable({ playUnit: 'lesson', lesson: null })).toBe(false);
+  });
+
+  it('기억하지 않는다', () => {
+    const st = new MemStorage();
+    savePrefs({ ...defaultSetup(), playUnit: 'lesson', lesson: 'L1', voyageMode: 'round' }, st);
+    expect(JSON.parse(st.getItem(PREFS_KEY)!)).not.toHaveProperty('voyageMode');
+    expect(loadPrefs(st).voyageMode).toBeNull();
   });
 });

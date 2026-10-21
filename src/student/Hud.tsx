@@ -46,6 +46,8 @@ export function timeInfo(cls: PublicClass, now: number): TimeInfo {
   }
   if (cls.phase === 'event') return { label: `${stage} · 활동`, round: null, trade, warn: false };
   if (cls.phase === 'worksheet') return { label: `${stage} · 잠깐!`, round: null, trade, warn: false };
+  // (작업 153 추가) 자유 항해 판의 라운드 사이는 쉬는 때가 아니다
+  if (cls.settings?.voyageMode === 'free' && cls.round >= 1 && !cls.tradeEnded) return { label: `${stage} · 자유 항해`, round: null, trade, warn: false };
   return { label: `${stage} · 쉬는 중`, round: null, trade, warn: false };
 }
 
@@ -83,7 +85,15 @@ export function Hud({
         <span class="st-hud__label">
           <CoinIcon /> 자금
         </span>
-        <span class="st-hud__num">{formatMoney(me.game.money)}</span>
+        <span class="st-hud__num">
+          {formatMoney(me.game.money)}
+          {/* (작업 151) 자유 항해: 라운드 끝에 낼 운항비 */}
+          {(me.game.fareDue ?? 0) > 0 && (
+            <small class="st-hud__due" data-testid="hud-fare-due">
+              {` (낼 운항비 ${me.game.fareDue})`}
+            </small>
+          )}
+        </span>
       </div>
       <div class="st-hud__stat" data-testid="hud-cargo">
         <span class="st-hud__label">

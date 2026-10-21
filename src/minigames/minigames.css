@@ -571,22 +571,37 @@
   color: var(--stamp-red);
 }
 
-/* ─────────── 두 섬 이야기 ─────────── */
+/* ─────────── 두 섬 이야기 = ㉮·㉯ 나라 이야기(작업 150: 3장면·버튼 2번, 글자 18px 이상) ─────────── */
+
+.mg--twoIslands .mg__kicker {
+  font-size: 18px;
+}
+
+.ti-pages {
+  font-size: 18px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
 
 .ti-steps {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 16px;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .ti-steps li {
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   border: 2px solid rgba(43, 35, 24, 0.25);
-  background: rgba(239, 226, 191, 0.75);
+  background: rgba(239, 226, 191, 0.85);
   color: var(--ink-soft);
 }
 
@@ -597,347 +612,218 @@
 }
 
 .ti-steps li.is-done {
+  border-color: #3c6a28;
   color: #3c6a28;
 }
 
-.ti-steps li.is-skipped {
-  opacity: 0.55;
+.ti-body {
+  gap: 12px;
 }
 
-.ti-islands {
+.ti-scene__title {
+  margin: 0;
+  font-size: 30px;
+  color: var(--sea);
+}
+
+.ti-lead {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.5;
+}
+
+.ti-nations {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 18px;
 }
 
-.ti-islands--trade {
-  grid-template-columns: 1fr minmax(280px, 0.8fr) 1fr;
+.ti-nations--s3 {
+  grid-template-columns: 1fr minmax(220px, 0.55fr) 1fr;
   gap: 12px;
-  flex: 1;
-  min-height: 0;
 }
 
-.ti-island {
+.ti-nation {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 16px;
   border: 3px solid var(--brass-dark);
   border-radius: 14px;
   background: rgba(239, 226, 191, 0.94);
 }
 
-.ti-island--A {
+.ti-nation--A {
   border-color: #3b6e8f;
 }
 
-.ti-island--B {
+.ti-nation--B {
   border-color: #6c8f4e;
 }
 
-.ti-island__head {
+.ti-nation__head {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 14px;
 }
 
-.ti-island__name {
+.ti-nation__name {
   margin: 0;
   font-size: 30px;
 }
 
-.ti-island__rate {
-  font-size: 18px;
+.ti-nation__days {
+  font-size: 19px;
   font-weight: 700;
+  color: var(--ink-soft);
 }
 
-.ti-days {
+.ti-row {
   display: grid;
-  grid-template-columns: 52px 1fr 52px;
+  grid-template-columns: 76px 1fr;
   align-items: center;
   gap: 8px;
 }
 
-.ti-days__btn {
-  min-width: 52px;
-  padding: 0;
-  font-size: 28px;
-}
-
-.ti-days__btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.ti-days__slider {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ti-days__text {
-  font-size: 20px;
-  text-align: center;
-}
-
-.ti-days__text b {
-  font-size: 26px;
-}
-
-.ti-days__slider input[type='range'] {
-  width: 100%;
-  height: 36px;
-  margin: 0;
-  accent-color: var(--sea-teal);
-  touch-action: pan-y;
-}
-
-.ti-made,
-.ti-after {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-  margin: 0;
-}
-
-.ti-after {
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: rgba(46, 125, 140, 0.12);
-}
-
-.ti-made__label {
-  min-width: 64px;
-  font-size: 17px;
-  color: var(--ink-soft);
-}
-
-.ti-amt {
+.ti-row__label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 20px;
-}
-
-.ti-amt .mg-num {
-  font-size: 24px;
-}
-
-.ti-amt--big .mg-num {
-  font-size: 32px;
-}
-
-.ti-goal {
-  margin: 0;
-  font-size: 17px;
-  color: var(--ink-soft);
-}
-
-.ti-judge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 700;
 }
 
-.ti-judge.is-ok {
-  color: #3c6a28;
+.ti-row__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.ti-judge.is-no {
+.ti-bar {
+  position: relative;
+  display: block;
+  height: 34px;
+  border-radius: 7px;
+  background: rgba(107, 90, 63, 0.12);
+  overflow: hidden;
+}
+
+.ti-nations--s3 .ti-bar {
+  height: 30px;
+}
+
+.ti-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 7px;
+  background: var(--sea-teal);
+  transition: width 0.3s ease-out;
+}
+
+.ti-bar--before .ti-bar__fill {
+  background: #b9a57a;
+}
+
+.ti-bar.is-short .ti-bar__fill {
+  background: #c0623f;
+}
+
+.ti-bar__val {
+  position: relative;
+  padding-left: 10px;
+  font-size: 19px;
+  line-height: 34px;
+  color: var(--ink);
+  text-shadow: 0 0 3px rgba(239, 226, 191, 0.95);
+  white-space: nowrap;
+}
+
+.ti-nations--s3 .ti-bar__val {
+  line-height: 30px;
+  font-size: 18px;
+}
+
+.ti-bar__val b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ti-bar__short {
+  font-style: normal;
+  font-weight: 700;
   color: #9a4227;
 }
 
-.ti-island--compact {
-  gap: 6px;
-  padding: 10px 14px;
-}
-
-.ti-island--compact .ti-island__name {
-  font-size: 28px;
-}
-
-.ti-trade {
+.ti-arrows {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 18px;
+  padding: 10px 8px;
   border: 3px solid var(--brass);
   border-radius: 14px;
   background: rgba(228, 211, 168, 0.95);
   text-align: center;
 }
 
-.ti-trade__rate {
-  margin: 0;
-  font-size: 19px;
-}
-
-.ti-trade__row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 20px;
-}
-
-.ti-trade__btns {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.ti-trade__btns .btn {
-  font-size: 20px;
-  padding: 10px 14px;
-}
-
-.ti-trade__btns .btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.ti-trade__note {
-  margin: 0;
-  font-size: 16px;
-  color: var(--ink-soft);
-}
-
-.ti-sum {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  font-size: 20px;
-}
-
-.ti-sum__cmp {
-  font-size: 17px;
-  color: var(--ink-soft);
-}
-
-.ti-hint {
-  margin: 0;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(242, 182, 109, 0.4);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.ti-status {
-  font-size: 19px;
-  font-weight: 700;
-  color: #9a4227;
-}
-
-.ti-status.is-ok {
-  color: #3c6a28;
-}
-
-/* 결과 막대그래프 */
-.ti-chart {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 24px;
-  padding: 10px 16px;
-  border: 2px solid var(--brass);
-  border-radius: 12px;
-  background: rgba(239, 226, 191, 0.95);
-}
-
-.ti-chart__island {
+.ti-arrows__item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.ti-chart__group {
-  display: grid;
-  grid-template-columns: 112px 1fr;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+  margin: 0;
 }
 
-.ti-chart__label {
+.ti-arrows__what {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 21px;
 }
 
-.ti-chart__bars {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.ti-arrows__what b {
+  font-size: 26px;
 }
 
-.ti-bar {
-  position: relative;
-  display: block;
-  height: 28px;
-  border-radius: 6px;
-  background: rgba(107, 90, 63, 0.12);
-  overflow: hidden;
-}
-
-.ti-bar__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 6px;
-}
-
-.ti-bar--s1 .ti-bar__fill {
-  background: #b9a57a;
-}
-
-.ti-bar--s3 .ti-bar__fill {
-  background: var(--sea-teal);
-}
-
-.ti-bar__val {
-  position: relative;
-  padding-left: 8px;
+.ti-arrows__to {
   font-size: 18px;
-  font-weight: 700;
-  line-height: 28px;
-  color: var(--ink);
-  text-shadow: 0 0 3px rgba(239, 226, 191, 0.9);
-}
-
-.ti-chart__legend {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 16px;
   color: var(--ink-soft);
 }
 
-.ti-key {
-  display: inline-block;
-  width: 22px;
-  height: 14px;
-  border-radius: 3px;
+.ti-arrow {
+  max-width: 100%;
+  height: auto;
 }
 
-.ti-key--s1 {
-  background: #b9a57a;
+.ti-arrows__item--clothes .ti-arrow {
+  color: #3b6e8f;
 }
 
-.ti-key--s3 {
-  margin-left: 12px;
-  background: var(--sea-teal);
+.ti-arrows__item--rice .ti-arrow {
+  color: #8d6c2c;
+}
+
+.ti-end {
+  font-size: 20px;
+}
+
+.ti-end cite {
+  font-size: 18px;
+}
+
+.ti-reward {
+  font-size: 18px;
+}
+
+.ti-btn {
+  font-size: 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ti-bar__fill {
+    transition: none;
+  }
 }
 
 @media (max-height: 700px) {

@@ -17,7 +17,7 @@ import { Dashboard } from './Dashboard';
 import { newTeacherGame, type TeacherGame } from './game';
 import { activeTabCode, createTeacherHost, markActiveTab, teacherStore, type TeacherHost } from './host';
 import { SetupScreen, type OpenError } from './SetupScreen';
-import { loadPrefs, savePrefs, scopeOf, type SetupValues } from './setup';
+import { loadPrefs, savePrefs, scopeOf, voyageModeOf, type SetupValues } from './setup';
 import { resumeInfoOf, StartScreen, type ResumeInfo } from './StartScreen';
 import './teacher.css';
 
@@ -174,6 +174,8 @@ function TeacherScreens() {
           comeback: v.comeback,
           leaderboardTopN: v.leaderboardTopN,
           progressMode: v.progressMode,
+          // (작업 151) 항해 방식(1·2차시 차시 판 기본 '자유롭게')
+          voyageMode: voyageModeOf(v),
         },
         overrides: v.overrides,
         seed,

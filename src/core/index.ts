@@ -5,7 +5,7 @@
 export * from './types';
 export { hashString, mixSeed, mulberry32, roundRandom, seededShuffle, signedRandom } from './rng';
 export {
-  activeEffects, clone, completedRound, createPlayer, defaultSettings, isEffectActive, isTrading, seatKey, stageRoundIndex,
+  activeEffects, canTrade, clone, completedRound, createPlayer, defaultSettings, isEffectActive, isTrading, seatKey, stageRoundIndex,
   startSession, visibleGoods, type CreateSessionInput, type NewPlayerInput,
 } from './state';
 export {
@@ -16,8 +16,11 @@ export {
   CHIP_PENALTY_MULTIPLIER, isPortClosed, jitter, limitMultiplier, marketTag, marketView, portPrice, quote, tariffFor, tariffForLot,
   voyageCostFor, type PortPrice, type Quote, type QuoteTag,
 } from './market';
-export { applyAction, canTakeLoan, cargoCapacity, cargoUsed, predict, stampFor, type ActionContext } from './rules';
-export { resolveRounds } from './voyage';
+export {
+  applyAction, canTakeLoan, cargoCapacity, cargoUsed, fareDueOf, isFreeVoyage, predict, sailsThisRoundOf, spendable, stampFor,
+  type ActionContext,
+} from './rules';
+export { arrive, resolveRounds } from './voyage';
 export {
   applyTeacherAction, catchUpQueue, CLOCK_TEACHER_ACTIONS, EVENT_RESULT_SHOW_SEC, hasResultView, HOST_TEACHER_ACTIONS, isBlocking, resultShowing, type SideEffect, type TeacherResult,
 } from './lesson';

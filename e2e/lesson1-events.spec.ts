@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { openActivities, openFold, openTvMenu, pickWorksheetMode } from './support/voyage-ui';
+import { openActivities, openFold, openTvMenu, pickVoyageMode, pickWorksheetMode } from './support/voyage-ui';
 
 /**
  * 작업 111 사건·결정 카드 e2e(`?sync=local`): 실제 교사 화면(#/teacher) + 공용 화면(#/screen, 1920×1080) + 학생 탭(#/play, 107 실제 화면).
@@ -52,6 +52,8 @@ async function openTeacher(
   await custom.blur();
   await expect(custom).toHaveValue(String(o.minutes));
   if (o.worksheetOff) await pickWorksheetMode(page, 'off'); // (작업 138) [고급 설정] 안, 보이는 말 '학습지 안 씀'
+  // (작업 153 정리) 1차시 기본이 '자유롭게'(151)가 됨 — 이 시험의 sailTo 는 목적지→[출항 준비] 흐름이라 '라운드마다'로 고른다
+  if (!o.unit) await pickVoyageMode(page, 'round');
   if (Object.keys(o.forms ?? {}).length) await openActivities(page); // (작업 138) [활동 직접 고치기] 안
   for (const [id, label] of Object.entries(o.forms ?? {})) {
     await page.getByTestId(`act-${id}`).getByRole('button', { name: label }).click();
@@ -180,18 +182,19 @@ async function finishMinigame(s: Page) {
       await q.getByTestId(`bk-q-${w}`).click();
     }
   } else if (id === 'L1-E5') {
-    if (await s.getByTestId('ti-example').count()) {
-      await s.getByTestId('ti-example').click();
-    } else {
-      while ((await mg.getAttribute('data-step')) !== 'stage3') {
-        await s.getByTestId('ti-next').click();
-        await pause();
-      }
-      await s.getByTestId('ti-A-slider').fill('2');
-      await s.getByTestId('ti-B-slider').fill('10');
-      for (let i = 0; i < 10; i++) await s.getByTestId('ti-units-plus').click();
+    // (작업 150 새 흐름, support/voyage-ui.ts finishMinigame과 같음) [ti-focus] → [ti-trade] → [ti-done]
+    if ((await mg.getAttribute('data-step')) === 'scene1') {
+      await s.getByTestId('ti-focus').click();
       await pause();
-      await s.getByTestId('ti-complete').click();
+    }
+    if ((await mg.getAttribute('data-step')) === 'scene2') {
+      await s.getByTestId('ti-trade').click();
+      await pause();
+    }
+    if (await s.getByTestId('ti-done').count()) {
+      await s.getByTestId('ti-done').click();
+      await expect(s.locator(`[data-testid="minigame"][data-event="${id}"]`)).toHaveCount(0);
+      return;
     }
   }
   await pause();
@@ -251,12 +254,17 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
     const c = cardOf(s, 'L1-E2');
     await expect(c).toBeVisible();
     await expect(c).toHaveAttribute('data-short', '0');
+    // (152) 학생 기기는 "TV 화면을 함께 봐요" 카드 → [내 화면에서 읽기]로 예전 긴 카드
+    await expect(s.getByTestId('event-tv-card')).toContainText('TV 화면을 함께 봐요');
+    if (s === s1) await shot(s1, 'student-L1-E2-tv-1366.png');
+    await s.getByTestId('event-tv-read-here').click();
     await expect(c.getByTestId('card-band')).toContainText('개념');
     await expect(c.getByTestId('card-pages')).toHaveText('교과서 연결 p.96');
     await expect(c.getByTestId('card-body')).toContainText('고려 입장에서');
     await expect(c.getByTestId('card-effects')).toContainText('도감 카드: 무역·수입·수출');
   }
   await expect(screenEvent(scr, 'L1-E2').getByTestId('card-title')).toHaveText('무역·수입·수출');
+  await expect(screenEvent(scr, 'L1-E2').getByTestId('concept-slides')).toHaveAttribute('data-total', '5'); // (152) TV 슬라이드
   await shot(s1, 'student-L1-E2-full-1366.png');
   await shot(scr, 'screen-L1-E2-full-1920.png');
   await s1.getByTestId('card-confirm').dblclick();
@@ -305,6 +313,7 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   for (const s of [s1, s2]) {
     const c = cardOf(s, 'L1-E4');
     await expect(c).toHaveAttribute('data-short', '1');
+    await s.getByTestId('event-tv-read-here').click(); // (152) TV 카드 → 긴 카드
     await expect(c.getByTestId('card-situation')).toHaveCount(1);
     await expect(c.getByTestId('card-situation')).toContainText('천연가스를 생산할 수 없다면');
     await expect(c.getByTestId('card-quote')).toContainText('교과서 연결 p.97');
@@ -495,6 +504,7 @@ test('B. 단원 한 판: L1-E2 짧은 형태, L1-E4 전체, L1-E7 카드에 unit
   await advanceUntil(ctx, t, async () => (await cardOf(s1, 'L1-E2').count()) > 0, 200);
   const e2 = cardOf(s1, 'L1-E2');
   await expect(e2).toHaveAttribute('data-short', '1');
+  await s1.getByTestId('event-tv-read-here').click(); // (152) TV 카드 → 긴 카드
   await expect(e2.getByTestId('card-body')).not.toContainText('고려');
   await expect(e2.getByTestId('card-band')).toContainText('짧게');
   await expect(screenEvent(scr, 'L1-E2')).toHaveAttribute('data-short', '1');
@@ -505,6 +515,7 @@ test('B. 단원 한 판: L1-E2 짧은 형태, L1-E4 전체, L1-E7 카드에 unit
   await advanceUntil(ctx, t, async () => (await cardOf(s1, 'L1-E4').count()) > 0, 400);
   const e4 = cardOf(s1, 'L1-E4');
   await expect(e4).toHaveAttribute('data-short', '0');
+  await s1.getByTestId('event-tv-read-here').click(); // (152) TV 카드 → 긴 카드
   await expect(e4.getByTestId('card-situation')).toHaveCount(2);
   await expect(e4.getByTestId('card-situation').nth(1)).toContainText('비행기를 만드는 기술이 없다면');
   await shot(s1, 'student-L1-E4-full-1366.png');

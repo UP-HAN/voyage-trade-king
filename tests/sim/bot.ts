@@ -2,7 +2,8 @@
  * 작업 114 시뮬레이션 봇(화면 없는 학생): 학생 저장소 상태(public·me)만 보고 무작위로 행동 하나를 고른다.
  * Memory 시뮬레이션(tests/sim)과 실제 중계 서버 e2e의 헤드리스 봇(e2e/support/bot-harness.ts)이 같이 쓴다 — node 전용 코드 없음.
  */
-import { AVATAR_IDS, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, marketView, type Action, type PublicPayload } from '../../src/core';
+import { AVATAR_IDS, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, isPortClosed, marketView, voyageCostFor, type Action, type PublicPayload } from '../../src/core';
+
 import { mailbox } from '../../src/core/letters';
 import { byeokrandoItems } from '../../src/data/byeokrando';
 import { checkQuiz } from '../../src/data/checkQuiz';
@@ -10,6 +11,9 @@ import { eventsById } from '../../src/data/events';
 import { factoryCards } from '../../src/student/port/factory';
 import { classForPredict, playerForPredict } from '../../src/student/predict';
 import type { StudentStore } from '../../src/student/store';
+
+/** (작업 153 추가) 규칙의 항해 횟수 제한은 없앴다 — 봇만 라운드당 이 횟수에서 멈춘다(끝없이 왕복하지 않게) */
+const BOT_SAILS_PER_ROUND = 3;
 
 /** 봇이 보는 학생(저장소 + 오류 기록) */
 export interface BotStudent {
@@ -106,6 +110,9 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
   const c = classForPredict(cls);
   const p = playerForPredict(me);
   const view = marketView(c, p, me.game.port);
+  // (작업 151) 자유 항해: 쓸 수 있는 돈 = 자금 − 낼 운항비, 라운드마다 1~3번 [여기로 출발]
+  const free = cls.settings.voyageMode === 'free';
+  const money = free ? me.game.money - (me.game.fareDue ?? 0) : me.game.money;
   // (작업 115) 2차시~: 부산에서 재료가 있으면 공장에서 만든다
   if (cls.features.includes('factory') && me.game.port === 'BUS' && rand() < 0.6) {
     const can = factoryCards(c, p).find((f) => f.max > 0);
@@ -118,12 +125,18 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
     if (q && q.sell !== null && !q.cannotSell) return { type: 'sell', good: lot.good, qty: Math.max(1, Math.min(lot.qty, 1 + Math.floor(rand() * lot.qty))) };
   }
   if (r < 0.7) {
-    const buyable = view.filter((q) => q.buy !== null && q.buyLeft > 0 && q.buy <= me.game.money);
+    const buyable = view.filter((q) => q.buy !== null && q.buyLeft > 0 && q.buy <= money);
     if (buyable.length) {
       const q = buyable[Math.floor(rand() * buyable.length)]!;
-      const maxQty = Math.min(q.buyLeft, Math.floor(me.game.money / (q.buy as number)), 5);
+      const maxQty = Math.min(q.buyLeft, Math.floor(money / (q.buy as number)), 5);
       if (maxQty >= 1) return { type: 'buy', good: q.good, qty: 1 + Math.floor(rand() * maxQty) };
     }
+  }
+  if (free) {
+    if ((me.game.sailsThisRound ?? 0) >= BOT_SAILS_PER_ROUND || rand() < 0.5) return null;
+    const tail = me.game.effects.tailwind > 0;
+    const ports = cls.openPorts.filter((x) => x !== me.game.port && !isPortClosed(c, x) && (tail || voyageCostFor(c, p, me.game.port, x) <= money));
+    return ports.length ? { type: 'sailTo', port: ports[Math.floor(rand() * ports.length)]! } : null;
   }
   if (!me.game.dest || rand() < 0.2) {
     const ports = cls.openPorts.filter((x) => x !== me.game.port);

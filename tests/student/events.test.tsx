@@ -198,17 +198,27 @@ function fakeStore(log: unknown[]): StudentStore {
 
 const byTestId = (root: FakeElement, id: string) => root.find((e) => e.getAttribute('data-testid') === id);
 
+/** (152) 학급 상태에 지금 사건을 바로 넣는다(배치·발동 규칙과 상관없이 층 그리기만 확인) */
+function withEvent(s: HostSnapshot, id: string, short = false): HostSnapshot {
+  return { ...s, class: { ...s.class, phase: 'event', currentEvent: { id, openedAt: 0, closesAt: null, closed: false, short } } };
+}
+
 describe('EventLayer 렌더', () => {
-  it('L1-E2 차단형 카드(가운데, 어두운 층) → [확인] 한 번만 respondEvent(연속 클릭 가드)', () => {
+  it('(152) L1-E2 차단형 개념 카드(가운데, 어두운 층) → "TV 화면을 함께 봐요" 카드, [다 봤어요] 한 번만 respondEvent(연속 클릭 가드)', () => {
     let s = founded(teach(makeSession({ n: 1 }), { type: 'fireEvent', id: 'L1-E2' }), 1);
     s = { ...s, class: { ...s.class, phase: 'event' } };
     const log: unknown[] = [];
     const root = mount(<EventLayer store={fakeStore(log)} st={fakeState(s, player(s, 1))} />);
-    const card = byTestId(root, 'event-card')[0]!;
-    expect(card.getAttribute('data-short')).toBe('0');
-    expect(byTestId(root, 'card-band')[0]!.textContent).toContain('개념');
-    expect(byTestId(root, 'card-pages')[0]!.textContent).toBe('교과서 연결 p.96');
+    const tv = byTestId(root, 'event-tv-card')[0]!;
+    expect(tv.getAttribute('data-event')).toBe('L1-E2');
+    expect(byTestId(root, 'event-tv-band')[0]!.textContent).toBe('개념 공부');
+    expect(byTestId(root, 'event-tv-title')[0]!.textContent).toBe('무역·수입·수출');
+    expect(tv.textContent).toContain('TV 화면을 함께 봐요');
+    expect(byTestId(root, 'event-tv-note')[0]!.textContent).toBe("선생님과 같이 읽어요. 이 내용은 나중에 [도감]의 '무역·수입·수출'에서 다시 볼 수 있어요.");
+    // 긴 본문은 학생 기기에 없다
+    expect(byTestId(root, 'card-body')).toHaveLength(0);
     expect(root.find((e) => e.getAttribute('data-layer') === 'event')).toHaveLength(1);
+    expect(byTestId(root, 'card-confirm')[0]!.textContent).toBe('다 봤어요');
     act(() => {
       byTestId(root, 'card-confirm')[0]!.dispatch('click');
     });
@@ -218,14 +228,70 @@ describe('EventLayer 렌더', () => {
     expect(log).toEqual([{ type: 'respondEvent', eventId: 'L1-E2', response: { seen: true } }]);
   });
 
-  it('L1-E2 짧은 형태·L1-E4 짧은 형태(상황 카드 1장)', () => {
+  it('(152) [내 화면에서 읽기] → 예전 긴 카드(띠·쪽수·본문, [확인] → seen)', () => {
+    const s = founded(teach(makeSession({ n: 1 }), { type: 'fireEvent', id: 'L1-E2' }), 1);
+    const log: unknown[] = [];
+    const root = mount(<EventLayer store={fakeStore(log)} st={fakeState(s, player(s, 1))} />);
+    act(() => {
+      byTestId(root, 'event-tv-read-here')[0]!.dispatch('click');
+    });
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(0);
+    const card = byTestId(root, 'event-card')[0]!;
+    expect(card.getAttribute('data-short')).toBe('0');
+    expect(byTestId(root, 'card-band')[0]!.textContent).toContain('개념');
+    expect(byTestId(root, 'card-pages')[0]!.textContent).toBe('교과서 연결 p.96');
+    expect(byTestId(root, 'card-body')[0]!.textContent).toContain('고려 입장에서');
+    act(() => {
+      byTestId(root, 'card-confirm')[0]!.dispatch('click');
+    });
+    expect(log).toEqual([{ type: 'respondEvent', eventId: 'L1-E2', response: { seen: true } }]);
+  });
+
+  it('(152) L1-E4·L2-E2도 TV 카드, 도감 카드 이름', () => {
+    let s = founded(teach(makeSession({ n: 1 }), { type: 'fireEvent', id: 'L1-E4' }), 1);
+    let root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')[0]!.getAttribute('data-event')).toBe('L1-E4');
+    expect(byTestId(root, 'event-tv-note')[0]!.textContent).toContain("[도감]의 '무역이 필요한 까닭'");
+    s = founded(withEvent(makeSession({ n: 1, scope: ['L2'] }), 'L2-E2'), 1);
+    root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')[0]!.getAttribute('data-event')).toBe('L2-E2');
+    expect(byTestId(root, 'event-tv-title')[0]!.textContent).toBe('부산 공장 개장');
+    expect(byTestId(root, 'event-tv-note')[0]!.textContent).toContain("[도감]의 '우리나라 무역의 특징'");
+  });
+
+  it('L1-E2 짧은 형태·L1-E4 짧은 형태(상황 카드 1장) — TV 카드, [내 화면에서 읽기]로 짧은 긴 카드', () => {
     let s = founded(teach(makeSession({ n: 1 }), { type: 'fireEvent', id: 'L1-E4', short: true }), 1);
     let root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(1);
+    act(() => {
+      byTestId(root, 'event-tv-read-here')[0]!.dispatch('click');
+    });
     expect(byTestId(root, 'event-card')[0]!.getAttribute('data-short')).toBe('1');
     expect(byTestId(root, 'card-situation')).toHaveLength(1);
     s = founded(teach(makeSession({ n: 1 }), { type: 'fireEvent', id: 'L1-E2', short: true }), 1);
     root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(1);
+    act(() => {
+      byTestId(root, 'event-tv-read-here')[0]!.dispatch('click');
+    });
     expect(byTestId(root, 'card-body')[0]!.textContent).not.toContain('고려');
+  });
+
+  it('(152) 표지(L1-COVER)·세관 게시판(L2-E6)·L2-E5 패널은 예전 그대로(TV 카드 없음)', () => {
+    let s = founded(withEvent(makeSession({ n: 1 }), 'L1-COVER'), 1);
+    let root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(0);
+    expect(byTestId(root, 'event-card')).toHaveLength(0);
+    s = founded(withEvent(makeSession({ n: 1, scope: ['L2'] }), 'L2-E6'), 1);
+    root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(0);
+    expect(byTestId(root, 'event-card')[0]!.getAttribute('data-event')).toBe('L2-E6');
+    expect(byTestId(root, 'card-title')[0]!.textContent).toBe('세관 게시판');
+    s = founded(withEvent(makeSession({ n: 1, scope: ['L2'] }), 'L2-E5'), 1);
+    root = mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+    expect(byTestId(root, 'event-tv-card')).toHaveLength(0);
+    // 비차단(오른쪽 패널·임무 패널 쪽) — 가운데 차단 층이 없다
+    expect(root.find((e) => e.getAttribute('data-layer') === 'event')).toHaveLength(0);
   });
 
   it('L1-E6 비차단: 오른쪽 패널(어두운 층 없음), 가상 뉴스 띠, 효과 요약', () => {
@@ -298,5 +364,58 @@ describe('(수정 1회차) 마감 뒤 결과 표시', () => {
   it('explainText: 끝의 "(교과서 n쪽)"만 뺀다', () => {
     expect(explainText('수출이라고 해요. (교과서 96쪽)')).toBe('수출이라고 해요.');
     expect(explainText('그대로')).toBe('그대로');
+  });
+});
+
+describe('(작업 153) 2차시 임무 패널 "먼저 할 일"', () => {
+  function l2Panel(withCargo: boolean): FakeElement {
+    let s = startFirstRound(makeSession({ n: 1, scope: ['L2'], playUnit: 'lesson' }));
+    s = founded(teach(s, { type: 'fireEvent', id: 'L2-E3' }), 1);
+    // 임무 3개 모두 패널에 오게(배치에서는 라운드 1 시작에 함께 붙는다)
+    s = editPlayer(s, 1, (p) => {
+      for (const id of ['M-IPE', 'M-EXPORT4', 'M-RELAY']) p.game.missions[id] ??= { status: 'active', steps: [] } as never;
+    });
+    if (!withCargo) s = editPlayer(s, 1, (p) => { p.game.log = p.game.log.filter((e) => e.ref !== 'startCargo'); });
+    return mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+  }
+
+  it('처음 화물이 있으면: 제목 바로 아래·목록 위에 먼저 할 일 상자, 처음 화물 글은 그 안에 한 번만', () => {
+    const root = l2Panel(true);
+    const panel = byTestId(root, 'mission-panel')[0]!;
+    expect(panel).toBeDefined();
+    const first = byTestId(panel, 'mission-first');
+    expect(first).toHaveLength(1);
+    expect(first[0]!.getAttribute('class')).toBe('ev-first');
+    expect(first[0]!.textContent).toContain('먼저 할 일: 부산 [항구 들어가기] → [공장]에서 원유로 석유 제품 만들기');
+    const cargo = byTestId(root, 'mission-start-cargo');
+    expect(cargo).toHaveLength(1);
+    expect(cargo[0]!.textContent).toBe('우리 배에 담맘에서 사 온 원유 2상자가 실려 있어요. 만든 상품을 다른 나라에 팔면 [수출] 도장을 받아요.');
+    expect(byTestId(first[0]!, 'mission-start-cargo')).toHaveLength(1);
+    // 위치: 제목 다음, 임무 목록 앞
+    const text = panel.textContent;
+    const iTitle = text.indexOf('2차시 임무');
+    const iFirst = text.indexOf('먼저 할 일');
+    const iList = text.indexOf('자원 수입 → 생산 → 수출');
+    expect(iTitle).toBeGreaterThanOrEqual(0);
+    expect(iTitle).toBeLessThan(iFirst);
+    expect(iFirst).toBeLessThan(iList);
+    expect(text.split('원유 2상자').length - 1).toBe(1);
+    expect(byTestId(root, 'card-confirm')[0]!.getAttribute('data-role')).toBe('mission-panel-ok');
+  });
+
+  it('처음 화물이 없으면: "먼저 할 일: 위에서 첫 번째 임무부터 해요"', () => {
+    const root = l2Panel(false);
+    expect(byTestId(root, 'mission-first')[0]!.textContent).toBe('먼저 할 일: 위에서 첫 번째 임무부터 해요');
+    expect(byTestId(root, 'mission-start-cargo')).toHaveLength(0);
+  });
+
+  it('꼭 할 임무가 아닌 것(수출국 4유형·싱가포르 중계)에만 " · 시간 나면" 꼬리표', () => {
+    const root = l2Panel(true);
+    const items = root.find((e) => (e.getAttribute('data-testid') ?? '').startsWith('mission-intro-'));
+    const opt = Object.fromEntries(items.map((li) => [li.getAttribute('data-testid'), li.find((e) => e.getAttribute('class') === 'ev-missions__opt').length]));
+    expect(opt['mission-intro-M-IPE']).toBe(0);
+    expect(opt['mission-intro-M-EXPORT4']).toBe(1);
+    expect(opt['mission-intro-M-RELAY']).toBe(1);
+    expect(items.find((li) => li.getAttribute('data-testid') === 'mission-intro-M-RELAY')!.textContent).toContain(' · 시간 나면');
   });
 });

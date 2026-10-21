@@ -8,7 +8,7 @@ import type { WorksheetPlacement } from '../core';
 import type { LessonId } from '../data/types';
 
 /** 교사 화면에 보이면 안 되는 옛 말(설정 [고급] 맨 아래 작은 글씨 "배치 n판"은 예외 — 시험이 그 부분만 빼고 검사) */
-export const OLD_TEACHER_TERMS = /1등급|2등급|3등급|배치 \d+판|발동|빠진 활동|입장 마감|출항 준비|일시정지|발표 모드|마감/;
+export const OLD_TEACHER_TERMS = /1등급|2등급|3등급|배치 \d+판|발동|빠진 활동|입장 마감|항해 준비|일시정지|발표 모드|마감/;
 
 /** 활동 등급 → 쉬운 말(꼬리표는 '꼭 할 활동'만 대시보드에 표시) */
 export const TIER_TEXT: Readonly<Record<1 | 2 | 3, string>> = {

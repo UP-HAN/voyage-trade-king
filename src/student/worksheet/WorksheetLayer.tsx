@@ -30,7 +30,7 @@ import {
   type HelperPublic,
 } from '../../core/worksheet-helpers';
 import { DURING_AFTER_NEWS_TEXT } from '../../data/schedule';
-import { bundleTitle, duringLabel, worksheetById } from '../../data/worksheet';
+import { bundleTitle, duringLabel, worksheetById, worksheetFor } from '../../data/worksheet';
 import type { WorksheetId } from '../../data/types';
 import { resentWorksheets } from '../../core/host';
 import { fx } from '../../ui/common/fx';
@@ -71,6 +71,23 @@ export function openWorksheetIds(cls: PublicClass): WorksheetId[] {
 export function allDone(me: MeView, ids: readonly WorksheetId[], during = false): boolean {
   const done = during ? (me.game.duringDone ?? []) : me.game.worksheetDone;
   return ids.length > 0 && ids.every((id) => done.includes(id));
+}
+
+/**
+ * (작업 153) 팝업 머리 아래 '오늘 학습지 순서' 한 줄의 조각: 팝업 첫 번호와 같은 차시의 무역 학습지(번호 순).
+ * 다 쓴 번호 `⑤✓`, 지금 팝업 번호 `⑥ 지금`(now: true → 굵게), 아직 `⑦`.
+ */
+export function worksheetOrderParts(me: MeView, ids: readonly WorksheetId[]): { id: WorksheetId; text: string; now: boolean }[] {
+  const first = worksheetById[ids[0]];
+  if (!first || first.lesson === 'optional') return [];
+  const done = me.game.worksheetDone;
+  return worksheetFor(first.lesson as Exclude<typeof first.lesson, 'optional'>)
+    .filter((w) => w.phase === 'trade')
+    .sort((a, b) => a.no - b.no)
+    .map((w) => {
+      const now = ids.includes(w.id);
+      return { id: w.id, now, text: now ? `${w.label} 지금` : done.includes(w.id) ? `${w.label}✓` : w.label };
+    });
 }
 
 /** 지금 쓰기 팝업 문구: during.prompt(+ 보도 앞 덧붙임) */
@@ -247,6 +264,7 @@ function WorksheetPopup({
     lastAt.current = t;
     act({ type: 'markWorksheetDone', ids, ...(during ? { during: true } : {}) });
   };
+  const order = worksheetOrderParts(me, ids);
   const stageMode = cls.schedule.stageModes?.[stage as keyof NonNullable<typeof cls.schedule.stageModes>] ?? cls.worksheet.mode;
   return (
     <div
@@ -267,6 +285,17 @@ function WorksheetPopup({
       <p class="ws-tag" data-testid="worksheet-tag">
         {tag}
       </p>
+      {!during && order.length > 1 && (
+        <p class="ws-order" data-testid="worksheet-order">
+          오늘 학습지:{' '}
+          {order.map((o, i) => (
+            <span key={o.id} data-id={o.id}>
+              {i > 0 && ' → '}
+              {o.now ? <b>{o.text}</b> : o.text}
+            </span>
+          ))}
+        </p>
+      )}
       {personal && (
         <p class="ws-personal" data-testid="worksheet-personal">
           선생님이 다시 보낸 학습지예요

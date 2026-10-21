@@ -198,8 +198,13 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
           <p>
             위치 {portsById[g.port]?.name ?? g.port}
             {g.dest ? ` → ${portsById[g.dest]?.name ?? g.dest}` : ''} · 자금 {moneyText(g.money)}만 원
-            {g.loan ? ` · 대출 ${moneyText(g.loan)}만 원` : ''} · {g.ready ? '항해 준비 끝냄' : '항해 준비 안 함'}
+            {g.loan ? ` · 대출 ${moneyText(g.loan)}만 원` : ''}
+            {game?.class.settings.voyageMode === 'free' ? '' : ` · ${g.ready ? '출항 준비 끝냄' : '출항 준비 안 함'}`}
           </p>
+          {/* (작업 151) 자유 항해: 라운드 끝에 낼 운항비 */}
+          {game?.class.settings.voyageMode === 'free' && (g.fareDue ?? 0) > 0 && (
+            <p data-testid="drawer-fare-due">낼 운항비 {moneyText(g.fareDue ?? 0)}만 원</p>
+          )}
           <p>
             화물:{' '}
             {cargo.length

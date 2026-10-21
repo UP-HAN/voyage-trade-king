@@ -454,6 +454,7 @@ describe("(작업 132) 지금 쓰기 ③★·⑭★ 팝업", () => {
     expect(text(byTest('worksheet-pages')[0])).toBe('교과서 98~99쪽');
     expect(text(byTest('worksheet-helper')[0])).toContain('[내 기록:');
     expect(text(byTest('worksheet-during-rest')[0])).toBe('나머지 칸은 끝나고 써요');
+    expect(byTest('worksheet-order')).toHaveLength(0); // (작업 153) ★ 팝업에는 '오늘 학습지' 줄 없음
     act(() => {
       byTest('worksheet-done')[0]!.dispatch('click');
     });
@@ -506,5 +507,42 @@ describe("(작업 132) 지금 쓰기 ③★·⑭★ 팝업", () => {
     mount(<WorksheetScene d={d} now={NOW} code="482137" address={{ display: 'x', url: 'x' }} />);
     expect(text(byTest('ws-title')[0])).toBe('잠깐! ③★ 지금 써요');
     expect(text(byTest('ws-done-count')[0])).toBe('1/2');
+  });
+});
+
+describe('(작업 153) 팝업 "오늘 학습지 순서" 한 줄', () => {
+  const orderOf = () => {
+    const el = byTest('worksheet-order')[0];
+    return { text: text(el), bold: el ? el.find((x) => (x as unknown as { tagName?: string }).tagName?.toLowerCase() === 'b').map((b) => text(b)) : [] };
+  };
+  const doneSnap = (s: HostSnapshot, ids: WorksheetId[]) => {
+    const k = seatKey(1);
+    return { ...s, players: { ...s.players, [k]: { ...s.players[k], game: { ...s.players[k].game, worksheetDone: [...s.players[k].game.worksheetDone, ...ids] } } } };
+  };
+
+  it('2차시 ⑤ 팝업: "오늘 학습지: ⑤ 지금 → ⑥ → ⑦ → ⑧"(⑤ 굵게)', () => {
+    mountStudent(snapWith(['W05'], { scope: ['L2'] }));
+    expect(orderOf()).toEqual({ text: '오늘 학습지: ⑤ 지금 → ⑥ → ⑦ → ⑧', bold: ['⑤ 지금'] });
+  });
+
+  it('⑤를 쓴 뒤 ⑥ 팝업: "오늘 학습지: ⑤✓ → ⑥ 지금 → ⑦ → ⑧"', () => {
+    mountStudent(doneSnap(snapWith(['W06'], { scope: ['L2'] }), ['W05']));
+    expect(orderOf()).toEqual({ text: '오늘 학습지: ⑤✓ → ⑥ 지금 → ⑦ → ⑧', bold: ['⑥ 지금'] });
+  });
+
+  it('1차시 ① 팝업: "오늘 학습지: ① 지금 → ② → ③ → ④"', () => {
+    mountStudent(snapWith(['W01']));
+    expect(orderOf().text).toBe('오늘 학습지: ① 지금 → ② → ③ → ④');
+  });
+
+  it('묶음 팝업이면 지금 번호가 모두 굵게', () => {
+    mountStudent(snapWith(['W01', 'W02', 'W03', 'W04']));
+    expect(orderOf()).toEqual({ text: '오늘 학습지: ① 지금 → ② 지금 → ③ 지금 → ④ 지금', bold: ['① 지금', '② 지금', '③ 지금', '④ 지금'] });
+  });
+
+  it("마무리 '끝나고 쓰기' 목록에는 없다", () => {
+    const s = snapWith([], { phase: 'wrapup' });
+    mountStudent({ ...s, class: { ...s.class, worksheet: { ...s.class.worksheet, current: null } } });
+    expect(byTest('worksheet-order')).toHaveLength(0);
   });
 });

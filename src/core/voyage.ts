@@ -21,7 +21,8 @@ import type { ClassState, GameEvent, Player } from './types';
 /** 항구 카드를 이만큼 보면 '나라마다 다른 까닭' 카드(dex.ts unlock 문구) */
 const TRADE_REASONS_PORTS = 3;
 
-function arrive(cs: ClassState, p: Player, port: PortId, round: number, events: GameEvent[]): void {
+/** 입항 처리(라운드 항해·자유 항해 `sailTo` 공용, 작업 151에서 내보냄) */
+export function arrive(cs: ClassState, p: Player, port: PortId, round: number, events: GameEvent[]): void {
   const first = !p.game.metrics.visited.includes(port);
   p.game.port = port;
   p.game.visit = { arrival: p.game.visit.arrival + 1, sold: {}, bought: {} };
@@ -44,14 +45,45 @@ function arrive(cs: ClassState, p: Player, port: PortId, round: number, events: 
   }
 }
 
+/**
+ * (작업 151) 자유 항해 운항비 정산: money −= fareDue. 모자라면 모자란 만큼 대출로(긴급 대출과 같은 처리, PRD 6.8).
+ * 사건 fareSettled(0원이어도), fareDue·sailsThisRound 를 0으로.
+ */
+function settleFare(cs: ClassState, p: Player, round: number, events: GameEvent[]): void {
+  const g = p.game;
+  const amount = Math.max(0, g.fareDue ?? 0);
+  g.money -= amount;
+  if (g.money < 0) {
+    const short = -g.money;
+    g.loan += short;
+    g.money = 0;
+    events.push({ type: 'loan', amount: short });
+    g.log.push({ round, stage: cs.stage, kind: 'loan', amount: short, ref: 'fare' });
+  }
+  events.push({ type: 'fareSettled', amount, round });
+  g.fareDue = 0;
+  g.sailsThisRound = 0;
+}
+
 /** 놓친 라운드까지 모두 처리(순수·멱등) */
 export function resolveRounds(cs: ClassState, player: Player): { player: Player; events: GameEvent[] } {
   const upTo = completedRound(cs);
-  if (player.game.resolvedRound >= upTo) return { player, events: [] };
+  // (작업 153 추가) 자유 항해는 라운드 사이에도 항해하므로, 무역이 끝날 때 남은 낼 운항비를 한 번 더 정산한다
+  const settleAtEnd = cs.settings?.voyageMode === 'free' && cs.tradeEnded && (player.game.fareDue ?? 0) > 0;
+  if (player.game.resolvedRound >= upTo && !settleAtEnd) return { player, events: [] };
   const p = clone(player);
   const events: GameEvent[] = [];
+  const freeMode = cs.settings?.voyageMode === 'free';
   for (let r = p.game.resolvedRound + 1; r <= upTo; r++) {
     const g = p.game;
+    if (freeMode) {
+      // (작업 151, PRD 4.3.7.1) 자유 항해: 배는 이미 라운드 중에 옮겼다 → 라운드 끝에 낼 운항비를 한꺼번에 정산
+      settleFare(cs, p, r, events);
+      g.dest = null;
+      g.ready = false;
+      g.resolvedRound = r;
+      continue;
+    }
     const dest = g.dest;
     if (!dest) {
       events.push({ type: 'stayed', port: g.port, round: r, reason: 'noDestination' });
@@ -78,6 +110,7 @@ export function resolveRounds(cs: ClassState, player: Player): { player: Player;
     g.ready = false;
     g.resolvedRound = r;
   }
+  if (freeMode && cs.tradeEnded && (p.game.fareDue ?? 0) > 0) settleFare(cs, p, upTo, events);
   // 자금 0·화물 0 → 긴급 대출(탈락 없음, PRD 6.8)
   if (canTakeLoan(cs, p)) takeLoan(cs, p, events);
   p.rev = player.rev + 1;

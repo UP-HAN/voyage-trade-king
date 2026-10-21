@@ -16,7 +16,8 @@ import { AVATAR_IDS, basicNameValidator, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, type N
 import { applyLetterAnswer } from './letters';
 import { isPortClosed, quote, tariffForLot, voyageCostFor } from './market';
 import { grantDex, isForeignRaw, onBuy, onProduce, onSell } from './progress';
-import { clone, isTrading, LESSON_ORDER } from './state';
+import { canTrade, clone, fareDueOf, isFreeVoyage, isTrading, LESSON_ORDER, sailsThisRoundOf, spendable } from './state';
+import { arrive } from './voyage';
 import type { Action, ActionResult, CargoLot, ClassState, GameEvent, Player, StampKind } from './types';
 
 /** 호스트가 넣어 주는 추가 정보(학생 기기의 미리 계산에서는 없어도 됨) */
@@ -26,6 +27,12 @@ export interface ActionContext {
   /** 다른 회사가 쓰는 이름 비교 키(호스트만 앎) */
   takenKeys?: readonly string[];
 }
+
+// (작업 153 추가, 교사 결정 2026-10-21) 자유 항해 라운드당 항해 상한(옛 FREE_SAILS_PER_ROUND = 3)은 없앴다 — 횟수 제한 없음.
+// sailsThisRound 는 '이번 라운드 항해 n번' 표시용으로만 센다.
+
+// (작업 151) 자유 항해 도우미는 순환 import 를 피하려고 state.ts 에 두고 여기서 다시 내보낸다
+export { fareDueOf, isFreeVoyage, sailsThisRoundOf, spendable };
 
 const fail = (player: Player, error: string): ActionResult => ({ player, events: [], error });
 
@@ -79,7 +86,7 @@ export function takeLoan(cs: ClassState, p: Player, events: GameEvent[]): void {
 }
 
 function buy(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameEvent[]): string | null {
-  if (!isTrading(cs)) return 'NOT_TRADING';
+  if (!canTrade(cs)) return 'NOT_TRADING';
   if (!isPosInt(qty)) return 'BAD_QTY';
   const port = p.game.port;
   const q = quote(cs, p, port, good);
@@ -92,7 +99,7 @@ function buy(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameE
     if ((rc.buy[good] ?? 0) + qty > serviceRules.maxContractsPerRound) return 'CONTRACT_LIMIT';
   } else if (cargoUsed(p) + qty > cargoCapacity(p)) return 'NO_SPACE';
   const cost = q.buy * qty;
-  if (cost > p.game.money) return 'NO_MONEY';
+  if (cost > spendable(cs, p)) return 'NO_MONEY';
 
   const korea = q.tag === 'domestic' || (q.tag === 'S' && port === 'BUS');
   const lot: CargoLot = {
@@ -119,7 +126,7 @@ function buy(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameE
 }
 
 function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameEvent[]): string | null {
-  if (!isTrading(cs)) return 'NOT_TRADING';
+  if (!canTrade(cs)) return 'NOT_TRADING';
   if (!isPosInt(qty)) return 'BAD_QTY';
   const port = p.game.port;
   const q = quote(cs, p, port, good);
@@ -201,7 +208,7 @@ function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: Game
 }
 
 function produce(cs: ClassState, p: Player, recipeId: GoodId, qty: number, events: GameEvent[]): string | null {
-  if (!isTrading(cs)) return 'NOT_TRADING';
+  if (!canTrade(cs)) return 'NOT_TRADING';
   if (!isPosInt(qty)) return 'BAD_QTY';
   if (!cs.features.includes('factory')) return 'NO_FACTORY';
   if (p.game.port !== 'BUS') return 'NOT_AT_BUSAN';
@@ -210,7 +217,7 @@ function produce(cs: ClassState, p: Player, recipeId: GoodId, qty: number, event
   if (LESSON_ORDER[r.unlockLesson] > LESSON_ORDER[cs.stage]) return 'LOCKED_RECIPE';
   if (r.requires === 'techRaceWinner' && !p.game.unlockedRecipes.includes(recipeId)) return 'LOCKED_RECIPE';
   const fee = r.fee * qty;
-  if (fee > p.game.money) return 'NO_MONEY';
+  if (fee > spendable(cs, p)) return 'NO_MONEY';
   for (const [g, n] of Object.entries(r.inputs) as [GoodId, number][]) {
     const have = p.game.cargo.filter((l) => l.good === g).reduce((s, l) => s + l.qty, 0);
     if (have < n * qty) return 'NO_INPUT';
@@ -261,9 +268,35 @@ function setDestination(cs: ClassState, p: Player, port: PortId | null, events: 
   if (isPortClosed(cs, port)) return 'PORT_CLOSED';
   const free = p.game.effects.tailwind > 0;
   const cost = voyageCostFor(cs, p, p.game.port, port);
-  if (!free && cost > p.game.money) return 'NO_MONEY';
+  if (!free && cost > spendable(cs, p)) return 'NO_MONEY';
   p.game.dest = port;
   events.push({ type: 'voyagePreview', to: port, cost: free ? 0 : cost, free });
+  return null;
+}
+
+/**
+ * (작업 151, PRD 4.3.7.1) 자유 항해: 라운드 중 바로 그 항구로 출발·도착. 운항비는 낼 운항비(fareDue)에 쌓고 라운드 끝에 정산.
+ * 도착 처리는 라운드 항해와 같은 `arrive`(입항 한도 새로 시작·첫 입항 카드·도감·싱가포르 사건).
+ */
+function sailTo(cs: ClassState, p: Player, port: PortId, events: GameEvent[]): string | null {
+  if (!isFreeVoyage(cs)) return 'NOT_FREE_VOYAGE';
+  if (!canTrade(cs)) return 'NOT_TRADING';
+  if (typeof port !== 'string') return 'BAD_PORT';
+  if (port === p.game.port) return 'SAME_PORT';
+  if (!cs.openPorts.includes(port)) return 'PORT_LOCKED';
+  if (isPortClosed(cs, port)) return 'PORT_CLOSED';
+  const free = p.game.effects.tailwind > 0;
+  const cost = free ? 0 : voyageCostFor(cs, p, p.game.port, port);
+  if (cost > spendable(cs, p)) return 'NO_MONEY';
+  const from = p.game.port;
+  if (free) p.game.effects.tailwind -= 1;
+  p.game.fareDue = fareDueOf(p) + cost;
+  p.game.sailsThisRound = sailsThisRoundOf(p) + 1;
+  p.game.dest = null;
+  p.game.ready = false;
+  events.push({ type: 'departed', from, to: port, cost, free, round: cs.round });
+  p.game.log.push({ round: cs.round, stage: cs.stage, kind: 'voyage', port: from, to: port, amount: cost });
+  arrive(cs, p, port, cs.round, events);
   return null;
 }
 
@@ -282,6 +315,9 @@ export function applyAction(cs: ClassState, player: Player, action: Action, ctx:
       break;
     case 'setDestination':
       error = setDestination(cs, p, action.port, events);
+      break;
+    case 'sailTo':
+      error = sailTo(cs, p, action.port, events);
       break;
     case 'setReady':
       if (!isTrading(cs)) error = 'NOT_TRADING';

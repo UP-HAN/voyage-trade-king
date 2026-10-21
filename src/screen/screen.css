@@ -342,3 +342,55 @@
 .scr-customs__book { margin: calc(var(--u) * 0.6) 0 0; padding: calc(var(--u) * 0.6) calc(var(--u) * 0.8); border: 2px dashed var(--brass); border-radius: 10px; font-size: var(--scr-body); }
 .scr-customs__ask { margin-top: calc(var(--u) * 1); }
 .scr-customs__col > .scr-lead { color: var(--ink-soft); }
+
+/* (작업 152) 개념 카드 TV 슬라이드 — 제목 장 → 본문 장(1~2문장) → 교과서 장, 저절로 넘김. 1920에서 본문 48px 이상 */
+.scr-slides {
+  width: min(100%, calc(var(--u) * 92));
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.8);
+  padding: calc(var(--u) * 1.4) calc(var(--u) * 3);
+  background: var(--parchment-light);
+  border: calc(var(--u) * 0.35) solid var(--brass-dark);
+  border-radius: calc(var(--u) * 1);
+  box-shadow: 0 0 0 calc(var(--u) * 0.15) var(--brass) inset, 0 calc(var(--u) * 0.6) calc(var(--u) * 2) rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+  overflow: hidden;
+}
+.scr-slides__head { flex: 0 0 auto; display: flex; align-items: baseline; gap: calc(var(--u) * 1); border-bottom: 2px dashed var(--ink-soft); padding-bottom: calc(var(--u) * 0.5); font-size: var(--scr-small); min-width: 0; }
+.scr-slides__band { flex: 0 0 auto; padding: 0 calc(var(--u) * 0.6); border-radius: 6px; background: var(--sea-deep); color: var(--parchment-light); }
+.scr-slides__head-title { flex: 1 1 auto; min-width: 0; font-family: var(--font-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scr-slides__head-pages { flex: 0 0 auto; color: var(--ink-soft); white-space: nowrap; }
+.scr-slide {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 1.2);
+  text-align: center;
+  animation: scr-slide-in 0.3s ease-out;
+}
+@keyframes scr-slide-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scr-slide { animation: none; } }
+.scr-slide__kicker { margin: 0; font-size: var(--scr-body); color: var(--sea-deep); letter-spacing: 0.08em; font-weight: 700; }
+.scr-slide__img { max-width: 70%; max-height: 42%; min-height: 0; object-fit: contain; border-radius: calc(var(--u) * 0.6); border: 3px solid var(--brass-dark); }
+.scr-slide__title { margin: 0; font-family: var(--font-title); font-size: calc(var(--u) * 5); line-height: 1.2; }
+.scr-slide__pages { margin: 0; font-size: var(--scr-small); color: var(--ink-soft); }
+.scr-slide__lines { display: grid; gap: calc(var(--u) * 1.4); max-width: calc(var(--u) * 80); }
+.scr-slide__line { margin: 0; font-size: calc(var(--u) * 2.6); line-height: 1.5; font-weight: 600; }
+.scr-slide__book { margin: 0; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); max-width: calc(var(--u) * 80); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4); border: 3px dashed var(--brass); border-radius: calc(var(--u) * 0.8); }
+.scr-slide__book-tag { font-size: var(--scr-small); padding: 0 calc(var(--u) * 0.7); border-radius: 6px; background: var(--brass); color: var(--ink); }
+.scr-slide__book-text { margin: 0; font-size: calc(var(--u) * 2.5); line-height: 1.5; text-align: left; }
+/* 넘치면 한 단계 작게 */
+.scr-slide--small .scr-slide__line { font-size: calc(var(--u) * 2.2); }
+.scr-slide--small .scr-slide__book-text { font-size: calc(var(--u) * 2.1); }
+.scr-slide--small .scr-slide__title { font-size: calc(var(--u) * 4); }
+.scr-slides__foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 1.2); font-size: var(--scr-small); color: var(--ink-soft); }
+.scr-slides__dots { letter-spacing: 0.3em; color: var(--sea-deep); }
+.scr-slides__num { font-variant-numeric: tabular-nums; }
+.scr-slides__foot .scr-event__count { margin-left: auto; }

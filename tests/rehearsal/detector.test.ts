@@ -15,9 +15,14 @@ describe('리허설 탐지기(작업 135)', () => {
   it('라운드 안내 글을 알아본다(134 예정 문구 포함)', () => {
     expect(hasRoundGuidance('지금은 다 함께 활동하는 시간이에요 · 라운드 1까지 3:30')).toBe(true);
     expect(hasRoundGuidance('다음 라운드까지 0:45')).toBe(true);
+    expect(hasRoundGuidance('지도에서 항구를 눌러 바로 갈 수 있어요 · 선생님이 멈출 때까지 자유롭게 다녀요')).toBe(true); // (작업 153 추가)
     expect(hasRoundGuidance('선생님이 시작하면 라운드가 열려요')).toBe(true);
     expect(hasRoundGuidance('선생님 활동이 끝나면 이어서 해요')).toBe(false);
     expect(hasRoundGuidance('남은 무역 시간 8:30')).toBe(false);
+    // (작업 149·151) 새 학생 안내 문구도 안내로 본다
+    expect(hasRoundGuidance('라운드가 모두 끝났어요 · 남은 라운드가 없어요 · 곧 다 함께 정리 활동을 해요')).toBe(true);
+    expect(hasRoundGuidance('카드를 다 읽었어요 ✓ 선생님이 다음으로 넘기면 이어서 해요. 그동안 TV를 함께 봐요')).toBe(true);
+    expect(hasRoundGuidance('지금 우리 배는 상하이에 있어요 · 다음 라운드가 열리면 여기 시장에서 사고팔 수 있어요')).toBe(true);
     expect(hasTeacherRoundCountdown('라운드 1까지 2:10 [지금 라운드 시작]')).toBe(true);
     expect(hasTeacherRoundCountdown('9:58 일시정지')).toBe(false);
     expect(hasStartConfirmRoundHint('먼저 벽란도 시장 활동을 하고 약 3분 50초 뒤 라운드 1이 시작돼요')).toBe(true);

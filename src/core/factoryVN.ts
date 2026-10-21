@@ -83,12 +83,20 @@ export function applyVNReport(p: Player, d: VNDecision | null, events: GameEvent
  * 개선 선택(임금 올리기 / 설비 설치) — 각 100만 원, 사회적 책임 +10.
  * 나쁜 선택을 모두 고치면 평판 하락이 풀린다. 오류면 문자열.
  */
-export function applyVNImprove(p: Player, d: VNDecision | null, which: 'wage' | 'env', done: readonly string[], events: GameEvent[]): string | null {
+export function applyVNImprove(
+  p: Player,
+  d: VNDecision | null,
+  which: 'wage' | 'env',
+  done: readonly string[],
+  events: GameEvent[],
+  /** (작업 151) 쓸 수 있는 돈(`spendable(cs, p)` — 자유 항해면 자금 − 낼 운항비). 없으면 자금 */
+  budget: number = p.game.money,
+): string | null {
   if (!d || !isBadChoice(d)) return 'NOTHING_TO_IMPROVE';
   if (which === 'wage' && d.wage !== 'low') return 'NOTHING_TO_IMPROVE';
   if (which === 'env' && d.env !== 'skip') return 'NOTHING_TO_IMPROVE';
   if (done.includes(which)) return 'ANSWERED';
-  if (p.game.money < VN_FACTORY.improve.cost) return 'NO_MONEY';
+  if (budget < VN_FACTORY.improve.cost) return 'NO_MONEY';
   p.game.money -= VN_FACTORY.improve.cost;
   p.game.metrics.csr += VN_FACTORY.improve.csr;
   events.push({ type: 'money', amount: -VN_FACTORY.improve.cost, reason: `vnImprove:${which}` });

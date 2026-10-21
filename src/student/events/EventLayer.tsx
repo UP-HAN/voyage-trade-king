@@ -24,6 +24,7 @@ import { LayerFrame } from '../layer';
 import type { MeView } from '../predict';
 import type { StudentState, StudentStore } from '../store';
 import { optionFacts } from './facts';
+import { conceptCards } from '../../data/dex';
 import { missionsById } from '../../data/missions';
 import { helperText } from '../../data/worksheetHelpers';
 import type { PublicState } from '../../core';
@@ -357,10 +358,68 @@ function LiveBlocking({
   }
   if (done && !def.needsResponse) return null;
   if (done) return <Waiting title={def.title} onDex={onDex} />;
+  // (작업 152) 가운데 차단 개념 카드(L1-E2·L1-E4·L2-E2): 개념은 TV 슬라이드로 함께 보고, 학생 기기는 짧은 카드
+  if (def.kind === 'concept' && live.blocking) return <ConceptTvCard live={live} scope={scope} respond={respond} />;
   return (
     <LayerFrame name="event">
       <div class="ev-center ev-center--scroll">
         <EventCard model={eventCardModel(def, { short: live.short, scope })} onConfirm={() => respond(live.id, { seen: true })} />
+      </div>
+    </LayerFrame>
+  );
+}
+
+// ─── (작업 152) 개념 카드 — "TV 화면을 함께 봐요" ──────────────
+
+/** 이 사건이 여는 도감 개념 카드 이름(없으면 null) */
+function dexCardTitle(def: LiveEvent['def']): string | null {
+  for (const e of def.effects) {
+    if (e.type === 'dexCard') {
+      const c = conceptCards.find((x) => x.id === e.card);
+      if (c) return c.title;
+    }
+  }
+  return null;
+}
+
+function ConceptTvCard({ live, scope, respond }: { live: LiveEvent; scope: readonly ('L1' | 'L2' | 'L3' | 'L4')[]; respond: (id: string, r: Record<string, unknown>) => boolean }) {
+  const { def } = live;
+  // 교사가 공용 화면을 안 열었을 때: [내 화면에서 읽기]로 예전 긴 카드
+  const [readHere, setReadHere] = useState<string | null>(null);
+  if (readHere === live.id) {
+    return (
+      <LayerFrame name="event">
+        <div class="ev-center ev-center--scroll">
+          <EventCard model={eventCardModel(def, { short: live.short, scope })} onConfirm={() => respond(live.id, { seen: true })} />
+        </div>
+      </LayerFrame>
+    );
+  }
+  const dex = dexCardTitle(def);
+  return (
+    <LayerFrame name="event">
+      <div class="ev-center">
+        {/* 바깥 틀은 예전 카드와 같은 testid(event-card·data-event·data-short) — 다른 화면 흐름 테스트가 이 사건 카드를 찾는 기준 */}
+        <div class="ev-tv-wrap" data-testid="event-card" data-event={live.id} data-short={live.short ? '1' : '0'} data-variant="tv">
+          <section class="ev-tv" data-testid="event-tv-card" data-event={live.id} aria-label={def.title}>
+            <p class="ev-tv__band" data-testid="event-tv-band">
+              개념 공부
+            </p>
+            <h2 class="ev-tv__title" data-testid="event-tv-title">
+              {def.title}
+            </h2>
+            <p class="ev-tv__big title-font">TV 화면을 함께 봐요</p>
+            <p class="ev-tv__note" data-testid="event-tv-note">
+              선생님과 같이 읽어요. 이 내용은 나중에 {dex ? `[도감]의 '${dex}'에서` : '[도감]에서'} 다시 볼 수 있어요.
+            </p>
+            <button type="button" class="btn btn--primary ev-tv__confirm" data-testid="card-confirm" onClick={() => respond(live.id, { seen: true })}>
+              다 봤어요
+            </button>
+            <button type="button" class="link-small ev-tv__read-here" data-testid="event-tv-read-here" onClick={() => setReadHere(live.id)}>
+              [내 화면에서 읽기]
+            </button>
+          </section>
+        </div>
       </div>
     </LayerFrame>
   );
@@ -444,6 +503,7 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
   const list = Object.entries(me.game.missions).filter(([id]) => missionsById[id]?.lesson === lesson);
   if (!list.length) return null;
   const no = lesson.replace(/^L/, '');
+  const startCargo = me.game.log.some((e) => e.ref === 'startCargo');
   if (folded) {
     return (
       <div class="ev-panel ev-panel--folded" data-testid="event-panel-folded" data-event="missions" style={{ zIndex: 55 }}>
@@ -454,7 +514,7 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
     );
   }
   return (
-    <aside class="ev-panel" aria-label={`${no}차시 임무`} data-testid="mission-panel" style={{ zIndex: 55 }}>
+    <aside class="ev-panel ev-panel--missions" aria-label={`${no}차시 임무`} data-testid="mission-panel" style={{ zIndex: 55 }}>
       <button type="button" class="link-small ev-panel__fold" data-testid="event-panel-fold" onClick={() => setFolded(true)}>
         접기
       </button>
@@ -463,12 +523,27 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
           <span class="vc__band-text">임무</span>
         </div>
         <h2 class="vc__title">{no}차시 임무 {list.length}가지</h2>
+        {/* (작업 153) 처음 해도 헷갈리지 않게 '먼저 할 일' 한 상자 — 목록보다 위 */}
+        <div class="ev-first" data-testid="mission-first">
+          {startCargo ? (
+            <>
+              <b class="ev-first__main">먼저 할 일: 부산 [항구 들어가기] → [공장]에서 원유로 석유 제품 만들기</b>
+              <span class="ev-first__sub" data-testid="mission-start-cargo">
+                우리 배에 담맘에서 사 온 원유 2상자가 실려 있어요. 만든 상품을 다른 나라에 팔면 [수출] 도장을 받아요.
+              </span>
+            </>
+          ) : (
+            <b class="ev-first__main">먼저 할 일: 위에서 첫 번째 임무부터 해요</b>
+          )}
+        </div>
         <ol class="ev-missions">
           {list.map(([id, m]) => {
             const def = missionsById[id]!;
+            const optional = eventsById[def.eventId]?.required === false;
             return (
-              <li key={id} data-testid={`mission-intro-${id}`} data-status={m.status}>
+              <li key={id} data-testid={`mission-intro-${id}`} data-status={m.status} data-optional={optional ? 'true' : undefined}>
                 <b>{def.title}</b>
+                {optional && <span class="ev-missions__opt"> · 시간 나면</span>}
                 {m.status === 'done' && <span class="ev-missions__done"> · 완료</span>}
                 <ul>
                   {def.steps.map((stp, i) => (
@@ -483,11 +558,6 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
             );
           })}
         </ol>
-        {me.game.log.some((e) => e.ref === 'startCargo') && (
-          <p class="ev-panel__note" data-testid="mission-start-cargo">
-            게임 규칙: 우리 배에 담맘에서 사 온 원유 2상자가 실려 있어요. 부산 항구의 [공장]에서 바로 석유 제품을 만들 수 있어요.
-          </p>
-        )}
         <p class="ev-panel__note">진행은 아래 임무 칸과 도감에서 볼 수 있어요.</p>
         <div class="vc__foot">
           <button type="button" class="btn btn--primary" data-testid="card-confirm" data-role="mission-panel-ok" onClick={onClose}>

@@ -141,7 +141,8 @@ describe('[지금 라운드 시작] — 표본 sweep', () => {
 });
 
 describe('[지금 라운드 시작] — 차시 L1 10분(교사 리허설 재현)', () => {
-  const c: Cfg = { name: 'L1 10', playUnit: 'lesson', scope: ['L1'], minutes: 10 };
+  // v0.3.8(작업 153): 차시 한 판 '알아서'가 '활동마다 바로'·'차시 끝에 모아서'가 되어 배치가 바뀜 → 이 묶음은 '게임 끝나고'로 고정해 옛 리허설 배치를 본다
+  const c: Cfg = { name: 'L1 10', playUnit: 'lesson', scope: ['L1'], minutes: 10, ws: 'after' };
 
   it('무역 시작 직후: 라운드 1까지 3:50, 학생 표시용 nextRoundWait', () => {
     const s = start(c);
@@ -227,7 +228,7 @@ describe('[무역 시작] 확인 창 미리보기(firstRoundPreview)', () => {
     ['lesson', ['L1'], 15, 290, ['L1-E1', 'L1-E2']],
   ];
   it.each(CASES)('%s %s %i분: 라운드 1 at·사전 활동이 배치표와 같다', (pu, scope, m, at, ids) => {
-    const s = start({ name: '', playUnit: pu, scope, minutes: m });
+    const s = start({ name: '', playUnit: pu, scope, minutes: m, ws: 'after' }); // v0.3.8: 옛 배치(게임 끝나고)로 고정
     const p = firstRoundPreview(s.class.schedule.items)!;
     expect(p.atSec).toBe(at);
     expect(p.activities.map((it) => it.refId)).toEqual(ids);
@@ -266,7 +267,7 @@ describe('수동 진행: [발동]만으로 처음부터 끝까지(리허설 d �
   });
 
   it('표지가 떠 있을 때 [발동](벽란도 시장)을 누르면 표지를 닫고 벽란도 시장이 열린다', () => {
-    let s = start({ name: '', playUnit: 'lesson', scope: ['L1'], minutes: 15, manual: true });
+    let s = start({ name: '', playUnit: 'lesson', scope: ['L1'], minutes: 15, manual: true, ws: 'after' }); // v0.3.8: 옛 배치로 고정
     s = teach(s, { type: 'fireNow', id: 'cover:L1' }, T0 + 1000).snapshot;
     for (let e = 2; e <= 25; e++) s = tick(s, e);
     expect(s.class.currentEvent).toMatchObject({ id: 'L1-COVER', closed: false });
@@ -278,10 +279,11 @@ describe('수동 진행: [발동]만으로 처음부터 끝까지(리허설 d �
   });
 
   it('수동 진행에서도 [지금 라운드 시작]이 된다(계획보다 늦어도 라운드는 제 길이)', () => {
-    let s = start({ name: '', playUnit: 'lesson', scope: ['L1'], minutes: 10, manual: true });
-    for (let e = 1; e <= 300; e++) s = tick(s, e); // 아무것도 발동하지 않고 5분(라운드 1 계획 3:50 지남)
+    let s = start({ name: '', playUnit: 'lesson', scope: ['L1'], minutes: 10, manual: true, ws: 'after' }); // v0.3.8: 옛 배치로 고정
+    const planned = s.class.schedule.items.find((it) => it.id === 'r:1')!.durSec; // v0.3.8(작업 153): ★ 없음 → 계획 길이가 옛 90초보다 김
+    for (let e = 1; e <= 300; e++) s = tick(s, e); // 아무것도 발동하지 않고 5분(라운드 1 계획 지남)
     const r = teach(s, { type: 'startRoundNow', confirm: true }, T0 + 300_000);
     expect(r.snapshot.class.phase).toBe('round');
-    expect((r.snapshot.class.roundEndsAt! - (T0 + 300_000)) / 1000).toBe(90);
+    expect((r.snapshot.class.roundEndsAt! - (T0 + 300_000)) / 1000).toBe(planned);
   });
 });

@@ -21,7 +21,7 @@ import { createPeerTransport } from '../sync/select';
 import { realTimers, type Timers } from '../sync/throttle';
 import { fx } from '../ui/common/fx';
 import { studentPredict, type MeView } from './predict';
-import { withEuro } from './text';
+import { formatMoney, withEuro } from './text';
 
 export type StudentPeerState = PeerState<MeView, PublicPayload>;
 
@@ -238,6 +238,14 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
   const announceVoyage = (me: MeView) => {
     const events = me.events ?? [];
     for (const cb of [...gameListeners]) cb(events);
+    // (작업 151, PRD 4.3.7.1) 자유 항해: 배는 라운드 중에 이미 옮겼다 — 라운드 끝에는 운항비 정산 알림만(0원이면 없음)
+    const settled = events.find((e) => e.type === 'fareSettled') as Extract<GameEvent, { type: 'fareSettled' }> | undefined;
+    if (settled || st.peer.public?.class?.settings?.voyageMode === 'free') {
+      if (settled && settled.amount > 0) toast(`운항비 ${formatMoney(settled.amount)}을 냈어요`, 'info');
+      const loan = events.find((e) => e.type === 'loan') as Extract<GameEvent, { type: 'loan' }> | undefined;
+      if (loan) toast(`돈이 모자라 ${formatMoney(loan.amount)}을 빌렸어요`, 'warn');
+      return;
+    }
     const arrived = [...events].reverse().find((e) => e.type === 'arrived') as Extract<GameEvent, { type: 'arrived' }> | undefined;
     const stayed = [...events].reverse().find((e) => e.type === 'stayed') as Extract<GameEvent, { type: 'stayed' }> | undefined;
     void fx.sail().then(() => fx.arrive());

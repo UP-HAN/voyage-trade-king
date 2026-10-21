@@ -192,10 +192,10 @@ describe('이번 판 학습지 번호(배치표 기준) — 차시 한 판이면
     const g = newPlay({ playUnit: 'lesson', scope: ['L2'], minutes: 25 });
     expect(playWorksheetIds(g.snap.class.schedule)).toEqual(['W05', 'W06', 'W07', 'W08']);
   });
-  it('차시 한 판 L1 10분(끝나고 쓰기): 끝나고 쓸 번호 ①②③④, ⑱ 축약판 없음(배치표에 없음)', () => {
+  it('차시 한 판 L1 10분(v0.3.8 작업 153: 라운드 2개 미만 → 차시 끝에 모아서): 끝나고 쓸 번호 없음, ⑱ 축약판 없음', () => {
     const g = newPlay({ playUnit: 'lesson', scope: ['L1'], minutes: 10 });
-    expect(g.snap.class.schedule.stageModes).toEqual({ L1: 'after' });
-    expect(afterWorksheetIds(g.snap.class.schedule)).toEqual(['W01', 'W02', 'W03', 'W04']);
+    expect(g.snap.class.schedule.stageModes).toEqual({ L1: 'stageEnd' });
+    expect(afterWorksheetIds(g.snap.class.schedule)).toEqual([]);
     expect(playWorksheetIds(g.snap.class.schedule)).not.toContain('W18');
   });
   it('단원 한 판 25분: ①~⑱(⑯⑰⑱은 마무리), ⑲⑳ 없음', () => {
@@ -216,35 +216,31 @@ describe('판을 돌렸을 때 뜨는 팝업', () => {
     expect(g.snap.class.tradeEnded).toBe(true);
   });
 
-  it('차시 한 판 L1 30분: 지금 쓰기 ③★ → 구간 끝 묶음 "①②③④" — ★ 완료는 따로, [다 썼어요] 1번으로 4개 완료', () => {
+  it('차시 한 판 L1 30분(v0.3.8 작업 153): ① → ② → ③ → ④ 한 장씩, ★ 없음, 번호마다 [다 썼어요]', () => {
     const g = newPlay({ playUnit: 'lesson', scope: ['L1'], minutes: 30, worksheetWaitSec: 0 });
-    let markedDuring = false;
-    let marked = false;
+    let during = false;
+    const marked = new Set<string>();
     g.tick(30 * 60 + 200, () => {
       const c = g.snap.class.worksheet;
-      if (!markedDuring && c.during && c.current?.[0] === 'W03') {
-        markedDuring = true;
-        g.act(1, { type: 'markWorksheetDone' }); // ids 없이 → 지금 떠 있는 '지금 쓰기' 팝업의 ★ 칸
-        expect(g.player(1).game.duringDone).toEqual(['W03']);
-        expect(g.player(1).game.worksheetDone).toEqual([]);
-      }
-      if (!marked && c.current?.length === 4) {
-        marked = true;
+      if (c.during) during = true;
+      const id = c.current?.[0];
+      if (id && !marked.has(id)) {
+        marked.add(id);
         g.act(1, { type: 'markWorksheetDone' });
       }
     });
-    expect(g.seen).toEqual([['W03'], ['W01', 'W02', 'W03', 'W04']]);
-    expect(markedDuring && marked).toBe(true);
+    expect(g.seen).toEqual([['W01'], ['W02'], ['W03'], ['W04']]);
+    expect(during).toBe(false);
     expect(g.player(1).game.worksheetDone.sort()).toEqual(['W01', 'W02', 'W03', 'W04']);
-    expect(g.player(1).game.duringDone).toEqual(['W03']);
+    expect(g.player(1).game.duringDone ?? []).toEqual([]);
     expect(g.player(2).game.worksheetDone).toEqual([]);
   });
 
-  it('차시 한 판 L1 25분(끝나고 + ③★): 팝업은 ③★ 하나, ③은 끝나고 쓰기·항해 기록장에 그대로', () => {
+  it('차시 한 판 L1 25분(v0.3.8 작업 153 — 옛 끝나고 + ③★): 팝업 ①②③④가 번호 순으로 하나씩, 끝나고 쓰기 없음', () => {
     const g = newPlay({ playUnit: 'lesson', scope: ['L1'], minutes: 25, worksheetWaitSec: 0 });
     g.tick(25 * 60 + 200);
-    expect(g.seen).toEqual([['W03']]);
-    expect(afterWorksheetIds(g.snap.class.schedule)).toEqual(['W01', 'W02', 'W03', 'W04']);
+    expect(g.seen).toEqual([['W01'], ['W02'], ['W03'], ['W04']]);
+    expect(afterWorksheetIds(g.snap.class.schedule)).toEqual([]);
     expect(playWorksheetIds(g.snap.class.schedule)).toContain('W03');
   });
 

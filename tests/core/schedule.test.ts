@@ -152,17 +152,19 @@ const EXPECTED: [string, ScheduleInput, Partial<Record<LessonId, StageExp>>][] =
   ['L1만 10분', { playUnit: 'custom', scope: ['L1'], tradeMinutes: 10 }, {
     L1: { forms: { 'L1-E2': 's', 'L1-E5': 's', 'L1-E1': 's', 'L1-E4': '-', 'L1-E8': '-' }, ws: 'after', during: ['W03'], used: 400, rounds: 2, len: [90, 90] },
   }],
-  ['차시 L1 25분', { playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, {
-    L1: { forms: { 'L1-E2': 'F', 'L1-E5': 'F', 'L1-E1': 'F', 'L1-E4': 'F', 'L1-E8': '-' }, ws: 'after', during: ['W03'], used: 940, rounds: 3, len: [180, 180] },
+  // v0.3.8(작업 153): 차시 한 판 '알아서' = '활동마다 바로'로 시작(라운드 2개 미만이면 '차시 끝에 모아서'), ★ 지금 쓰기 없음.
+  // 차시 한 판 줄(L1·L3·L4)만 다시 계산했고 단원 한 판·L1만 줄은 옛 기대값 그대로
+  ['차시 L1 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, {
+    L1: { forms: { 'L1-E2': 's', 'L1-E5': 's', 'L1-E1': 's', 'L1-E4': 's', 'L1-E8': '-' }, ws: 'each', during: [], used: 900, rounds: 3, len: [193, 194] },
   }],
-  ['차시 L2 25분', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25 }, {
+  ['차시 L2 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25 }, {
     L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F', 'L2-E5': 'F', 'L2-E4': 'F', 'L2-E7': 'F' }, ws: 'each', during: [], used: 900, rounds: 3, len: [186, 187] },
   }],
-  ['차시 L3 25분', { playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, {
-    L3: { forms: { 'L3-E1': 'F', 'L3-E3': 'F', 'L3-E2': 'F', 'L3-E5': 'F', 'L3-E4': 's', 'L3-E6': '-' }, ws: 'stageEnd', during: [], used: 870, rounds: 3, len: [196, 197] },
+  ['차시 L3 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, {
+    L3: { forms: { 'L3-E1': 's', 'L3-E3': 'F', 'L3-E2': 'F', 'L3-E5': 'F', 'L3-E4': 's', 'L3-E6': '-' }, ws: 'each', during: [], used: 870, rounds: 3, len: [196, 197] },
   }],
-  ['차시 L4 25분', { playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, {
-    L4: { forms: { 'L4-E1': 'F', 'L4-E2': 'F', 'L4-E4': 's' }, ws: 'stageEnd', during: ['W14'], used: 940, rounds: 3, len: [173, 174] },
+  ['차시 L4 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, {
+    L4: { forms: { 'L4-E1': 'F', 'L4-E2': 's', 'L4-E4': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
   }],
 ];
 /** PRD 4.3.6 판 전체 표(v0.3.4) */
@@ -173,10 +175,10 @@ const TOTALS: Record<string, { rounds: number; letters: number; incidents: numbe
   '단원 80분': { rounds: 11, letters: 10, incidents: 8, minutes: 94 },
   'L1만 30분': { rounds: 4, letters: 3, incidents: 2, minutes: 40 },
   'L1만 10분': { rounds: 2, letters: 1, incidents: 0, minutes: 20 },
-  '차시 L1 25분': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
-  '차시 L2 25분': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
-  '차시 L3 25분': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
-  '차시 L4 25분': { rounds: 3, letters: 2, incidents: 1, minutes: 39 },
+  '차시 L1 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
+  '차시 L2 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
+  '차시 L3 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
+  '차시 L4 25분(차시 한 판 v0.3.8)': { rounds: 4, letters: 3, incidents: 2, minutes: 39 },
 };
 
 function markOf(s: Schedule, id: string): Mark {
@@ -433,8 +435,9 @@ describe("지금 쓰기 ③★·⑭★ (PRD 4.3.3.1, v0.3.4 — 작업 132)", ()
     expect(w14.afterNews).toBe(true);
   });
 
-  it('⑦ coreFull 은 우선 숫자 순: 차시 L1 25분에서 두 섬 F 가 벽란도 F 보다 먼저', () => {
-    const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 });
+  it('⑦ coreFull 은 우선 숫자 순: 차시 L1 25분(학습지 끝나고 고정)에서 두 섬 F 가 벽란도 F 보다 먼저', () => {
+    // v0.3.8: 차시 한 판 '알아서'는 이제 '활동마다 바로'라 짧게 남는다 → 교사가 '게임 끝나고'를 고른 판으로 사다리 순서를 본다
+    const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25, worksheetMode: 'after' });
     const l1 = s.stages[0];
     const core = l1.filled.filter((x) => x === 'coreFull');
     expect(core).toHaveLength(2);
@@ -460,5 +463,63 @@ describe("지금 쓰기 ③★·⑭★ (PRD 4.3.3.1, v0.3.4 — 작업 132)", ()
 
   it('결정성: 지금 쓰기 포함 같은 입력 → 같은 배치표', () => {
     for (const T of [15, 25, 40, 80]) expect(JSON.stringify(buildSchedule(UNIT(T)))).toBe(JSON.stringify(buildSchedule(UNIT(T))));
+  });
+});
+
+// ─── 작업 153: 차시 한 판 학습지 한 방식·번호 순·★ 없음(PRD 4.3.3 v0.3.8 규칙 1·2) ───
+const NO = (w: string) => worksheetById[w as keyof typeof worksheetById].no;
+const wsItems = (s: Schedule) => s.items.filter((it) => it.kind === 'worksheet');
+/** 차시 한 판 '알아서' 확정값(작업 153 result.md 표): [차시, 무역 분, 학습지 방식, 라운드 수] */
+const LESSON_AUTO: [LessonId, number, 'each' | 'stageEnd', number][] = [
+  ['L1', 10, 'stageEnd', 2], ['L1', 15, 'each', 2], ['L1', 20, 'each', 3], ['L1', 25, 'each', 3], ['L1', 30, 'each', 4], ['L1', 40, 'each', 6],
+  ['L2', 10, 'stageEnd', 2], ['L2', 15, 'each', 2], ['L2', 20, 'each', 3], ['L2', 25, 'each', 3], ['L2', 30, 'each', 5], ['L2', 40, 'each', 8],
+];
+
+describe("차시 한 판 학습지 '알아서'(PRD 4.3.3 v0.3.8, 작업 153) — 단원 한 판 줄은 위 확정값 그대로", () => {
+  it.each(LESSON_AUTO)('차시 %s %i분: 방식 %s, 라운드 %i, ★ 없음, 번호 순, 끝나고 쓰기 없음', (L, T, ws, rounds) => {
+    const s = buildSchedule({ playUnit: 'lesson', scope: [L], tradeMinutes: T });
+    expect(s.stages[0].worksheetMode).toBe(ws);
+    expect(s.totalRounds).toBe(rounds);
+    expect(s.items.some((it) => it.placement === 'during')).toBe(false);
+    expect(s.duringWorksheets.placed).toEqual([]);
+    expect(s.afterWorksheets.ids).toEqual([]);
+    const shown = wsItems(s).flatMap((it) => it.refIds ?? [it.refId]);
+    expect(shown).toEqual([...tradeWorksheets(L)].sort((a, b) => NO(a) - NO(b)));
+    if (ws === 'each') {
+      expect(wsItems(s).every((it) => it.placement === 'each')).toBe(true);
+      const at = wsItems(s).map((it) => it.at);
+      expect([...at].sort((a, b) => a - b)).toEqual(at);
+    } else expect(wsItems(s)).toHaveLength(1);
+  });
+
+  it("1차시 25분: ① 무역·수입·수출 뒤 → ② 무역이 없다면? 뒤 → ③ 두 섬 뒤 → ④ 마지막 라운드 끝", () => {
+    const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 });
+    const end = (id: string) => { const it = s.items.find((x) => x.id === id)!; return it.at + it.durSec; };
+    expect(s.items.find((x) => x.id === 'ws:W01')!.at).toBe(end('ev:L1-E2'));
+    expect(s.items.find((x) => x.id === 'ws:W02')!.at).toBe(end('ev:L1-E4'));
+    expect(s.items.find((x) => x.id === 'ws:W03')!.at).toBe(end('ev:L1-E5'));
+    expect(s.items.find((x) => x.id === 'ws:W04')!.at).toBe(end('r:3'));
+  });
+
+  it('2차시 25분: ⑤ 세관 게시판 뒤 → 확인 퀴즈 → ⑥ → ⑦ → ⑧(거꾸로 가지 않음)', () => {
+    const s = buildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25 });
+    const seq = s.items.filter((it) => it.kind === 'worksheet' || it.refId === 'L2-E6' || it.refId === 'L2-E7').map((it) => it.refId);
+    expect(seq).toEqual(['L2-E6', 'W05', 'L2-E7', 'W06', 'W07', 'W08']);
+  });
+
+  it("교사가 고른 방식은 그대로, 차시 한 판은 ★ 없음('차시 끝에 모아서'·'게임 끝나고')", () => {
+    for (const mode of ['stageEnd', 'after', 'each'] as const) {
+      const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25, worksheetMode: mode });
+      expect(s.stages[0].worksheetMode).toBe(mode);
+      expect(s.items.some((it) => it.placement === 'during')).toBe(false);
+    }
+    // 단원 한 판은 ★ 그대로
+    expect(buildSchedule(UNIT(25)).items.some((it) => it.placement === 'during')).toBe(true);
+  });
+
+  it('원천 활동이 빠진 번호는 다음 번호 앞에서 먼저(1차시 20분: ② 두 섬 뒤 ③ 앞)', () => {
+    const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 20 });
+    expect(s.activities.find((a) => a.id === 'L1-E4')!.form).toBe('dropped');
+    expect(wsItems(s).map((it) => it.refId)).toEqual(['W01', 'W02', 'W03', 'W04']);
   });
 });

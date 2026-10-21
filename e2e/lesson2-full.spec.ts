@@ -127,6 +127,8 @@ async function pressBig(t: Page): Promise<{ state: string | null; label: string;
 
 interface Seen {
   worksheets: Set<string>;
+  /** (작업 153) 학습지 번호 → 그 팝업의 '오늘 학습지' 줄 */
+  orders: Map<string, string>;
   quiz: Set<string>;
   shots: Set<string>;
   /** 학생이 본 사건 카드(확인 전) */
@@ -142,6 +144,15 @@ async function tidy(s: Page, seen: Seen, label: string) {
     if (await visible(s, 'worksheet-popup')) {
       const ids = await s.locator('[data-testid="worksheet-row"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-id') ?? ''));
       ids.forEach((id) => seen.worksheets.add(id));
+      // (작업 153) 팝업 머리 아래 '오늘 학습지' 순서 한 줄 — 번호마다 처음 본 글을 남긴다
+      const order = s.getByTestId('worksheet-order');
+      if (label === 's1' && ids[0] && !seen.orders.has(ids[0]) && (await order.count())) {
+        seen.orders.set(ids[0], (await order.innerText()).trim());
+        if (!seen.shots.has(`ws-order-${ids[0]}`)) {
+          seen.shots.add(`ws-order-${ids[0]}`);
+          await shot(s, `L2-07c-student-worksheet-order-${ids[0]}.png`);
+        }
+      }
       const helper = s.locator('[data-testid="worksheet-helper"][data-helper="customsBoard"]');
       if (await helper.count()) {
         seen.helperCustoms = (await helper.first().innerText()).trim();
@@ -176,7 +187,18 @@ async function tidy(s: Page, seen: Seen, label: string) {
       }
       seen.cards.add(id);
     }
-    if (await visible(s, 'mission-panel')) seen.cards.add('missions');
+    if (await visible(s, 'mission-panel')) {
+      seen.cards.add('missions');
+      // (작업 153) 처음 연 임무 패널: '먼저 할 일'과 [확인]이 스크롤 없이 화면 안(1366×768)
+      if (!seen.shots.has(`missions-${label}`)) {
+        seen.shots.add(`missions-${label}`);
+        await expect(s.getByTestId('mission-first')).toBeVisible();
+        const inView = async (sel: string) => s.locator(sel).first().evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; });
+        expect(await inView('[data-testid="mission-first"]'), `${label} 먼저 할 일`).toBe(true);
+        expect(await inView('[data-role="mission-panel-ok"]'), `${label} 임무 패널 [확인]`).toBe(true);
+        if (label === 's1') await shot(s, 'L2-04b-student-mission-panel-1366.png');
+      }
+    }
     // 싱가포르 첫 입항 개념 카드(따라잡기 말 없이 'arrival')
     const arrival = s.locator('[data-testid="catchup"][data-mode="arrival"][data-event="L2-E5"]');
     if ((await arrival.count()) && !seen.cards.has(`arrival:${label}`)) {
@@ -209,9 +231,12 @@ async function sailTo(s: Page, port: string) {
   if (!box || box.y + box.height / 2 > vp.height - 100 || box.x < 0 || box.x > vp.width) await s.getByRole('button', { name: '전체 보기' }).click();
   await hit.click();
   await expect(s.getByTestId('pick-panel')).toHaveAttribute('data-kind', 'ok');
-  await s.getByTestId('pick-confirm').click();
-  await s.getByTestId('set-ready').click();
-  await expect(s.getByTestId('ready-note')).toBeVisible();
+  // (작업 151) 2차시 차시 판 기본 = 자유 항해: [여기로 출발] → 바로 도착해 항구 화면이 열린다(운항비는 라운드 끝에)
+  await expect(s.getByTestId('pick-sail')).toBeVisible();
+  await expect(s.getByTestId('pick-body')).toContainText('라운드가 끝나면 한꺼번에 내요');
+  await s.getByTestId('pick-sail').click();
+  await expect(s.locator(`[data-testid="port-screen"][data-port="${port}"]`)).toBeVisible();
+  await expect(s.getByTestId('hud-fare-due')).toBeVisible();
 }
 
 /** 수량 n으로 사기·팔기·만들기(거래 가드 500ms를 가짜 시계로 넘김) */
@@ -239,7 +264,7 @@ for (const minutes of [15, 25, 30] as const) {
     await t.bringToFront();
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ready');
 
-    const seen: Seen = { worksheets: new Set(), quiz: new Set(), shots: new Set(), cards: new Set(), helperCustoms: null };
+    const seen: Seen = { worksheets: new Set(), orders: new Map(), quiz: new Set(), shots: new Set(), cards: new Set(), helperCustoms: null };
     const roundsDone = new Set<number>();
     const log: string[] = [];
     const scenes = new Set<string>();
@@ -320,6 +345,8 @@ for (const minutes of [15, 25, 30] as const) {
             // s2: 싱가포르 첫 입항 개념 카드(p.104) → 쌀 사기 → 도감 4유형에 '내가 사고판 상품: 쌀'
             await tidy(s2, seen, 's2');
             expect([...seen.cards]).toContain('arrival:s2');
+            // (작업 151) 자유 항해는 도착하면 항구 화면이 열린 채로 다음 라운드가 될 수 있다 — 임무 칩(하단 바)은 해도에서 본다
+            if (await s2.getByTestId('port-screen').count()) await s2.getByTestId('port-back').click();
             await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
             await enterPort(s2);
             await trade(ctx, t, s2, 'buy', 'rice', 2);
@@ -362,6 +389,14 @@ for (const minutes of [15, 25, 30] as const) {
     expect([...scenes]).toContain('customs');
     expect(customsShot).toBe(true);
     for (const w of ['W05', 'W06', 'W07', 'W08']) expect([...seen.worksheets], `학습지 ${w} — ${log.join(' / ')}`).toContain(w);
+    if (minutes === 25) {
+      // (작업 153) 학습지가 번호 순으로 한 장씩: ⑤ → ⑥ → ⑦ → ⑧, 팝업마다 '오늘 학습지' 줄(앞 번호 ✓·지금 번호 '지금')
+      expect([...seen.worksheets]).toEqual(['W05', 'W06', 'W07', 'W08']);
+      expect(seen.orders.get('W05')).toBe('오늘 학습지: ⑤ 지금 → ⑥ → ⑦ → ⑧');
+      // 앞 번호는 그 학생이 [다 썼어요]를 눌렀으면 ✓(이 시험은 교사가 [다음으로]로 빨리 닫아 못 쓴 번호가 있을 수 있다)
+      expect(seen.orders.get('W06')).toMatch(/^오늘 학습지: ⑤✓? → ⑥ 지금 → ⑦ → ⑧$/);
+      expect(seen.orders.get('W08')).toMatch(/^오늘 학습지: ⑤✓? → ⑥✓? → ⑦✓? → ⑧ 지금$/);
+    }
     expect(seen.helperCustoms ?? '').toContain('자동차');
     expect(seen.helperCustoms ?? '').toMatch(/들여온 상품: [^/]*원유/);
     expect(roundsDone.size).toBeGreaterThanOrEqual(2);

@@ -289,7 +289,7 @@ test.describe('교사 대시보드 — 전체 흐름(LocalAdapter)', () => {
     await expect(page.locator('[data-seat="2"] [data-testid="cell-company"]')).toContainText('푸른바다상사');
     await expect(page.locator('[data-seat="7"] [data-testid="cell-online"]')).toHaveText(/^\s*들어옴\s*$/);
     await expect(page.getByTestId('student-table').getByRole('columnheader')).toHaveText([
-      '번호', '회사 이름', '들어옴', '항구', '자금(만 원)', '임무', '응답', '학습지', '편지',
+      '번호', '회사 이름', '들어옴', '지금 할 일', '항구', '자금(만 원)', '임무', '응답', '학습지', '편지',
     ]);
     // (작업 137) 입장 현황은 '지금 할 일' 카드의 준비 체크(들어온 n · 회사 만든 m)
     await expect(page.getByTestId('prep-counts')).toContainText(/들어온( 학생)? 2/);

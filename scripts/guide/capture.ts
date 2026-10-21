@@ -545,32 +545,17 @@ async function finishMinigameShots(s: Page, snap: Snap): Promise<void> {
   await expect(s.locator('[data-testid="minigame"][data-event="L1-E1"]')).toHaveCount(0);
 }
 
-/** 두 섬 이야기: 단계마다 화면을 찍고(주 버튼 표시) 끝까지 */
+/** 두 섬 이야기: (작업 150 새 흐름, 153 정리) 장면 1 [ti-focus] → 장면 2 [ti-trade] → 장면 3 [ti-done], 장면마다 찍는다 */
 async function twoIslandsShots(s: Page, snap: Snap): Promise<void> {
-  const mg = s.getByTestId('minigame');
   const pause = () => s.waitForTimeout(600);
-  if (await s.getByTestId('ti-example').count()) {
-    await snap(s, 's-ti-1', '학생 크롬북', [press(s.getByTestId('ti-units-plus')), press(s.getByTestId('ti-example'))]);
-    await s.getByTestId('ti-example').click();
-    await pause();
-  } else {
-    let k = 0;
-    while ((await mg.getAttribute('data-step')) !== 'stage3' && k < 4) {
-      k++;
-      await snap(s, `s-ti-stage${k}`, '학생 크롬북', [press(s.getByTestId('ti-next'))]);
-      await s.getByTestId('ti-next').click();
-      await pause();
-    }
-    await s.getByTestId('ti-A-slider').fill('2');
-    await s.getByTestId('ti-B-slider').fill('10');
-    for (let i = 0; i < 10; i++) await s.getByTestId('ti-units-plus').click();
-    await pause();
-    await snap(s, 's-ti-1', '학생 크롬북', [press(s.getByTestId('ti-units-plus')), press(s.getByTestId('ti-complete'))]);
-    await s.getByTestId('ti-complete').click();
-  }
+  await snap(s, 's-ti-stage1', '학생 크롬북', [press(s.getByTestId('ti-focus'))]);
+  await s.getByTestId('ti-focus').click();
   await pause();
-  await snap(s, 's-ti-finish', '학생 크롬북', [press(s.getByTestId('minigame-finish'))]);
-  await s.getByTestId('minigame-finish').click();
+  await snap(s, 's-ti-stage2', '학생 크롬북', [press(s.getByTestId('ti-trade'))]);
+  await s.getByTestId('ti-trade').click();
+  await pause();
+  await snap(s, 's-ti-finish', '학생 크롬북', [press(s.getByTestId('ti-done'))]);
+  await s.getByTestId('ti-done').click();
   await expect(s.locator('[data-testid="minigame"][data-event="L1-E5"]')).toHaveCount(0);
 }
 

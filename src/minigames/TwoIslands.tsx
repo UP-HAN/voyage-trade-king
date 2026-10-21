@@ -1,90 +1,52 @@
 /**
- * 두 섬 이야기(L1-E5, PRD 6.12.2, 교과서 p.98~99) — 개인 미니게임(작업 113). 수치는 [게임 설정].
+ * 두 섬 이야기(L1-E5, PRD 6.12.2 v0.3.8, 교과서 p.98~99) — 화면 표기는 교과서처럼 ㉮ 나라·㉯ 나라. 수치는 [게임 설정].
  *
- * 1단계 "혼자 살기": 섬마다 10일을 쌀/옷에 나눔(1일 단위, 기본 5:5), 생산량 바로 표시.
- * 2단계 "잘하는 것에 집중하기": 다시 나눔 + [힌트].
- * 3단계 "바꾸기": 옷 3 = 쌀 2 고정, 3상자 단위(+3/−3 옷 보내기). 섬별 ✓/✗(글자 병기)를 바로 보여 준다.
- *   목표 = 두 섬 모두 1단계 기본(5일:5일)보다 쌀과 옷이 같거나 많기 + 교환 1단위 이상(core와 같은 규칙).
- * 성공 → 1단계 vs 3단계 막대그래프 + 끝 문장(p.99) → [마치기]에서 결과를 보낸다.
- * [예시 따라 하기]: 3분이 지나거나(짧은 형태·따라잡기·마감 뒤에는 처음부터) 보이고, 검산 예를 넣어 완료한다(보상 동일).
- * 짧은 형태: 1·2단계를 건너뛰고 1단계 기본값을 보여 준 뒤 3단계부터.
+ * 작업 150(교사 1차시 수업 피드백): 슬라이더·숫자 맞추기를 없애고 **3장면·버튼 2번**으로 아주 쉽게.
+ *   1. 혼자 살 때(5일:5일 결과만) → [잘하는 것을 많이 만들어 보기]
+ *   2. 잘하는 것을 많이 만들기(㉮ 옷 8일·㉯ 쌀 10일, 막대가 0.3초 바뀜) → [옷 30벌 ↔ 쌀 20포대 바꾸기]
+ *   3. 서로 바꾼 뒤(양쪽 화살표 + 혼자 살 때·바꾼 뒤 막대, 끝 문장 p.99) → [다 했어요]
+ * [다 했어요]에서 지금과 같은 응답 `{ riceDays: { A: 2, B: 10 }, units: 10 }`을 보낸다 → core 판정 그대로 성공·보상.
+ * 3장면에 들어서면 보낼 결과를 기억해 두어, 교사가 사건을 마감해 화면이 닫혀도 그때 보낸다(보상을 잃지 않게).
+ * 짧은 형태(2.5분)와 전체 형태(6분)는 같은 3장면을 쓴다. [힌트]·[예시 따라 하기]·3분 기다림·[뒤로]는 없다.
  */
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { twoIslands, type IslandId, type IslandStock } from '../data/twoIslands';
 import { img, imgSrcSet } from '../ui/common/asset';
-import { CheckMark, ClothesIcon, RiceIcon } from './icons';
-import {
-  baseStocks,
-  clampDays,
-  exampleSetup,
-  ISLANDS,
-  judgeTwoIslands,
-  manwon,
-  maxUnits,
-  produceBoth,
-  saveKey,
-  showExample,
-  totals,
-  type IslandJudge,
-  type RiceDays,
-} from './logic';
+import { ClothesIcon, RiceIcon } from './icons';
+import { ISLANDS, manwon, saveKey, twoIslandsScenes, type IslandPair } from './logic';
 import { MinigameFrame, usePersisted, useResultSender } from './shared';
 import type { MinigameGameProps } from './types';
 
-type Stage = 1 | 2 | 3 | 'result';
+type Scene = 1 | 2 | 3;
 
 interface Saved {
-  v: 1;
-  stage: Stage;
-  s1: RiceDays;
-  s2: RiceDays;
-  units: number;
-  hint: boolean;
-  usedExample: boolean;
-  /** 이 기기에서 처음 연 시각(3분 뒤 [예시 따라 하기]) */
-  startedAt: number;
-  /** 성공한 배분·교환(결과 그래프·보낼 값) */
-  done: { riceDays: RiceDays; units: number; usedExample: boolean } | null;
+  v: 2;
+  scene: Scene;
   sent: boolean;
 }
 
-const STAGE_NAMES: Readonly<Record<1 | 2 | 3, string>> = { 1: '혼자 살기', 2: '잘하는 것에 집중하기', 3: '바꾸기' };
+const SCENE_NAMES: Readonly<Record<Scene, string>> = { 1: '혼자 살 때', 2: '잘하는 것을 많이 만들기', 3: '서로 바꾸니' };
+type Kind = 'rice' | 'clothes';
+const KINDS: readonly Kind[] = ['rice', 'clothes'];
+const UNIT: Readonly<Record<Kind, string>> = { rice: '포대', clothes: '벌' };
+const NAME: Readonly<Record<Kind, string>> = { rice: '쌀', clothes: '옷' };
 
-export function TwoIslands({ eventId, short, catchUp, closed, player, act, onDone, alreadyDone }: MinigameGameProps) {
-  const def = { ...twoIslands.defaultRiceDays };
-  const [s, set] = usePersisted<Saved>(saveKey(player.pid, eventId), 1, () => ({
-    v: 1,
-    stage: short ? 3 : 1,
-    s1: { ...def },
-    s2: { ...def },
-    units: 0,
-    hint: false,
-    usedExample: false,
-    startedAt: Date.now(),
-    done: null,
-    sent: false,
-  }));
+export function TwoIslands({ eventId, short, catchUp, player, act, onDone, alreadyDone }: MinigameGameProps) {
+  const [s, set] = usePersisted<Saved>(saveKey(player.pid, eventId), 2, () => ({ v: 2, scene: 1, sent: false }));
   const sender = useResultSender(eventId, act, s.sent || alreadyDone);
-  const [now, setNow] = useState(() => Date.now());
   const [msg, setMsg] = useState<string | null>(null);
-  const exampleOn = showExample({ short, catchUp, closed, startedAt: s.startedAt, now });
+  const sc = twoIslandsScenes();
 
+  // 3장면(바꾼 뒤)에 들어서면 보낼 결과를 기억(화면이 닫히면 그때 보냄). `example` 없이 배분·교환 그대로.
   useEffect(() => {
-    if (exampleOn) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [exampleOn]);
-
-  // 성공했으면 보낼 결과를 기억(화면이 닫히면 그때 보냄)
-  useEffect(() => {
-    const d = s.done;
-    sender.setPending(d && !s.sent ? (d.usedExample ? { example: true, riceDays: d.riceDays, units: d.units } : { riceDays: d.riceDays, units: d.units }) : null);
-  }, [s.done, s.sent]);
+    sender.setPending(s.scene === 3 && !s.sent ? { riceDays: { ...sc.riceDays }, units: sc.units } : null);
+  }, [s.scene, s.sent]);
 
   const kicker = (
     <>
-      {catchUp ? '놓친 활동 · ' : '활동 · '}㉮·㉯ 나라 이야기(교과서 p.98~99) <span class="mg-rule-inline">[게임 설정] 수치</span>
+      {catchUp ? '놓친 활동 · ' : '활동 · '}
+      <span class="ti-pages">교과서 98~99쪽</span>
       {short && <span class="mg-tag" data-testid="minigame-short">짧게</span>}
     </>
   );
@@ -94,12 +56,12 @@ export function TwoIslands({ eventId, short, catchUp, closed, player, act, onDon
     </MinigameFrame>
   );
 
-  if (alreadyDone && !s.done) {
+  if (alreadyDone && s.scene !== 3) {
     return frame(
       'already',
       <div class="mg-body mg-center">
         <p class="mg-lead" data-testid="minigame-already">
-          이미 두 섬의 교환에 성공했어요.
+          이미 ㉮ 나라와 ㉯ 나라 이야기를 마쳤어요.
         </p>
         <button type="button" class="btn btn--primary" data-testid="minigame-finish" onClick={onDone}>
           닫기
@@ -108,332 +70,166 @@ export function TwoIslands({ eventId, short, catchUp, closed, player, act, onDon
     );
   }
 
-  const goStage = (stage: Stage) => {
+  const go = (scene: Scene) => {
     if (!sender.guard()) return;
-    set((x) => ({ ...x, stage, ...(stage === 2 && x.stage === 1 ? { s2: { ...x.s1 } } : {}), units: stage === 3 ? Math.min(x.units, maxUnits(x.s2)) : x.units }));
+    set((x) => ({ ...x, scene }));
   };
-  const useExample = () => {
-    if (!sender.guard()) return;
-    const ex = exampleSetup();
-    set((x) => ({ ...x, stage: 'result', s2: ex.riceDays, units: ex.units, usedExample: true, done: { riceDays: ex.riceDays, units: ex.units, usedExample: true } }));
+  const finish = () => {
+    const r = sender.send();
+    if (r === 'guard') return;
+    if (r === 'fail') {
+      setMsg('보내지 못했어요. 연결을 확인하고 다시 눌러요.');
+      return;
+    }
+    set((x) => ({ ...x, sent: true }));
+    onDone();
   };
-  const exampleBtn = exampleOn && (
-    <button type="button" class="btn btn--secondary" data-testid="ti-example" onClick={useExample} title="㉯ 쌀 10일, ㉮ 쌀 2일·옷 8일, 옷 30과 쌀 20을 바꾸기">
-      예시 따라 하기
-    </button>
-  );
-  const steps = <StageSteps stage={s.stage} short={short} />;
 
-  // ── 결과 ──
-  if (s.stage === 'result' && s.done) {
-    const base = baseStocks();
-    const j = judgeTwoIslands(s.done.riceDays, s.done.units);
-    const finish = () => {
-      const r = sender.send();
-      if (r === 'guard') return;
-      if (r === 'fail') {
-        setMsg('보내지 못했어요. 연결을 확인하고 다시 눌러요.');
-        return;
-      }
-      set((x) => ({ ...x, sent: true }));
-      onDone();
-    };
-    return frame(
-      'result',
-      <div class="mg-body">
-        <p class="mg-score" data-testid="ti-success">
-          <CheckMark ok size={30} /> <b>성공!</b> 두 섬 모두 혼자 살 때보다 쌀과 옷을 같거나 더 많이 가졌어요.
-          {s.done.usedExample && <span class="mg-rule"> (예시를 따라 했어요)</span>}
-        </p>
-        <ResultChart base={base} after={j.after} />
-        <p class="ti-sum" data-testid="ti-sum">
-          두 섬 합계: 쌀 <b>{totals(base).rice}</b> → <b>{totals(j.after).rice}</b>, 옷 <b>{totals(base).clothes}</b> → <b>{totals(j.after).clothes}</b>
-        </p>
-        <blockquote class="mg-quote mg-quote--end" data-testid="ti-end">
-          {twoIslands.endSentence.text} <cite>교과서 p.{twoIslands.endSentence.pages.join('·')}</cite>
-        </blockquote>
-        <div class="mg-foot">
-          <span class="mg-reward">보상: 도감 개념 카드 「무역의 좋은 점」, 자금 +{manwon(twoIslands.reward.money)}</span>
-          {msg && (
-            <p class="mg-msg" role="alert">
-              {msg}
-            </p>
-          )}
-          <button type="button" class="btn btn--primary btn--large" data-testid="minigame-finish" onClick={finish}>
-            마치기
-          </button>
-        </div>
-      </div>,
-      steps,
-    );
-  }
+  const scene = s.scene;
+  const now: IslandPair = scene === 1 ? sc.alone : scene === 2 ? sc.focus : sc.traded;
+  const days: Record<IslandId, number> = scene === 1 ? { ...twoIslands.defaultRiceDays } : { ...sc.riceDays };
+  const max = Math.max(1, ...[sc.alone, sc.focus, sc.traded].flatMap((p) => ISLANDS.flatMap((k) => [p[k].rice, p[k].clothes])));
 
-  // ── 1·2단계: 나누기 ──
-  if (s.stage === 1 || s.stage === 2) {
-    const key = s.stage === 1 ? 's1' : 's2';
-    const rd = s[key];
-    const setDays = (k: IslandId, n: number) => set((x) => ({ ...x, [key]: { ...x[key], [k]: clampDays(n) } }));
-    const p = produceBoth(rd);
-    const sum = totals(p);
-    return frame(
-      `stage${s.stage}`,
-      <div class="mg-body">
-        <p class="mg-lead" data-testid="ti-guide">
-          {s.stage === 1
-            ? '두 섬은 서로 바꾸지 않고 혼자 살아요. 섬마다 10일을 쌀과 옷 만들기에 나눠 보세요.'
-            : '이번에는 각 섬이 더 잘 만드는 것에 날을 더 써 보세요. 다음 단계에서 서로 바꿀 거예요.'}
-        </p>
-        <div class="ti-islands">
-          {ISLANDS.map((k) => (
-            <IslandCard key={k} id={k} days={rd[k]} onDays={(n) => setDays(k, n)} />
-          ))}
-        </div>
-        <p class="ti-sum" data-testid="ti-sum">
-          두 섬 합계: <RiceIcon size={26} /> 쌀 <b class="mg-num">{sum.rice}</b> · <ClothesIcon size={26} /> 옷 <b class="mg-num">{sum.clothes}</b>
-          {s.stage === 2 && (
-            <span class="ti-sum__cmp">
-              {' '}
-              (1단계 기본 5일:5일 — 쌀 {totals(baseStocks()).rice} · 옷 {totals(baseStocks()).clothes})
-            </span>
-          )}
-        </p>
-        {s.stage === 2 && s.hint && (
-          <p class="ti-hint" data-testid="ti-hint-text">
-            힌트: {twoIslands.hint}
-          </p>
-        )}
-        <div class="mg-foot">
-          {exampleBtn}
-          {s.stage === 2 && !s.hint && (
-            <button
-              type="button"
-              class="btn btn--secondary"
-              data-testid="ti-hint"
-              onClick={() => {
-                if (sender.guard()) set((x) => ({ ...x, hint: true }));
-              }}
-            >
-              힌트
-            </button>
-          )}
-          {s.stage === 2 && (
-            <button type="button" class="btn btn--secondary" data-testid="ti-back" onClick={() => goStage(1)}>
-              이전
-            </button>
-          )}
-          <button type="button" class="btn btn--primary btn--large" data-testid="ti-next" onClick={() => goStage(s.stage === 1 ? 2 : 3)}>
-            다음
-          </button>
-        </div>
-      </div>,
-      steps,
-    );
-  }
-
-  // ── 3단계: 바꾸기 ──
-  const rd = s.s2;
-  const j = judgeTwoIslands(rd, s.units);
-  const max = maxUnits(rd);
-  const setDays = (k: IslandId, n: number) =>
-    set((x) => {
-      const s2 = { ...x.s2, [k]: clampDays(n) };
-      return { ...x, s2, units: Math.min(x.units, maxUnits(s2)) };
-    });
-  const setUnits = (u: number) => set((x) => ({ ...x, units: Math.max(0, Math.min(maxUnits(x.s2), u)) }));
-  const complete = () => {
-    if (!j.success || !sender.guard()) return;
-    set((x) => ({ ...x, stage: 'result', done: { riceDays: { ...x.s2 }, units: j.units, usedExample: false } }));
+  const lead: Record<Scene, [string, string]> = {
+    1: ['㉮ 나라와 ㉯ 나라는 10일 동안 쌀과 옷을 반씩(5일씩) 만들어요.', '㉮ 나라는 옷을, ㉯ 나라는 쌀을 상대적으로 더 잘 만들어요.'],
+    2: ['㉮ 나라는 옷을 많이(8일), ㉯ 나라는 쌀만(10일) 만들었어요.', '그런데 ㉮는 쌀이, ㉯는 옷이 모자라요. 서로 바꿔 볼까요?'],
+    3: ['두 나라 모두 혼자 살 때보다 쌀도 옷도 같거나 더 많아졌어요!', ''],
   };
-  const base = baseStocks();
+
   return frame(
-    'stage3',
-    <div class="mg-body">
-      <p class="mg-lead" data-testid="ti-guide">
-        {short && (
+    `scene${scene}`,
+    <div class="mg-body ti-body" data-testid="ti-scene" data-scene={scene}>
+      <h3 class="ti-scene__title title-font" data-testid="ti-scene-title">
+        {scene}. {SCENE_NAMES[scene]}
+      </h3>
+      <p class="ti-lead" data-testid="ti-guide">
+        {lead[scene][0]}
+        {lead[scene][1] && (
           <>
-            혼자 살 때(1단계, 5일:5일) ㉮섬은 쌀 {base.A.rice}·옷 {base.A.clothes}, ㉯섬은 쌀 {base.B.rice}·옷 {base.B.clothes}을 가져요.{' '}
+            <br />
+            {lead[scene][1]}
           </>
         )}
-        ㉮섬이 옷을 보내고 ㉯섬이 쌀을 보내요. 두 섬 모두 1단계보다 쌀과 옷이 같거나 많아지게 만들어 보세요.
       </p>
-      <div class="ti-islands ti-islands--trade">
-        <IslandCard id="A" days={rd.A} onDays={(n) => setDays('A', n)} judge={j} compact />
-        <TradeBox units={j.units} max={max} onUnits={setUnits} />
-        <IslandCard id="B" days={rd.B} onDays={(n) => setDays('B', n)} judge={j} compact />
+      <div class={`ti-nations ti-nations--s${scene}`}>
+        <NationCard id="A" scene={scene} riceDays={days.A} now={now.A} alone={sc.alone.A} max={max} />
+        {scene === 3 && <TradeArrows clothes={sc.give.clothes} rice={sc.give.rice} />}
+        <NationCard id="B" scene={scene} riceDays={days.B} now={now.B} alone={sc.alone.B} max={max} />
       </div>
+      {scene === 3 && (
+        <blockquote class="mg-quote mg-quote--end ti-end" data-testid="ti-end">
+          {twoIslands.endSentence.text} <cite>교과서 {twoIslands.endSentence.pages.join('·')}쪽</cite>
+        </blockquote>
+      )}
       <div class="mg-foot">
-        <span class={`ti-status ${j.success ? 'is-ok' : ''}`} data-testid="ti-status" data-success={j.success ? '1' : '0'} aria-live="polite">
-          {j.success ? '두 섬 모두 목표를 이뤘어요!' : j.units === 0 ? '아직 바꾸지 않았어요. 옷을 보내 보세요.' : '아직 목표에 못 미친 섬이 있어요.'}
-        </span>
-        {exampleBtn}
-        {!short && (
-          <button type="button" class="btn btn--secondary" data-testid="ti-back" onClick={() => goStage(2)}>
-            이전
+        {scene === 3 && <span class="mg-reward ti-reward">보상: 도감 개념 카드 「무역의 좋은 점」, 자금 +{manwon(twoIslands.reward.money)}</span>}
+        {msg && (
+          <p class="mg-msg" role="alert">
+            {msg}
+          </p>
+        )}
+        {scene === 1 && (
+          <button type="button" class="btn btn--primary btn--large ti-btn" data-testid="ti-focus" onClick={() => go(2)}>
+            잘하는 것을 많이 만들어 보기
           </button>
         )}
-        <button type="button" class="btn btn--primary btn--large" data-testid="ti-complete" disabled={!j.success} onClick={complete}>
-          바꾸기 완료
-        </button>
+        {scene === 2 && (
+          <button type="button" class="btn btn--primary btn--large ti-btn" data-testid="ti-trade" onClick={() => go(3)}>
+            옷 {sc.give.clothes}벌 ↔ 쌀 {sc.give.rice}포대 바꾸기
+          </button>
+        )}
+        {scene === 3 && (
+          <button type="button" class="btn btn--primary btn--large ti-btn" data-testid="ti-done" onClick={finish}>
+            다 했어요
+          </button>
+        )}
       </div>
     </div>,
-    steps,
+    <SceneSteps scene={scene} />,
   );
 }
 
-function StageSteps({ stage, short }: { stage: Stage; short: boolean }) {
-  const cur = stage === 'result' ? 4 : stage;
+function SceneSteps({ scene }: { scene: Scene }) {
   return (
-    <ol class="ti-steps" aria-label="단계">
+    <ol class="ti-steps" aria-label="장면">
       {([1, 2, 3] as const).map((n) => (
-        <li key={n} class={`${cur === n ? 'is-current' : ''}${cur > n ? ' is-done' : ''}${short && n < 3 ? ' is-skipped' : ''}`} aria-current={cur === n ? 'step' : undefined}>
-          {n}단계 {STAGE_NAMES[n]}
+        <li key={n} class={`${scene === n ? 'is-current' : ''}${scene > n ? ' is-done' : ''}`} aria-current={scene === n ? 'step' : undefined}>
+          {n}
         </li>
       ))}
     </ol>
   );
 }
 
-function Amount({ kind, n, big }: { kind: 'rice' | 'clothes'; n: number; big?: boolean }) {
+function NationCard({ id, scene, riceDays, now, alone, max }: { id: IslandId; scene: Scene; riceDays: number; now: IslandStock; alone: IslandStock; max: number }) {
+  const isl = twoIslands.islands[id];
+  const clothesDays = twoIslands.days - riceDays;
+  const daysText = riceDays === 0 ? `옷만 ${clothesDays}일` : clothesDays === 0 ? `쌀만 ${riceDays}일` : `쌀 ${riceDays}일 · 옷 ${clothesDays}일`;
   return (
-    <span class={`ti-amt ti-amt--${kind}${big ? ' ti-amt--big' : ''}`}>
-      {kind === 'rice' ? <RiceIcon size={big ? 30 : 24} /> : <ClothesIcon size={big ? 30 : 24} />}
-      {kind === 'rice' ? '쌀' : '옷'} <b class="mg-num">{n}</b>
+    <section class={`ti-nation ti-nation--${id}`} data-testid={`ti-nation-${id}`} data-rice={now.rice} data-clothes={now.clothes}>
+      <header class="ti-nation__head">
+        <h4 class="ti-nation__name title-font">{isl.label}</h4>
+        <span class="ti-nation__days" data-testid={`ti-${id}-days`}>
+          {daysText}
+        </span>
+      </header>
+      {KINDS.map((k) => (
+        <div class="ti-row" key={k}>
+          <span class="ti-row__label">
+            {k === 'rice' ? <RiceIcon size={28} /> : <ClothesIcon size={28} />}
+            {NAME[k]}
+          </span>
+          <span class="ti-row__bars">
+            {scene === 3 && <Bar key="before" kind={k} when="before" value={alone[k]} max={max} />}
+            <Bar key="now" kind={k} when={scene === 3 ? 'after' : 'now'} value={now[k]} max={max} short={scene === 2 && now[k] < alone[k]} />
+          </span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Bar({ kind, when, value, max, short }: { kind: Kind; when: 'now' | 'before' | 'after'; value: number; max: number; short?: boolean }) {
+  const label = when === 'before' ? '혼자 살 때 ' : when === 'after' ? '바꾼 뒤 ' : '';
+  return (
+    <span class={`ti-bar ti-bar--${when}${short ? ' is-short' : ''}`} data-testid="ti-bar" data-kind={kind} data-when={when} data-value={value}>
+      <span class="ti-bar__fill" style={{ width: `${(value / max) * 100}%` }} />
+      <span class="ti-bar__val">
+        {label}
+        <b>{value}</b>
+        {UNIT[kind]}
+        {short && <em class="ti-bar__short"> 모자라요</em>}
+      </span>
     </span>
   );
 }
 
-function IslandCard({ id, days, onDays, judge, compact }: { id: IslandId; days: number; onDays: (n: number) => void; judge?: IslandJudge; compact?: boolean }) {
-  const isl = twoIslands.islands[id];
-  const made = produceBoth({ A: id === 'A' ? days : 0, B: id === 'B' ? days : 0 })[id];
-  const base = baseStocks()[id];
-  return (
-    <section class={`ti-island ti-island--${id}${compact ? ' ti-island--compact' : ''}`} data-testid={`ti-island-${id}`} data-rice-days={days}>
-      <header class="ti-island__head">
-        <h3 class="ti-island__name title-font">{isl.label}</h3>
-        <span class="ti-island__rate">
-          하루 일하면 쌀 {isl.ricePerDay} 또는 옷 {isl.clothesPerDay}
-        </span>
-      </header>
-      <div class="ti-days">
-        <button type="button" class="btn btn--secondary ti-days__btn" data-testid={`ti-${id}-rice-minus`} aria-label={`${isl.label} 쌀 하루 줄이기`} disabled={days <= 0} onClick={() => onDays(days - 1)}>
-          −
-        </button>
-        <label class="ti-days__slider">
-          <span class="ti-days__text">
-            쌀 <b>{days}</b>일 · 옷 <b>{twoIslands.days - days}</b>일
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={twoIslands.days}
-            step={1}
-            value={days}
-            data-testid={`ti-${id}-slider`}
-            aria-label={`${isl.label} 쌀 만드는 날`}
-            onInput={(e) => onDays(Number((e.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <button
-          type="button"
-          class="btn btn--secondary ti-days__btn"
-          data-testid={`ti-${id}-rice-plus`}
-          aria-label={`${isl.label} 쌀 하루 늘리기`}
-          disabled={days >= twoIslands.days}
-          onClick={() => onDays(days + 1)}
-        >
-          +
-        </button>
-      </div>
-      <p class="ti-made" data-testid={`ti-${id}-made`} data-rice={made.rice} data-clothes={made.clothes}>
-        <span class="ti-made__label">만든 양</span>
-        <Amount kind="rice" n={made.rice} big={!judge} />
-        <Amount kind="clothes" n={made.clothes} big={!judge} />
-      </p>
-      {judge && (
-        <>
-          <p class="ti-after" data-testid={`ti-${id}-after`} data-rice={judge.after[id].rice} data-clothes={judge.after[id].clothes}>
-            <span class="ti-made__label">바꾼 뒤</span>
-            <Amount kind="rice" n={judge.after[id].rice} big />
-            <Amount kind="clothes" n={judge.after[id].clothes} big />
-          </p>
-          <p class="ti-goal">
-            목표(1단계): 쌀 {base.rice} · 옷 {base.clothes} 이상
-          </p>
-          <p class={`ti-judge ${judge.ok[id] ? 'is-ok' : 'is-no'}`} data-testid={`ti-${id}-judge`} data-ok={judge.ok[id] ? '1' : '0'}>
-            <CheckMark ok={judge.ok[id]} />
-            {judge.ok[id] ? '목표 달성' : !judge.traded ? '아직 바꾸지 않았어요' : lackText(judge.short[id])}
-          </p>
-        </>
+/** 3장면 가운데: 옷 → ㉯, 쌀 → ㉮ 양쪽 화살표(SVG) */
+function TradeArrows({ clothes, rice }: { clothes: number; rice: number }) {
+  const arrow = (dir: 'right' | 'left') => (
+    <svg class={`ti-arrow ti-arrow--${dir}`} width="150" height="26" viewBox="0 0 150 26" aria-hidden="true" focusable="false">
+      {dir === 'right' ? (
+        <path d="M4 13H134M122 3l14 10-14 10" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+      ) : (
+        <path d="M146 13H16M28 3L14 13l14 10" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
       )}
-    </section>
-  );
-}
-
-function lackText(l: IslandStock): string {
-  const parts: string[] = [];
-  if (l.rice > 0) parts.push(`쌀 ${l.rice}`);
-  if (l.clothes > 0) parts.push(`옷 ${l.clothes}`);
-  return `아직 — ${parts.join(', ')} 모자라요`;
-}
-
-function TradeBox({ units, max, onUnits }: { units: number; max: number; onUnits: (u: number) => void }) {
-  const ex = twoIslands.exchange;
-  return (
-    <section class="ti-trade" data-testid="ti-trade" data-units={units}>
-      <p class="ti-trade__rate">
-        바꾸는 비율 <b>옷 {ex.clothes} = 쌀 {ex.rice}</b> <span class="mg-rule-inline">[게임 설정]</span>
-      </p>
-      <p class="ti-trade__row">
-        ㉮섬 → ㉯섬 <ClothesIcon size={26} /> 옷 <b class="mg-num" data-testid="ti-give-clothes">{units * ex.clothes}</b>
-      </p>
-      <p class="ti-trade__row">
-        ㉯섬 → ㉮섬 <RiceIcon size={26} /> 쌀 <b class="mg-num" data-testid="ti-give-rice">{units * ex.rice}</b>
-      </p>
-      <div class="ti-trade__btns">
-        <button type="button" class="btn btn--secondary" data-testid="ti-units-minus" disabled={units <= 0} onClick={() => onUnits(units - 1)}>
-          −{ex.clothes} 옷
-        </button>
-        <button type="button" class="btn btn--primary" data-testid="ti-units-plus" disabled={units >= max} onClick={() => onUnits(units + 1)}>
-          +{ex.clothes} 옷 보내기
-        </button>
-      </div>
-      <p class="ti-trade__note">
-        {units}번 바꿨어요{max > 0 ? ` (이 배분으로는 최대 ${max}번)` : ' — 보낼 옷이나 쌀이 없어요'}
-      </p>
-    </section>
-  );
-}
-
-function ResultChart({ base, after }: { base: Record<IslandId, IslandStock>; after: Record<IslandId, IslandStock> }) {
-  const max = Math.max(1, ...ISLANDS.flatMap((k) => [base[k].rice, base[k].clothes, after[k].rice, after[k].clothes]));
-  const row = (k: IslandId, kind: 'rice' | 'clothes') => (
-    <div class="ti-chart__group" key={`${k}-${kind}`}>
-      <span class="ti-chart__label">
-        {twoIslands.islands[k].label} {kind === 'rice' ? <RiceIcon size={22} /> : <ClothesIcon size={22} />}
-        {kind === 'rice' ? '쌀' : '옷'}
-      </span>
-      <span class="ti-chart__bars">
-        <span class="ti-bar ti-bar--s1" data-testid="ti-bar-s1" data-value={base[k][kind]}>
-          <span class="ti-bar__fill" style={{ width: `${(base[k][kind] / max) * 100}%` }} />
-          <span class="ti-bar__val">1단계 {base[k][kind]}</span>
-        </span>
-        <span class="ti-bar ti-bar--s3" data-testid="ti-bar-s3" data-value={after[k][kind]}>
-          <span class="ti-bar__fill" style={{ width: `${(after[k][kind] / max) * 100}%` }} />
-          <span class="ti-bar__val">3단계 {after[k][kind]}</span>
-        </span>
-      </span>
-    </div>
+    </svg>
   );
   return (
-    <div class="ti-chart" data-testid="ti-chart" role="img" aria-label="1단계(혼자 살기)와 3단계(바꾸기) 비교 막대그래프">
-      {ISLANDS.map((k) => (
-        <div class="ti-chart__island" key={k}>
-          {row(k, 'rice')}
-          {row(k, 'clothes')}
-        </div>
-      ))}
-      <p class="ti-chart__legend">
-        <span class="ti-key ti-key--s1" /> 1단계 혼자 살기(5일:5일) <span class="ti-key ti-key--s3" /> 3단계 바꾼 뒤
+    <div class="ti-arrows" data-testid="ti-arrows" role="img" aria-label={`㉮ 나라가 옷 ${clothes}벌을 ㉯ 나라에, ㉯ 나라가 쌀 ${rice}포대를 ㉮ 나라에 줘요`}>
+      <p class="ti-arrows__item ti-arrows__item--clothes">
+        <span class="ti-arrows__what">
+          <ClothesIcon size={30} /> 옷 <b data-testid="ti-give-clothes">{clothes}</b>벌
+        </span>
+        {arrow('right')}
+        <span class="ti-arrows__to">㉮ → ㉯</span>
+      </p>
+      <p class="ti-arrows__item ti-arrows__item--rice">
+        <span class="ti-arrows__what">
+          <RiceIcon size={30} /> 쌀 <b data-testid="ti-give-rice">{rice}</b>포대
+        </span>
+        {arrow('left')}
+        <span class="ti-arrows__to">㉮ ← ㉯</span>
       </p>
     </div>
   );

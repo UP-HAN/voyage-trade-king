@@ -5,6 +5,7 @@
  * - 큰 버튼은 누른 뒤 상태가 바뀔 때까지(최대 1.5초), 그리고 바뀌었더라도 0.6초 동안은 다시 눌리지 않는다(두 번 눌러 두 단계 넘어감 방지).
  *   확인 창에서 [취소]하면 바로 다시 켜진다.
  * - 상태가 바뀌면 0.2초 페이드·강조(`prefers-reduced-motion`이면 없음 — teacher.css).
+ * - (작업 147) `card.quiet`(자동 진행의 카드·응답·라운드·기다림·결과)이면 [잠깐 멈춤]을 위에 큰 주 색 버튼으로, 큰 버튼은 아래 '급할 때만' 작은 버튼으로.
  * - data-testid: 카드 `now-card`(data-state), 큰 버튼 자리 `now-primary`(안의 버튼은 기존 시험이 쓰던 testid), 멈춤 자리 `now-pause`.
  */
 import { useEffect, useState } from 'preact/hooks';
@@ -58,6 +59,18 @@ export function NowCard({ card, onAction }: NowCardProps) {
   };
 
   const p = card.primary;
+  const pause = card.showPause && (
+    <span class={`t-now__pause${card.quiet ? ' t-now__pause--big' : ''}`} data-testid="now-pause">
+      <button
+        type="button"
+        class={card.quiet ? 'btn btn--primary btn--large t-now__pause-big' : 'btn btn--secondary t-btn-sm'}
+        data-testid="btn-pause"
+        onClick={() => void onAction({ label: '잠깐 멈춤', kind: 'pause' })}
+      >
+        잠깐 멈춤
+      </button>
+    </span>
+  );
   return (
     <section class={`t-now t-now--${card.state}`} data-testid="now-card" data-state={card.state} data-manual={card.manual ? '1' : '0'} aria-label="지금 할 일">
       <div class="t-now__head">
@@ -93,12 +106,19 @@ export function NowCard({ card, onAction }: NowCardProps) {
           )}
           {card.secondary && <SmallButton b={card.secondary} onAction={onAction} />}
         </div>
-        <div class="t-now__acts">
+        <div class={`t-now__acts${card.quiet ? ' t-now__acts--quiet' : ''}`}>
+          {/* (작업 147) 조용한 카드(자동 진행): [잠깐 멈춤]이 위에 큰 주 색 버튼, 원래 큰 버튼은 아래 '급할 때만' 작은 버튼 */}
+          {card.quiet && pause}
           {p && (
             <div class="t-now__primary" data-testid="now-primary" data-kind={p.kind}>
+              {card.quiet && (
+                <span class="t-now__quiet-cap" data-testid="now-quiet-cap">
+                  급할 때만
+                </span>
+              )}
               <button
                 type="button"
-                class={`btn btn--large t-now__big t-now__big--${p.tone ?? 'primary'}`}
+                class={`btn btn--large t-now__big t-now__big--${p.tone ?? 'primary'}${card.quiet ? ' t-now__big--quiet' : ''}`}
                 data-testid={p.testId}
                 disabled={p.disabled || locked}
                 aria-disabled={p.disabled || locked ? 'true' : undefined}
@@ -116,18 +136,7 @@ export function NowCard({ card, onAction }: NowCardProps) {
               )}
             </div>
           )}
-          {card.showPause && (
-            <span class="t-now__pause" data-testid="now-pause">
-              <button
-                type="button"
-                class="btn btn--secondary t-btn-sm"
-                data-testid="btn-pause"
-                onClick={() => void onAction({ label: '잠깐 멈춤', kind: 'pause' })}
-              >
-                잠깐 멈춤
-              </button>
-            </span>
-          )}
+          {!card.quiet && pause}
           {/* 멈춤 중에는 [잠깐 멈춤] 자리를 비워 둔다 — 큰 버튼([이어서 하기])이 그 자리로 움직여 두 번째 클릭을 받지 않게 */}
           {card.state === 'paused' && <span class="t-now__pause t-now__pause--ph" aria-hidden="true" />}
         </div>

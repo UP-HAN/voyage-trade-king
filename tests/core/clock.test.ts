@@ -102,24 +102,23 @@ describe('무역 시작과 자동 진행(통합: hostReduce 에 틱)', () => {
     expect(notices(res.outs, 'UPCOMING').length).toBeGreaterThan(5);
   });
 
-  it('차시 한 판 L1 25분(v0.3.4): 지금 쓰기 ③★ 팝업이 40초 뜨고 닫히고, ③은 끝나고 쓰기에 그대로', () => {
+  it("차시 한 판 L1 25분(v0.3.8, 작업 153): '알아서' = 활동마다 바로 ①→②→③→④, ★ 없음, 끝나고 쓰기 없음", () => {
     let snap = started({ scope: ['L1'], n: 3 }).snapshot;
     const ws = snap.class.schedule.items.filter((it) => it.kind === 'worksheet');
-    expect(ws.map((it) => it.id)).toEqual(['wsd:W03']);
-    let opened = 0;
+    expect(ws.map((it) => it.id)).toEqual(['ws:W01', 'ws:W02', 'ws:W03', 'ws:W04']);
+    const seen: string[] = [];
     let during = 0;
     snap = tickRange(snap, T0 + 1000, T0 + 25 * 60_000 + 2000, (s) => {
-      if (s.class.phase === 'worksheet') opened++;
+      const cur = s.class.worksheet.current?.join(',');
+      if (s.class.phase === 'worksheet' && cur && seen[seen.length - 1] !== cur) seen.push(cur);
       if (s.class.worksheet.during) during++;
     }).snap;
-    expect(opened).toBeGreaterThanOrEqual(38); // 지금 쓰기 40초 동안 열려 있음
-    expect(opened).toBeLessThanOrEqual(42);
-    expect(during).toBe(opened);
+    expect(seen).toEqual(['W01', 'W02', 'W03', 'W04']);
+    expect(during).toBe(0);
     for (const w of ws) expect(item(snap, w.id).status).toBe('done');
-    expect(snap.class.worksheet.mode).toBe(snap.class.schedule.stageModes!.L1);
+    expect(snap.class.worksheet.mode).toBe('each');
     expect(snap.class.phase).toBe('wrapup');
-    // ③★ 을 띄웠어도 ③ 번호는 끝나고 쓰기에 남는다(PRD 4.3.3.1 규칙 7)
-    expect(snap.class.schedule.wrapup!.find((w) => w.id === 'afterWorksheet')!.worksheetIds).toEqual(['W01', 'W02', 'W03', 'W04']);
+    expect(snap.class.schedule.wrapup!.find((w) => w.id === 'afterWorksheet')!.worksheetIds).toEqual([]);
   });
 });
 

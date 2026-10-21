@@ -371,6 +371,8 @@ interface StageParams {
   doneDuring?: readonly WorksheetId[];
   /** (다시 배치) 원천 체험은 이미 시작했는데 지금 쓰기는 아직 — 구간 맨 앞에 그대로 둔다 */
   carryDuring?: readonly WorksheetId[];
+  /** 차시 한 판(PRD 4.3.3 v0.3.8 규칙 2): ★ 지금 쓰기를 쓰지 않는다 */
+  noDuring?: boolean;
 }
 
 interface StagePlan {
@@ -600,8 +602,8 @@ function planStage(p: StageParams): StagePlan {
   const tradeOf = (activitySec: number) => p.lengthSec - fixedSec - activitySec;
   // 지금 쓰기(PRD 4.3.3.1 규칙 2): 그 구간 번호 중 during 필드가 있고, 학습지 방식이 '끄기'·'중간마다'(교사 고정)가 아니고,
   // 원천 체험이 이 구간 후보에 있는 것. 이미 띄운 번호·옮겨 온 번호는 후보가 아니다
-  const carry = (p.carryDuring ?? []).filter((w) => p.pendingWs.includes(w));
-  const duringCands = p.wsPolicy === 'off' || p.wsPolicy === 'each'
+  const carry = p.noDuring ? [] : (p.carryDuring ?? []).filter((w) => p.pendingWs.includes(w));
+  const duringCands = p.noDuring || p.wsPolicy === 'off' || p.wsPolicy === 'each'
     ? []
     : duringWorksheetIds
       .filter((w) => p.pendingWs.includes(w) && !(p.doneDuring ?? []).includes(w) && !carry.includes(w))
@@ -680,12 +682,18 @@ function planStage(p: StageParams): StagePlan {
   const l4e2Short = byId.get('L4-E2')?.form === 'short';
   const wsAfterEvent = (eventId: string): WorksheetId[] => {
     if (wsMode !== 'each') return [];
-    return p.pendingWs.filter((w) => {
+    const hit = p.pendingWs.filter((w) => {
       if (placedWs.has(w)) return false;
       if (worksheetById[w].afterEvent !== eventId) return false;
       if (w === 'W14' && l4e2Short) return false; // PRD 4.5: L4-E2 결정이 비차단이면 ⑭는 L4 구간 끝
       return true;
     });
+    if (!p.noDuring || !hit.length) return hit;
+    // 차시 한 판(PRD 4.3.3 v0.3.8): 번호가 거꾸로 가지 않게 — 원천 활동이 빠져 아직 못 띄운 앞 번호를 먼저(번호 순)
+    const top = Math.max(...hit.map((w) => worksheetById[w].no));
+    return p.pendingWs
+      .filter((w) => !placedWs.has(w) && worksheetById[w].no <= top)
+      .sort((x, y) => worksheetById[x].no - worksheetById[y].no);
   };
   const pushWs = (ids: WorksheetId[]) => {
     for (const w of ids) {
@@ -1038,6 +1046,8 @@ interface StageSpec {
   fresh: boolean;
   doneDuring?: WorksheetId[];
   carryDuring?: WorksheetId[];
+  /** (다시 배치, 차시 한 판 '알아서') 이미 시작한 구간의 학습지 방식 — 한 판 한 방식으로 그대로 둔다 */
+  wsLock?: WorksheetPlacement;
 }
 
 interface MultiPlan {
@@ -1057,15 +1067,16 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
   const out: MultiPlan = { items: [], rounds: [], stages: [], cands: [], afterWs: [], where: {}, warnings: [], stageModes: {}, during: [], deferred: [] };
   let t = startSec;
   let nextRound = firstRound;
+  const lessonGame = input.playUnit === 'lesson';
   for (const s of specs) {
-    const plan = planStage({
+    const planWith = (wsPolicy: 'auto' | WorksheetPlacement) => planStage({
       stage: s.stage,
       startSec: t,
       lengthSec: Math.max(0, s.targetEnd - t),
       nominalSec: s.nominalSec,
       alpha: input.activityRatio,
       roundSec: input.roundSecOverride,
-      wsPolicy: input.worksheetMode,
+      wsPolicy,
       pending: s.pending,
       pendingWs: s.pendingWs,
       needCover: s.needCover,
@@ -1078,7 +1089,9 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
       order: input.fillOrder,
       doneDuring: s.doneDuring,
       carryDuring: s.carryDuring,
+      noDuring: lessonGame,
     });
+    const plan = lessonGame && input.worksheetMode === 'auto' ? lessonAutoPlan(planWith, s) : planWith(input.worksheetMode);
     out.items.push(...plan.items);
     out.rounds.push(...plan.rounds);
     out.stages.push(plan.summary);
@@ -1093,6 +1106,18 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
     t = plan.endSec;
   }
   return out;
+}
+
+/**
+ * 차시 한 판 '알아서 정하기'(PRD 4.3.3 v0.3.8 규칙 1): '활동마다 바로'로 시작하고, 그러면 그 차시 라운드가 2개 미만이면
+ * '차시 끝에 모아서'로 한 단계만 내린다(사다리의 after → stageEnd → each 올리기는 쓰지 않음).
+ * 다시 배치에서 이미 시작한 구간은 처음 정한 방식을 그대로 쓴다(한 판 한 방식).
+ */
+function lessonAutoPlan(planWith: (wsPolicy: 'auto' | WorksheetPlacement) => StagePlan, s: StageSpec): StagePlan {
+  if (s.wsLock === 'each' || s.wsLock === 'stageEnd') return planWith(s.wsLock);
+  const each = planWith('each');
+  if (s.playedRounds + each.rounds.length >= 2 || !s.pendingWs.length) return each;
+  return planWith('stageEnd');
 }
 
 function sortItems(items: ScheduleItem[]): ScheduleItem[] {
@@ -1398,6 +1423,7 @@ export function reschedule(
       fresh: !started,
       doneDuring,
       carryDuring: pendingDuring.filter((w) => worksheetById[w].lesson === stage && sourceStarted(w)),
+      ...(started && schedule.stageModes?.[stage] ? { wsLock: schedule.stageModes[stage] } : {}),
     };
   });
   const plan = planStages(input, specs, e0, lastRound + 1);

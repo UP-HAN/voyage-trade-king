@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { endRound, openFold, openOrderRow } from './support/voyage-ui';
+import { endRound, openFold, openOrderRow, pickVoyageMode } from './support/voyage-ui';
 
 /**
  * 작업 108 항구 시장 e2e: `?sync=local`로 실제 교사 화면(109 #/teacher) 탭 + 학생 탭(#/play).
@@ -38,6 +38,8 @@ async function openTeacher(ctx: BrowserContext): Promise<{ page: Page; code: str
   await page.getByTestId('unit-lesson').click();
   await page.getByTestId('lesson-L1').click();
   await page.getByTestId('trade-minutes').getByRole('button', { name: '10분' }).click();
+  // (작업 151) 이 시험은 출항 준비 → 라운드 끝 출발 흐름을 본다 — 항해 방식 '라운드마다'
+  await pickVoyageMode(page, 'round');
   await page.getByTestId('btn-open').click();
   const codeEl = page.getByTestId('room-code');
   await expect(codeEl).toHaveText(/^\d{6}$/);
@@ -93,7 +95,7 @@ async function sailTo(s: Page, t: Page, port: string, label: string) {
   await s.getByTestId('pick-confirm').click();
   await s.getByTestId('set-ready').click();
   await expect(s.getByTestId('ready-note')).toBeVisible();
-  await expect(t.getByTestId('ready-count')).toContainText('항해 준비 끝낸 학생 1/1');
+  await expect(t.getByTestId('ready-count')).toContainText('출항 준비 끝낸 학생 1/1');
   const r0 = await roundNo(t);
   // (작업 137) 라운드에 붙은 결정 패널이 떠 있으면 카드는 그 활동(우선 8) → [다음으로](응답 받기 끝내기) → 결과 [다음으로] → [라운드 끝내기]
   for (let i = 0; i < 6 && !(await t.getByTestId('btn-end-round').isVisible().catch(() => false)); i++) {

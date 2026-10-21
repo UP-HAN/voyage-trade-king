@@ -3,7 +3,7 @@
  *
  * 기억(`voyage.teacher.prefs`, 교사 localStorage): 마지막 판 단위·차시·무역 시간·설정값만. 학생 정보는 넣지 않는다.
  */
-import { previewSchedule, tryBuildSchedule, type IncidentFreq, type ItemForm, type PlayUnit, type ScheduleInput, type ScheduleItem, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
+import { previewSchedule, tryBuildSchedule, type IncidentFreq, type VoyageMode, type ItemForm, type PlayUnit, type ScheduleInput, type ScheduleItem, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { eventsById } from '../data/events';
 import { lessons, lessonsById } from '../data/lessons';
@@ -34,6 +34,11 @@ export interface SetupValues {
   progressMode: 'auto' | 'manual';
   /** 미리보기 [넣기/짧게/빼기](사건 ID → 형태) — 기억하지 않는다(판마다 다름) */
   overrides: Record<string, ItemForm>;
+  /**
+   * (작업 151, PRD 4.3.7.1) [고급 설정] '항해 방식'. null = 판 기본(차시 한 판 L1·L2면 '자유롭게', 그 밖은 '라운드마다').
+   * 기억하지 않는다(147과 같은 방식). 실제 값은 `voyageModeOf`
+   */
+  voyageMode: VoyageMode | null;
 }
 
 export function defaultSetup(): SetupValues {
@@ -50,8 +55,29 @@ export function defaultSetup(): SetupValues {
     leaderboardTopN: leaderboardRules.topNDefault as TopN,
     progressMode: 'auto',
     overrides: {},
+    voyageMode: null,
   };
 }
+
+/** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1·2차시(3·4차시·단원 한 판은 '준비 중') */
+export const FREE_VOYAGE_LESSONS: readonly LessonId[] = ['L1', 'L2'];
+
+export function freeVoyageAvailable(v: Pick<SetupValues, 'playUnit' | 'lesson'>): boolean {
+  return v.playUnit === 'lesson' && !!v.lesson && FREE_VOYAGE_LESSONS.includes(v.lesson);
+}
+
+/** (작업 151) 이 판의 항해 방식: 고를 수 있는 판이면 고른 값(기본 '자유롭게'), 아니면 '라운드마다' */
+export function voyageModeOf(v: Pick<SetupValues, 'playUnit' | 'lesson' | 'voyageMode'>): VoyageMode {
+  if (!freeVoyageAvailable(v)) return 'round';
+  return v.voyageMode ?? 'free';
+}
+
+/** 항해 방식 보이는 말(판 설정·미리보기) */
+export const VOYAGE_MODE_TEXT: Record<VoyageMode, string> = {
+  free: '자유롭게(바로 출발, 운항비는 라운드 끝에)',
+  round: '라운드마다(출항 준비 → 라운드 끝에 출발)',
+};
+export const VOYAGE_MODE_SHORT: Record<VoyageMode, string> = { free: '자유롭게', round: '라운드마다' };
 
 /**
  * (작업 134) 개발·시험용으로 기능 플래그를 이 브라우저에서만 켜는 열쇠(localStorage 값 '1').
@@ -258,12 +284,12 @@ const PREF_FIELDS = [
   'className',
   'tradeMinutes',
   'activityRatio',
-  'worksheetMode',
   'incidentFreq',
   'comeback',
   'leaderboardTopN',
-  'progressMode',
 ] as const;
+// (작업 147) 진행 방식(progressMode)·학습지 방식(worksheetMode)은 기억하지 않는다 — 판마다 기본값('auto')으로 시작.
+// (작업 151) 항해 방식(voyageMode)도 기억하지 않는다 — 판마다 판 기본(1·2차시 '자유롭게')으로 시작.
 
 export type TeacherPrefs = Pick<SetupValues, (typeof PREF_FIELDS)[number]>;
 
@@ -297,15 +323,11 @@ export function loadPrefs(storage: StorageLike | null = defaultStorage()): Setup
   if (typeof r.className === 'string') out.className = r.className.slice(0, 20);
   if (typeof r.tradeMinutes === 'number') out.tradeMinutes = clampMinutes(r.tradeMinutes);
   if (typeof r.activityRatio === 'number' && RATIO.options.some((o) => o.value === r.activityRatio)) out.activityRatio = r.activityRatio;
-  if (typeof r.worksheetMode === 'string' && ['auto', 'each', 'stageEnd', 'after', 'off'].includes(r.worksheetMode)) {
-    out.worksheetMode = r.worksheetMode as SetupValues['worksheetMode'];
-  }
   if (r.incidentFreq === 'off' || r.incidentFreq === 'some' || r.incidentFreq === 'often') out.incidentFreq = r.incidentFreq;
   if (typeof r.comeback === 'boolean') out.comeback = r.comeback;
   if (typeof r.leaderboardTopN === 'number' && (leaderboardRules.topNOptions as readonly number[]).includes(r.leaderboardTopN)) {
     out.leaderboardTopN = r.leaderboardTopN as TopN;
   }
-  if (r.progressMode === 'auto' || r.progressMode === 'manual') out.progressMode = r.progressMode;
   // 차시를 기억했지만 지금은 준비 중이면 고르지 않은 상태로
   if (out.lesson && !lessonImplemented(out.lesson)) out.lesson = null;
   // (작업 134) 단원 한 판·준비 중 차시가 든 연속 구간을 기억했으면 판 단위를 고르지 않은 상태로

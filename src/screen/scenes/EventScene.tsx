@@ -6,14 +6,16 @@
  * - 결정 사건(L1-E7): 선택지 → 교사 [결과 공개] 뒤 선택 분포 막대(이름 없음) + 교과서 카드(p.99).
  * - 확인 퀴즈(L1-E8): 문제 → 교사 [결과 공개]·[마감] 뒤 문항별 정답률 막대 + 해설 + 쪽수.
  * - 단원 한 판이면(판 범위에 다음 구간이 있으면) 사건의 `unitOnlyNote`를 붙인다. 차시 한 판에서는 숨긴다.
+ * - (작업 152) 가운데 차단 카드로 뜨는 개념 사건(L1-E2·L1-E4·L2-E2)은 카드 대신 PPT 슬라이드(`ConceptSlides`)로 저절로 넘긴다.
  */
 import { checkQuizFor } from '../../data/checkQuiz';
 import { eventsById } from '../../data/events';
 import { CheckQuizCard, CardQuoteBox, DecisionCard, EventCard, decisionModel, eventCardModel } from '../../ui/cards';
 import { Bar } from '../parts';
+import { ConceptSlides, isConceptSlideEvent } from './ConceptSlides';
 import type { SceneProps } from './types';
 
-export function EventScene({ d }: SceneProps) {
+export function EventScene({ d, now }: SceneProps) {
   const ce = d.cls.currentEvent;
   const def = ce ? eventsById[ce.id] : undefined;
   if (!ce || !def) {
@@ -33,6 +35,15 @@ export function EventScene({ d }: SceneProps) {
   );
 
   let card;
+  if (isConceptSlideEvent(def, ce.short)) {
+    return (
+      <div class="scr-scene scr-event scr-event--slides" data-testid="scene-event" data-event={ce.id} data-short={ce.short ? '1' : '0'} data-revealed={revealed ? '1' : '0'}>
+        <ConceptSlides def={def} short={ce.short} openedAt={ce.openedAt} closesAt={ce.closesAt} now={now} manual={d.cls.settings?.progressMode === 'manual'}>
+          {count}
+        </ConceptSlides>
+      </div>
+    );
+  }
   if (def.kind === 'checkQuiz') {
     card = (
       <CheckQuizCard

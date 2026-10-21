@@ -106,7 +106,7 @@ describe('가짜 시계 자동 진행: L1 사건이 배치표 시각에 뜬다(v
   const T0 = 10_000;
   function runLesson(minutes: number) {
     let s = makeSession({ n: 2 });
-    s = hostReduce(s, { type: 'teacher', action: { type: 'updateSettings', settings: { tradeMinutes: minutes } } }, T0 - 1, hooks).snapshot;
+    s = hostReduce(s, { type: 'teacher', action: { type: 'updateSettings', settings: { tradeMinutes: minutes, worksheetMode: 'after' } } }, T0 - 1, hooks).snapshot; // v0.3.8(작업 153): 옛 배치(게임 끝나고)로 고정
     s = hostReduce(s, { type: 'teacher', action: { type: 'startTrade' } }, T0, hooks).snapshot;
     const items = s.class.schedule.items.filter((it) => it.kind === 'event' && it.form !== 'dropped') as ScheduleItem[];
     const seen: Record<string, { at: number; short: boolean; phase: string }> = {};
@@ -156,7 +156,7 @@ describe('(수정 1회차) 마감한 사건의 결과 보여 주기', () => {
   const T0 = 10_000;
   function l1WithQuiz(minutes = 18): HostSnapshot {
     let s = makeSession({ n: 2 });
-    s = hostReduce(s, { type: 'teacher', action: { type: 'updateSettings', settings: { tradeMinutes: minutes } } }, T0 - 1, hooks).snapshot;
+    s = hostReduce(s, { type: 'teacher', action: { type: 'updateSettings', settings: { tradeMinutes: minutes, worksheetMode: 'after' } } }, T0 - 1, hooks).snapshot; // v0.3.8(작업 153): 옛 배치(게임 끝나고)로 고정
     s = { ...s, class: { ...s.class, schedule: { ...s.class.schedule, overrides: { 'L1-E8': 'full' } } } };
     return hostReduce(s, { type: 'teacher', action: { type: 'startTrade' } }, T0, hooks).snapshot;
   }

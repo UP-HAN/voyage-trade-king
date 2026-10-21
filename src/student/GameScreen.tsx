@@ -2,7 +2,8 @@
  * 게임 화면 틀: 상태 띠 → HUD → (준비 단계 / 해도 S07 / 항구 자리 / 무역 끝) → 하단 바, 그 위에 끼워 넣기 층(slots.tsx).
  */
 import { useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { nextRoundWait, voyageCostFor, type PublicClass } from '../core';
+import { canTrade, nextRoundWait, predict, voyageCostFor, type PublicClass } from '../core';
+import { eventsById } from '../data/events';
 import { missionsById } from '../data/missions';
 import { portLabel } from '../data/ports';
 import type { PortId } from '../data/types';
@@ -14,6 +15,7 @@ import { Hud } from './Hud';
 import { PortCardModal } from './port/PortCard';
 import { PortScreen } from './port/PortScreen';
 import { classForPredict, playerForPredict, type MeView } from './predict';
+import { fx } from '../ui/common/fx';
 import { FoundCompany, PrepWait } from './Prep';
 import { SlotLayers, topLayer } from './slots';
 import { RejoinEscapeButton } from './RejoinEscape';
@@ -70,34 +72,67 @@ export function StatusBands({ st, now }: { st: StudentState; now: number }) {
   );
 }
 
+/** 사고팔기·출발을 할 수 있는 때(core canTrade 와 같은 규칙 — 자유 항해 판은 라운드 사이에도, 작업 153 추가) */
 export function isTradingPhase(cls: PublicClass | null | undefined): boolean {
-  return Boolean(cls && cls.phase === 'round' && !cls.paused);
+  return Boolean(cls && canTrade(classForPredict(cls)));
+}
+
+/** (작업 153 추가, 교사 결정) 자유 항해 판 안내: 멈추는 것은 선생님 */
+export const FREE_VOYAGE_NOTE = '선생님이 멈출 때까지 자유롭게 다녀요';
+
+/** (작업 151, PRD 4.3.7.1) 자유 항해 판인가 */
+export function isFreeVoyage(cls: PublicClass | null | undefined): boolean {
+  return cls?.settings?.voyageMode === 'free';
+}
+
+/** (작업 151) 쓸 수 있는 돈 = 자금 − 낼 운항비(자유 항해), 아니면 자금 */
+export function spendableOf(me: MeView, cls: PublicClass | null | undefined): number {
+  return isFreeVoyage(cls) ? me.game.money - (me.game.fareDue ?? 0) : me.game.money;
 }
 
 /**
  * (작업 134) 라운드 전·사이 상태 카드 문구(순수). 무역을 시작했고 라운드가 아닐 때(사전 활동·라운드 사이) 쓴다.
  * 남은 시간은 배치표(공개 상태 schedule) − 무역 경과(서버 시각 기준) — 교사 화면과 같은 계산(nextRoundWait).
+ * (작업 149) me 를 주면 카드 확인 뒤·라운드 사이(도착 뒤) 문구로 바꾼다. 자동 진행 판에서는 "선생님이 시작하면"을 쓰지 않는다.
  */
-export function roundWaitInfo(cls: PublicClass, now: number): { title: string; line: string; sub: string } {
+export function roundWaitInfo(cls: PublicClass, now: number, me?: MeView | null): { title: string; line: string; sub: string; over: boolean } {
   const w = nextRoundWait(cls, now);
   const first = cls.round === 0;
+  const manual = cls.schedule.mode === 'manual';
   // (작업 115) 남은 라운드가 없으면(마지막 라운드 뒤 정리 활동 — 세관 게시판·확인 퀴즈·학습지) "라운드가 열리면" 대신 정리 안내
   const over = !w && !cls.paused && cls.clock.startedAt !== null;
-  const title = over ? '라운드가 모두 끝났어요' : first ? '지금은 다 함께 활동하는 시간이에요' : '지금은 라운드 사이 활동 시간이에요';
-  const sub = over ? '선생님과 함께 오늘 배운 것을 정리해요. 곧 결산을 해요' : '라운드가 열리면 항구에서 사고팔고 출항할 수 있어요';
+  let title = over ? '라운드가 모두 끝났어요' : first ? '지금은 다 함께 활동하는 시간이에요' : '지금은 라운드 사이 활동 시간이에요';
+  let sub = over ? '선생님과 함께 오늘 배운 것을 정리해요. 곧 결산을 해요' : '라운드가 열리면 항구에서 사고팔고 출항할 수 있어요';
   let line: string;
   if (cls.paused) line = '선생님이 잠시 멈췄어요';
-  else if (!w) line = cls.clock.startedAt !== null ? '남은 라운드가 없어요 · 선생님이 시작하면 정리 활동을 함께 해요' : '선생님이 시작하면 라운드가 열려요';
-  else if (w.manual) line = '선생님이 시작하면 라운드가 열려요';
+  else if (!w) {
+    if (cls.clock.startedAt === null) line = '선생님이 시작하면 라운드가 열려요';
+    else line = manual ? '남은 라운드가 없어요 · 선생님이 시작하면 정리 활동을 함께 해요' : '남은 라운드가 없어요 · 곧 다 함께 정리 활동을 해요';
+  } else if (w.manual) line = '선생님이 시작하면 라운드가 열려요';
   else if (w.sec > 0) line = w.first ? `라운드 ${w.round}까지 ${formatClock(w.sec)}` : `다음 라운드까지 ${formatClock(w.sec)}`;
   // (수정 1회차) 계획 시각이 지났는데 활동이 아직 진행 중 — 언제 열리는지 그대로 알린다
   else line = `${w.first ? `라운드 ${w.round}` : '다음 라운드'}까지 0:00 · 지금 활동이 끝나면 열려요`;
-  return { title, line, sub };
+  if (me) {
+    const ev = cls.currentEvent;
+    if (cls.phase === 'event' && ev && !ev.closed && eventsById[ev.id]?.needsResponse !== true && me.game.responses[ev.id] !== undefined) {
+      // (작업 149) 응답 없는 카드를 다 읽음 — 다음으로 넘어갈 때까지 TV를 함께 본다
+      title = '카드를 다 읽었어요 ✓';
+      sub = '선생님이 다음으로 넘기면 이어서 해요. 그동안 TV를 함께 봐요';
+    } else if (cls.round > 0 && !over && !cls.paused) {
+      // (작업 149) 라운드 사이: 지금 배가 있는 항구. 항해 기록의 round 는 끝난 라운드 번호(core/voyage.ts resolveRounds)
+      const port = portLabel(me.game.port);
+      // (작업 151) 자유 항해는 라운드 중에 이미 도착했다 — 도착 판정 없이 지금 위치만
+      const arrived = !isFreeVoyage(cls) && me.game.log.some((l) => l.kind === 'voyage' && l.round === cls.round);
+      title = arrived ? `${port}에 도착했어요!` : `지금 우리 배는 ${port}에 있어요`;
+      sub = manual ? '선생님이 라운드를 열면 여기 시장에서 사고팔 수 있어요' : '다음 라운드가 열리면 여기 시장에서 사고팔 수 있어요';
+    }
+  }
+  return { title, line, sub, over };
 }
 
 /** 라운드 전·사이 상태 카드(거래·출항 버튼 대신) */
-function RoundWaitCard({ cls, now }: { cls: PublicClass; now: number }) {
-  const info = roundWaitInfo(cls, now);
+function RoundWaitCard({ cls, now, me }: { cls: PublicClass; now: number; me: MeView | null }) {
+  const info = roundWaitInfo(cls, now, me);
   return (
     <div class="st-wait" role="status" data-testid="round-wait-card" data-first={cls.round === 0 ? '1' : '0'}>
       <p class="st-wait__title title-font">{info.title}</p>
@@ -109,13 +144,113 @@ function RoundWaitCard({ cls, now }: { cls: PublicClass; now: number }) {
   );
 }
 
+export type RoundSteps = {
+  step: 1 | 2 | 3 | 'done';
+  traded: boolean;
+  dest: boolean;
+  ready: boolean;
+  /** (작업 151) 자유 항해 갈래 */
+  mode?: 'free';
+};
+
+/**
+ * (작업 149) 라운드 중 할 일 띠의 단계(순수): ① 항구에서 사고팔기(선택) → ② 지도에서 다음 항구 고르기 → ③ [출항 준비].
+ * traded 는 이번 라운드 기록만 센다.
+ */
+export function roundSteps(cls: PublicClass, me: MeView): RoundSteps {
+  const traded = me.game.log.some((l) => l.round === cls.round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce'));
+  if (isFreeVoyage(cls)) {
+    // (작업 151) 자유 항해: ① 사고팔기 → ② [여기로 출발] → 도착하면 다시 ①. 출항 준비 단계가 없다(작업 153 추가: 횟수 제한 없음)
+    return {
+      step: traded && !lastIsVoyage(cls.round, me) ? 2 : 1,
+      traded,
+      dest: false,
+      ready: false,
+      mode: 'free',
+    };
+  }
+  const dest = me.game.dest !== null;
+  const ready = me.game.ready;
+  const step = ready ? 'done' : dest ? 3 : traded ? 2 : 1;
+  return { step, traded, dest, ready };
+}
+
+/** (작업 151) 이번 라운드 마지막 기록이 항해인가(도착 뒤 아직 사고팔지 않음 → 다시 ①) */
+function lastIsVoyage(round: number, me: MeView): boolean {
+  const log = me.game.log.filter((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'voyage'));
+  return log.length > 0 && log[log.length - 1]!.kind === 'voyage';
+}
+
+/** (작업 151) 자유 항해 할 일 띠 단계 문구 */
+export const FREE_STEP_TEXT: Record<1 | 2, string> = {
+  1: '① 항구에서 사고팔기',
+  2: '② 지도에서 항구 골라 [여기로 출발]',
+};
+
+const STEP_TEXT: Record<1 | 2 | 3, string> = {
+  1: '① 항구에서 사고팔기',
+  2: '② 지도에서 다음 항구 고르기',
+  3: '③ [출항 준비]',
+};
+
+/** (작업 149) 라운드 중 할 일 띠 — 하단 바 맨 위 한 줄 */
+function RoundStepsBar({ cls, me }: { cls: PublicClass; me: MeView }) {
+  const s = roundSteps(cls, me);
+  if (s.mode === 'free') {
+    return (
+      <div class="st-steps st-steps--free" data-testid="round-steps" data-mode="free" data-step={String(s.step)}>
+        <span class="st-steps__head">지금은 자유 항해 시간!</span>
+        {([1, 2] as const).map((n, i) => (
+          <span key={n} class="st-steps__item-wrap">
+            {i > 0 && <span class="st-steps__arrow" aria-hidden="true">→</span>}
+            <span class={`st-steps__item${s.step === n ? ' is-now' : ''}`} data-testid={`round-step-${n}`}>
+              {FREE_STEP_TEXT[n]}
+            </span>
+          </span>
+        ))}
+        <span class="st-steps__item-wrap">
+          <span class="st-steps__arrow" aria-hidden="true">→</span>
+          <span class="st-steps__item st-steps__loop" data-testid="round-step-loop">
+            도착하면 바로 ①부터 다시
+          </span>
+        </span>
+        <span class="st-steps__left" data-testid="round-free-note">
+          {` · ${FREE_VOYAGE_NOTE}`}
+        </span>
+      </div>
+    );
+  }
+  if (s.step === 'done') {
+    return (
+      <div class="st-steps is-done" data-testid="round-steps" data-step="done">
+        <span class="st-steps__head">✓ 준비 끝! 라운드가 끝나면 출발해요 · 목적지 {me.game.dest ? portLabel(me.game.dest) : ''}</span>
+      </div>
+    );
+  }
+  const doneOf = { 1: s.traded, 2: s.dest, 3: s.ready } as const;
+  return (
+    <div class="st-steps" data-testid="round-steps" data-step={String(s.step)}>
+      <span class="st-steps__head">지금은 사고팔기 시간!</span>
+      {([1, 2, 3] as const).map((n, i) => (
+        <span key={n} class="st-steps__item-wrap">
+          {i > 0 && <span class="st-steps__arrow" aria-hidden="true">→</span>}
+          <span class={`st-steps__item${s.step === n ? ' is-now' : ''}${doneOf[n] ? ' is-done' : ''}`} data-testid={`round-step-${n}`}>
+            {doneOf[n] && '✓ '}
+            {STEP_TEXT[n]}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export type PickInfo =
   | { kind: 'here'; port: PortId }
   | { kind: 'notTrading'; port: PortId }
   | { kind: 'closed'; port: PortId }
   | { kind: 'locked'; port: PortId }
-  | { kind: 'noMoney'; port: PortId; cost: number }
-  | { kind: 'ok'; port: PortId; cost: number; free: boolean };
+  | { kind: 'noMoney'; port: PortId; cost: number; /** (작업 151) 자유 항해: 쓸 수 있는 돈 */ spendable?: number }
+  | { kind: 'ok'; port: PortId; cost: number; free: boolean; /** (작업 151) 자유 항해: 바로 출발 */ sail?: boolean };
 
 /** 항구를 눌렀을 때 보여 줄 정보(순수): 운항비·못 가는 이유 */
 export function pickInfo(me: MeView, cls: PublicClass, port: PortId): PickInfo {
@@ -126,6 +261,12 @@ export function pickInfo(me: MeView, cls: PublicClass, port: PortId): PickInfo {
   const free = me.game.effects.tailwind > 0;
   const cost = voyageCostFor(cs, playerForPredict(me), me.game.port, port);
   if (!isTradingPhase(cls)) return { kind: 'notTrading', port };
+  if (isFreeVoyage(cls)) {
+    // (작업 151, PRD 4.3.7.1) 자유 항해: core sailTo 와 같은 판정(쓸 수 있는 돈). 횟수 제한은 없앰(작업 153 추가)
+    const money = spendableOf(me, cls);
+    if (!free && cost > money) return { kind: 'noMoney', port, cost, spendable: money };
+    return { kind: 'ok', port, cost: free ? 0 : cost, free, sail: true };
+  }
   if (!free && cost > me.game.money) return { kind: 'noMoney', port, cost };
   return { kind: 'ok', port, cost: free ? 0 : cost, free };
 }
@@ -147,10 +288,17 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
       body = '아직 열리지 않은 항구예요.';
       break;
     case 'noMoney':
-      body = `운항비 ${formatMoney(info.cost)}이 필요한데 자금이 모자라요.`;
+      body =
+        info.spendable !== undefined
+          ? `쓸 수 있는 돈(${formatMoney(info.spendable)})이 운항비보다 적어요.`
+          : `운항비 ${formatMoney(info.cost)}이 필요한데 자금이 모자라요.`;
       break;
     case 'ok':
-      body = info.free ? '순풍 덕분에 이번 운항비는 0원이에요.' : `운항비 ${formatMoney(info.cost)}`;
+      body = info.free
+        ? '순풍 덕분에 이번 운항비는 0원이에요.'
+        : info.sail
+          ? `운항비 ${formatMoney(info.cost)} · 라운드가 끝나면 한꺼번에 내요`
+          : `운항비 ${formatMoney(info.cost)}`;
       break;
   }
   return (
@@ -163,7 +311,12 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
         <button type="button" class="btn btn--secondary" onClick={onClose}>
           닫기
         </button>
-        {info.kind === 'ok' && (
+        {info.kind === 'ok' && info.sail && (
+          <button type="button" class="btn btn--primary" data-testid="pick-sail" onClick={onConfirm}>
+            여기로 출발
+          </button>
+        )}
+        {info.kind === 'ok' && !info.sail && (
           <button type="button" class="btn btn--primary" data-testid="pick-confirm" onClick={onConfirm}>
             여기로 정하기
           </button>
@@ -240,21 +393,26 @@ function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: Studen
   const dest = me.game.dest;
   const cost = dest && cls ? (me.game.effects.tailwind > 0 ? 0 : voyageCostFor(classForPredict(cls), playerForPredict(me), me.game.port, dest)) : null;
   const sending = st.peer.queuedCount > 0;
+  const freeMode = isFreeVoyage(cls);
+  const fareDue = me.game.fareDue ?? 0;
 
   // (작업 134) 라운드 전·사이: 거래·출항 버튼을 숨기고 언제 열리는지 안내
-  const waiting = !!cls && cls.phase !== 'round';
+  const waiting = !!cls && cls.phase !== 'round' && !trading;
   let status: string;
   if (!cls) status = '';
   else if (waiting) {
-    const info = roundWaitInfo(cls, now);
-    status = info.title === '라운드가 모두 끝났어요' ? info.line : `${info.line} · 라운드가 열리면 거래할 수 있어요`;
+    const info = roundWaitInfo(cls, now, me);
+    status = info.over ? info.line : `${info.line} · 라운드가 열리면 거래할 수 있어요`;
   }
+  else if (freeMode && (trading || cls.phase === 'round'))
+    status = fareDue > 0 ? `낼 운항비 ${formatMoney(fareDue)} · 라운드가 끝나면 정산해요` : `지도에서 항구를 눌러 바로 갈 수 있어요 · ${FREE_VOYAGE_NOTE}`;
   else if (cls.phase === 'round') status = dest ? `목적지: ${portLabel(dest)} · 운항비 ${formatMoney(cost ?? 0)}` : '지도에서 항구를 눌러 목적지를 골라요';
   else if (cls.phase === 'event' || cls.phase === 'worksheet') status = '선생님 활동이 끝나면 이어서 해요';
   else status = '다음 라운드가 시작되면 거래할 수 있어요';
 
   return (
     <footer class="st-bottom" data-testid="bottom-bar">
+      {trading && cls && <RoundStepsBar cls={cls} me={me} />}
       <MissionBar me={me} />
       <div class="st-bottom__dest" data-testid="bottom-status">
         {status}
@@ -268,7 +426,7 @@ function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: Studen
         <button type="button" class="btn btn--secondary" data-testid="enter-port" onClick={onPort}>
           항구 들어가기
         </button>
-        {me.game.ready && trading ? (
+        {freeMode ? null : me.game.ready && trading ? (
           <>
             {/* [취소]는 [출항 준비]와 다른 자리(왼쪽)·다른 색. 원래 버튼 자리에는 글자 안내만 둔다(연속 클릭이 취소로 이어지지 않게) */}
             <button type="button" class="btn st-btn-cancel" data-testid="cancel-ready" onClick={() => toggle('cancelReady')}>
@@ -294,7 +452,7 @@ function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: Studen
   );
 }
 
-function MapView({ store, st }: { store: StudentStore; st: StudentState }) {
+function MapView({ store, st, onSail }: { store: StudentStore; st: StudentState; onSail?: (port: PortId) => void }) {
   const me = st.peer.me!;
   const pub = st.peer.public!;
   const cls = pub.class;
@@ -322,6 +480,18 @@ function MapView({ store, st }: { store: StudentStore; st: StudentState }) {
           info={info}
           onClose={() => setPicked(null)}
           onConfirm={() => {
+            if (info.kind === 'ok' && info.sail) {
+              // (작업 151) 자유 항해: [여기로 출발]. 규칙으로 먼저 확인하고(안 되면 보내지 않음) 호스트 확정을 기다린다(그동안 '보내는 중').
+              // 도착 연출·항구 화면 열기는 확정된 내 상태의 항구가 바뀌면(GameScreen) — 첫 입항 사건 카드(싱가포르 등)도 호스트 결과로 뜬다
+              const action = { type: 'sailTo' as const, port: info.port };
+              setPicked(null);
+              const pub = st.peer.public;
+              if (!pub || predict(playerForPredict(me), classForPredict(pub.class), action).error) return;
+              const r = store.act(action);
+              if (r !== 'sent' && r !== 'queued') return;
+              onSail?.(info.port);
+              return;
+            }
             store.act({ type: 'setDestination', port: info.port });
             setPicked(null);
           }}
@@ -350,11 +520,29 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   const me = st.peer.me!;
   const cls = st.peer.public?.class ?? null;
   const phase = cls?.phase ?? null;
+  // (작업 151) 자유 항해: [여기로 출발]을 보낸 항구 — 호스트가 확정해 내 배가 그 항구에 오면 도착 연출 + 항구 화면
+  const [sailing, setSailing] = useState<{ port: PortId; at: number } | null>(null);
+  useEffect(() => {
+    if (!sailing) return;
+    if (me.game.port === sailing.port) {
+      setSailing(null);
+      void fx.sail().then(() => fx.arrive());
+      store.toast(`${portLabel(sailing.port)}에 도착했어요`, 'arrive');
+      const card = [...(me.events ?? [])].reverse().find((e) => e.type === 'portCard') as { type: 'portCard'; port: PortId } | undefined;
+      if (card && card.port === sailing.port) setPortCard(card.port);
+      if (isTradingPhase(cls)) setView('port');
+      return;
+    }
+    // 거절되면(되돌림 알림이 따로 뜸) 기다림을 접는다
+    const t = setTimeout(() => setSailing(null), 10_000);
+    return () => clearTimeout(t);
+  }, [sailing, me]);
 
   const tradeOver = phase === 'wrapup' || phase === 'ended' || st.peer.ended;
   const founded = me.company.founded;
   // (작업 134) 라운드 전(사전 활동)·라운드 사이: 해도 + 상태 카드(항구 화면이었으면 해도로)
-  const waitPhase = Boolean(cls) && founded && !tradeOver && phase !== 'prep' && phase !== 'round';
+  // (작업 153 추가) 자유 항해 판의 라운드 사이는 기다림이 아니다(사고팔기·출발 그대로)
+  const waitPhase = Boolean(cls) && founded && !tradeOver && phase !== 'prep' && phase !== 'round' && !isTradingPhase(cls);
   useEffect(() => {
     if (waitPhase && view === 'port') setView('map');
   }, [waitPhase, view]);
@@ -370,11 +558,18 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
     main = (
       <>
         <MapView store={store} st={st} />
-        <RoundWaitCard cls={cls} now={now} />
+        <RoundWaitCard cls={cls} now={now} me={st.peer.me} />
       </>
     );
   else if (view === 'port') main = <PortScreen store={store} st={st} onBack={() => setView('map')} />;
-  else main = <MapView store={store} st={st} />;
+  else
+    main = (
+      <MapView
+        store={store}
+        st={st}
+        onSail={(port) => setSailing({ port, at: Date.now() })}
+      />
+    );
 
   const showBottom = Boolean(cls) && founded && phase !== 'prep' && !tradeOver && (view === 'map' || waitPhase);
   // 일시정지·이름 막힘 층이 떠 있으면 아래 화면 전체(HUD·도감·설정 메뉴 포함)를 키보드로도 못 건드리게
@@ -389,7 +584,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
         {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} />}
         {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} onClose={() => setDex(false)} />}
         {/* (작업 134) 처음 입항 항구 카드: 라운드 중에는 아래 화면을 막지 않는 작은 카드(왼쪽 위) — 거래 버튼·결정 패널을 가리지 않게 */}
-        {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round'} onClose={() => setPortCard(null)} />}
+        {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round' || isTradingPhase(cls)} onClose={() => setPortCard(null)} />}
       </div>
       <SlotLayers store={store} st={st} />
     </div>

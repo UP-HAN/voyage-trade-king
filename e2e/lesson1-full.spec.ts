@@ -99,7 +99,9 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
     });
 
   // ── 교사: 판 설정 → 방 열기 ──
-  const { t, code } = await openTeacher(env, { minutes: 15 });
+  // (작업 153) v0.3.8 차시 한 판 15분 '알아서'(활동마다 바로)는 학습지 시간 때문에 L1-E4·두 섬이 빠진다 — 이 끝에서 끝까지 시험은
+  // 두 섬·늦은 학생 따라잡기를 보므로 학습지를 '게임 끝나고'로 고정한다(학습지 순서는 tests/core·worksheet-helpers·teacher-first-time e2e가 본다)
+  const { t, code } = await openTeacher(env, { minutes: 15, ws: 'after' });
   countHealth(t, 'teacher');
   // 방을 연 뒤의 교사 대시보드에는 "사용 중인 방"이 없다(v0.3.2)
   expect(await bodyText(t)).not.toContain('사용 중인 방');
@@ -176,11 +178,14 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   // s2: 튜토리얼 건너뛰고 상하이로
   await s2.getByTestId('tutorial-skip').click().catch(() => undefined);
   await s2.getByTestId('event-panel').getByTestId('card-confirm').click().catch(() => undefined);
-  await sailTo(s2, 'SHA');
-  // s2 새로 고침 → 같은 기기 자동 재입장(회사 그대로, 출항 준비 유지)
+  // (작업 151) 1차시 차시 판 기본 = 자유 항해: [여기로 출발]로 바로 도착(운항비는 라운드 끝에)
+  expect(await sailTo(s2, 'SHA')).toBe('free');
+  await expect(s2.getByTestId('hud-fare-due')).toBeVisible();
+  // s2 새로 고침 → 같은 기기 자동 재입장(회사 그대로, 도착한 항구 그대로)
   await s2.reload();
   await expect(s2.getByTestId('hud-company')).toContainText('바다상회', { timeout: 20_000 });
-  await expect(s2.getByTestId('ready-note')).toBeVisible();
+  await expect(t.locator('[data-testid="student-row"][data-seat="2"]')).toContainText('상하이');
+  await expect(s2.getByTestId('hud-fare-due')).toBeVisible();
   // 교사: 학습지 ① 지금 띄우기(라운드 중이면 예약 → 라운드가 끝나면 뜸)
   await t.getByTestId('panel-WorksheetPanel').scrollIntoViewIfNeeded();
   await t.getByTestId('ws-pick').selectOption('W01');
@@ -217,11 +222,8 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   for (const s of [s1, s2]) await finishMinigame(s);
   await expect(s3.getByTestId('minigame')).toHaveAttribute('data-event', 'L1-E5', { timeout: 15_000 });
   await finishMinigame(s3);
-  // (v0.3.4, 작업 132) 두 섬이 닫히면 바로 '잠깐! ③★ 지금 써요'(40초) — 셋 모두에게 뜨고 저절로 닫힌다
-  await clock.fastForwardUntil(async () => (await s1.locator('[data-testid="worksheet-popup"][data-during="1"]').count()) > 0, { label: 'W03 during', speed: 4 });
-  await expect(s1.getByTestId('worksheet-head')).toHaveText('잠깐! ③★ 지금 써요');
-  await shot(s1, 'A03b-student-during-W03-1366.png');
-  await clock.fastForwardUntil(async () => (await s1.getByTestId('worksheet-popup').count()) === 0, { label: 'W03 during closed', speed: 4 });
+  // (작업 153, PRD 4.3.3 v0.3.8 규칙 2) 차시 한 판에는 ★ 지금 쓰기가 없다 — 두 섬 뒤 '지금 써요' 팝업이 뜨지 않는다
+  await expect(s1.locator('[data-testid="worksheet-popup"][data-during="1"]')).toHaveCount(0);
   // 사건이 닫히면 따라잡기(요약 → 벽란도)
   await clock.fastForwardUntil(async () => (await s3.getByTestId('catchup').count()) > 0, { label: 's3 catchup', speed: 8 });
   for (let i = 0; i < 6 && (await s3.getByTestId('catchup').count()); i++) {

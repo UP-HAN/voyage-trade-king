@@ -46,6 +46,39 @@ export function isTrading(cs: ClassState): boolean {
   return cs.phase === 'round' && !cs.paused;
 }
 
+/**
+ * (작업 153 추가, 교사 결정 2026-10-21) 사고팔기·만들기·자유 항해를 할 수 있는 때.
+ * 라운드마다 판은 `isTrading` 그대로. 자유 항해 판은 라운드 끝이 막지 않는다 — 라운드 사이('between', 첫 라운드 뒤)에도 된다.
+ * 막는 것은 교사의 [잠깐 멈춤]·판 마감(무역 끝)과, 차단형 활동이 열린 단계('event'·'worksheet' 등)뿐.
+ */
+export function canTrade(cs: ClassState): boolean {
+  if (isTrading(cs)) return true;
+  return isFreeVoyage(cs) && cs.phase === 'between' && cs.round >= 1 && !cs.paused && !cs.tradeEnded;
+}
+
+/** 자유 항해 판인가(규칙 엔진 기본은 'round') */
+export function isFreeVoyage(cs: Pick<ClassState, 'settings'>): boolean {
+  return cs.settings?.voyageMode === 'free';
+}
+
+/** (작업 151) 이번 라운드에 쌓인 낼 운항비(옛 상태에는 없음 = 0) */
+export function fareDueOf(p: Pick<Player, 'game'>): number {
+  return p.game.fareDue ?? 0;
+}
+
+/** (작업 151) 이번 라운드 항해 횟수(옛 상태에는 없음 = 0) */
+export function sailsThisRoundOf(p: Pick<Player, 'game'>): number {
+  return p.game.sailsThisRound ?? 0;
+}
+
+/**
+ * (작업 151) 쓸 수 있는 돈: 자유 항해면 자금 − 낼 운항비, 아니면 자금 그대로.
+ * 사기·생산·조선소 등 돈 쓰는 행동의 "돈이 모자라요" 판정에 쓴다.
+ */
+export function spendable(cs: Pick<ClassState, 'settings'>, p: Pick<Player, 'game'>): number {
+  return isFreeVoyage(cs) ? p.game.money - fareDueOf(p) : p.game.money;
+}
+
 /** 그 구간 안 몇 번째 라운드(1부터). 라운드 전이면 0 */
 export function stageRoundIndex(cs: ClassState): number {
   if (cs.stageFirstRound === null || cs.round < cs.stageFirstRound) return 0;
@@ -105,6 +138,7 @@ export function defaultSettings(playUnit: PlayUnit, scope: LessonId[], minutes: 
     showForecastOnScreen: false,
     progressMode: 'auto',
     awardsOff: [],
+    voyageMode: 'round',
   };
 }
 
@@ -222,6 +256,8 @@ export function newGame(startMoney: number): PlayerGame {
     reflect: null,
     producedOnce: false,
     log: [],
+    fareDue: 0,
+    sailsThisRound: 0,
   };
 }
 
@@ -338,6 +374,9 @@ export function normalizePlayer(raw: unknown): Player {
     reflect: (g.reflect ?? null) as Json,
     producedOnce: bool(g.producedOnce, false),
     log: arr(g.log),
+    // (작업 151) 옛 상태에는 없음 → 0
+    fareDue: Math.max(0, num(g.fareDue, 0)),
+    sailsThisRound: Math.max(0, num(g.sailsThisRound, 0)),
   };
   // 옛 필드(name: 실명·별명 등)는 옮기지 않는다
   return {
@@ -380,6 +419,8 @@ export function normalizeClass(raw: unknown, meta?: Pick<SessionMeta, 'playUnit'
     showForecastOnScreen: bool(s.showForecastOnScreen, d.showForecastOnScreen),
     progressMode: s.progressMode === 'manual' ? 'manual' : 'auto',
     awardsOff: arr(s.awardsOff),
+    // (작업 151) 옛 판에는 없음 → 라운드마다
+    voyageMode: s.voyageMode === 'free' ? 'free' : 'round',
   };
   const stage = isLesson(r.stage) ? r.stage : settings.scope[0];
   const start = stageStartByLesson[settings.scope[0]];

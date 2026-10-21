@@ -121,6 +121,12 @@ export function hasRoundGuidance(text: string): boolean {
   if (/\d{1,2}:\d{2}\s*(뒤|후)에?\s*(라운드|거래|무역)/.test(t)) return true;
   if (/(약\s*)?\d+\s*분(\s*\d+\s*초)?\s*(뒤|후)에?\s*(라운드|거래)/.test(t)) return true;
   if (/선생님이\s*(시작|라운드를\s*시작)하면/.test(t)) return true;
+  // (작업 153 추가) 자유 항해 판: 라운드 끝이 막지 않는다 — "선생님이 멈출 때까지 자유롭게 다녀요"
+  if (/선생님이\s*멈출\s*때까지/.test(t)) return true;
+  // (작업 149·151) 새 학생 안내: 남은 라운드 없음 → 정리 활동, 카드 확인 뒤 "선생님이 다음으로 넘기면", 라운드 사이 "라운드가 열리면/선생님이 라운드를 열면"
+  if (/남은\s*라운드가\s*없어요/.test(t) || /라운드가\s*모두\s*끝났어요/.test(t)) return true;
+  if (/선생님이\s*(다음으로\s*넘기면|라운드를\s*열면)/.test(t)) return true;
+  if (/다음\s*라운드가\s*열리면/.test(t)) return true;
   return false;
 }
 

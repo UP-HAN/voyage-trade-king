@@ -122,7 +122,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(p.card().state).toBe('respond');
   });
 
-  it('8: 응답 받는 활동(벽란도) — "학생 k/n 응답 · n초 뒤 저절로 다음", 반 미만이면 응답 없음 안내, [다음으로] = 응답 받기 끝내기', () => {
+  it('8: 응답 받는 활동(벽란도) — 맨 앞 "아직 응답 안 한 학생 n명" · "학생 k/n 응답 · n초 뒤 저절로 다음", [다음으로] = 응답 받기 끝내기', () => {
     const p = play();
     p.to(30);
     const c = p.card();
@@ -130,9 +130,12 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.tag).toBe('사전 활동 1/2');
     expect(c.line).toBe('벽란도 시장 하는 중');
     expect(c.eventId).toBe('L1-E1');
-    expect(c.sub[0]).toMatchObject({ text: '학생 0/3 응답', testId: 'tl-resp-count' });
+    expect(c.sub[0]).toEqual({ text: '아직 응답 안 한 학생 3명', strong: true, testId: 'now-not-done' });
+    expect(c.sub[1]).toMatchObject({ text: '학생 0/3 응답', testId: 'tl-resp-count' });
     expect(subText(c)).toContain('2:20 뒤 저절로 다음: 무역·수입·수출');
-    expect(subText(c)).toContain("아직 응답 안 한 학생은 '응답 없음'이 돼요");
+    // (작업 147) 자동 진행에서는 옛 '응답 없음' 안내·'모두 응답했어요'(now-all-responded) 줄을 뺀다
+    expect(subText(c)).not.toContain("'응답 없음'이 돼요");
+    expect(c.sub.at(-1)).toMatchObject({ testId: 'now-auto-hint' });
     expect(c.primary).toMatchObject({ label: '다음으로', kind: 'closeEvent', testId: 'btn-close-event' });
     // 결과 막대가 없는 활동 — 작은 글자 자리는 라운드 1 전 [라운드 바로 시작](수정 1회차)
     expect(c.secondary).toMatchObject({ label: '라운드 바로 시작', kind: 'roundNow' });
@@ -146,7 +149,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.state).toBe('waiting');
     expect(c.tag).toBe('사전 활동 2/2');
     expect(c.line).toBe('다음: 무역·수입·수출 · 2:20 뒤');
-    expect(subText(c)).toBe('학생 화면에는 남은 시간이 보여요');
+    expect(subText(c)).toBe('학생 화면에는 남은 시간이 보여요 | 누르지 않아도 저절로 넘어가요 · 기다려 줄 학생이 있으면 [잠깐 멈춤]');
     expect(c.primary).toMatchObject({ label: '지금 시작', kind: 'startItem', itemId: 'ev:L1-E2' });
     expect(c.secondary).toMatchObject({ label: '라운드 바로 시작', kind: 'roundNow' });
   });
@@ -167,28 +170,66 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.secondary).toBeNull();
   });
 
-  it('10: 라운드 — 남은 시간·항해 준비 수·다음, [라운드 끝내기] 보조 색 → 모두 준비면 주 색 + 문구', () => {
+  it('151 자유 항해 라운드: 한 줄·아직 사고팔지 않은 학생 n명·출항 준비 수 줄 없음', () => {
+    const p = play();
+    p.to(240);
+    const g0 = p.h.get();
+    const g = { ...g0, class: { ...g0.class, settings: { ...g0.class.settings, voyageMode: 'free' as const } } };
+    const c = nowCard(g, viewOf(g), p.now(), UI);
+    expect(c.state).toBe('round');
+    expect(c.line).toBe(`라운드 ${g.class.round} · 학생들이 자유롭게 항해하며 사고파는 중`);
+    expect(c.sub[0]).toEqual({ text: '이번 라운드에 아직 사고팔지 않은 학생 3명', strong: true, testId: 'now-not-done' });
+    expect(c.sub.find((s) => s.testId === 'ready-count')).toBeUndefined();
+    expect(c.primary).toMatchObject({ kind: 'endRound', tone: 'secondary' });
+    // 한 명이 이번 라운드에 삼 → 2명, 모두 사면 '모두 사고팔기를 했어요'
+    const withBuy = (seats: number[]) => ({
+      ...g,
+      players: Object.fromEntries(
+        Object.entries(g.players).map(([k, pl]) => [
+          k,
+          seats.includes(pl.seat) ? { ...pl, game: { ...pl.game, log: [...pl.game.log, { round: g.class.round, stage: g.class.stage, kind: 'buy' as const, amount: 10 }] } } : pl,
+        ]),
+      ),
+    });
+    expect(nowCard(withBuy([1]), viewOf(g), p.now(), UI).sub[0]!.text).toBe('이번 라운드에 아직 사고팔지 않은 학생 2명');
+    expect(nowCard(withBuy([1, 2, 3]), viewOf(g), p.now(), UI).sub[0]!.text).toBe('모두 사고팔기를 했어요');
+    // 모두 ready 여도 자유 항해에는 '모두 준비'가 없다
+    const ready = { ...g, players: Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: true } }])) };
+    expect(nowCard(ready, viewOf(g), p.now(), UI).lineTestId).toBeUndefined();
+  });
+
+  it('10: 라운드 — 남은 시간·출항 준비 수·다음, [라운드 끝내기] 보조 색 → 모두 준비면 주 색 + 문구', () => {
     const p = play();
     p.to(240);
     const c = p.card();
     expect(c.state).toBe('round');
     expect(c.tag).toBe('라운드 1/2');
-    expect(c.line).toBe('라운드 1 · 학생들이 사고팔고 항해하는 중');
-    expect(subText(c)).toContain('라운드 1 남은 1:20');
-    expect(c.sub.find((s) => s.testId === 'ready-count')!.text).toBe('항해 준비 끝낸 학생 0/3');
+    expect(c.line).toBe('라운드 1 · 학생들이 사고팔고 출항 준비하는 중');
+    expect(c.lineTestId).toBeUndefined();
+    expect(c.sub[0]).toEqual({ text: '출항 준비 안 한 학생 3명', strong: true, testId: 'now-not-done' });
+    expect(subText(c)).toContain('라운드 1 남은 1:40'); // v0.3.8(작업 153): 차시 한 판 ★ 없음 → 라운드가 20초 김
+    expect(c.sub.find((s) => s.testId === 'ready-count')!.text).toBe('출항 준비 끝낸 학생 0/3');
     expect(subText(c)).toContain('다음: 두 섬 이야기');
     expect(c.primary).toMatchObject({ label: '라운드 끝내기', kind: 'endRound', testId: 'btn-end-round', tone: 'secondary' });
-    // 모두 항해 준비
+    // 한 명만 출항 준비
     const g = p.h.get();
+    const one = Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: pl.seat === 1 } }]));
+    const c1 = nowCard({ ...g, players: one }, viewOf(g), p.now(), UI);
+    expect(c1.sub[0]!.text).toBe('출항 준비 안 한 학생 2명');
+    expect(c1.sub.find((s) => s.testId === 'ready-count')!.text).toBe('출항 준비 끝낸 학생 1/3');
+    // 모두 출항 준비
     const players = Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: true } }]));
     const all = nowCard({ ...g, players }, viewOf(g), p.now(), UI);
-    expect(all.line).toBe('모두 준비됐어요 — 라운드를 끝낼까요?');
+    expect(all.line).toBe('모두 출항 준비했어요 · 곧 저절로 다음 순서로 가요');
+    expect(all.lineTestId).toBe('all-ready');
+    expect(all.sub[0]!.text).toBe('모두 출항 준비했어요');
     expect(all.primary!.tone).toBe('primary');
   });
 
   it('7: 학습지 ③★ 지금 쓰기 — 다 쓴 학생 수·닫히는 시간, [다음으로] = 학습지 모두 닫기, [아직 안 쓴 학생 보기]', () => {
-    const p = play();
-    p.to(475);
+    // v0.3.8(작업 153): 차시 한 판에는 ★ 가 없다 → 단원 한 판 25분의 ③★ 로 본다
+    const p = play({ unit: true, minutes: 25 });
+    p.to(p.h.get().class.schedule.items.find((it) => it.id === 'wsd:W03')!.at + 5);
     const c = p.card();
     expect(c.state).toBe('worksheet');
     expect(c.tag).toBe('학습지');
@@ -204,7 +245,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     p.to(520);
     let c = p.card();
     expect(c.state).toBe('round');
-    expect(c.line).toBe('라운드 2 · 학생들이 사고팔고 항해하는 중');
+    expect(c.line).toBe('라운드 2 · 학생들이 사고팔고 출항 준비하는 중');
     expect(c.tag).toBe('라운드 2/2');
     expect(c.primary).toMatchObject({ label: '라운드 끝내기', kind: 'endRound', testId: 'btn-end-round' });
     expect(c.sub.find((x) => x.testId === 'tl-resp-count')).toMatchObject({ text: '흑연을 어디서 살까요? 학생 0/3 응답', eventId: 'L1-E7' });
@@ -221,14 +262,14 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(p.card().secondary).toBeNull();
   });
 
-  it('(수정 1회차) 라운드 중 결정이 열려 있어도 모두 항해 준비면 "모두 준비됐어요" + 주 색', () => {
+  it('(수정 1회차) 라운드 중 결정이 열려 있어도 모두 출항 준비면 "모두 출항 준비했어요" + 주 색', () => {
     const p = play();
     p.to(520);
     const g = p.h.get();
     const players = Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: true } }]));
     const c = nowCard({ ...g, players }, viewOf(g), p.now(), UI);
     expect(c.state).toBe('round');
-    expect(c.line).toBe('모두 준비됐어요 — 라운드를 끝낼까요?');
+    expect(c.line).toBe('모두 출항 준비했어요 · 곧 저절로 다음 순서로 가요');
     expect(c.primary!.tone).toBe('primary');
   });
 
@@ -240,8 +281,9 @@ describe('자동 진행 — 차시 L1 10분', () => {
     const between: TeacherGame = { ...g, class: { ...g.class, phase: 'between' } };
     const c = nowCard(between, viewOf(between), p.now(), UI);
     expect(c.state).toBe('respond');
-    expect(c.sub[0]!.text).toBe('학생 3/3 응답');
-    expect(subText(c)).toContain('모두 응답했어요');
+    expect(c.sub[0]).toEqual({ text: '모두 응답했어요', strong: true, testId: 'now-not-done' });
+    expect(c.sub[1]).toMatchObject({ text: '학생 3/3 응답', testId: 'tl-resp-count' });
+    expect(c.sub.some((x) => x.testId === 'now-all-responded')).toBe(false);
   });
 
   it('(수정 1회차) [라운드 끝내기] 확인: 마지막 라운드면 "무역을 마치고 마무리로", 결정을 안 한 학생은 응답 없음, 모두 준비·전원 응답이면 확인 없음', () => {
@@ -250,7 +292,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     let k = endRoundConfirm(p.h.get(), 3, p.now());
     expect(k.needed).toBe(true);
     expect(k.title).toBe('라운드를 지금 끝낼까요?');
-    expect(k.body).toBe('라운드가 1:20 남았어요. 지금 끝내면 학생들의 거래가 멈추고 다음 순서로 넘어가요.');
+    expect(k.body).toBe('라운드가 1:40 남았어요. 지금 끝내면 학생들의 거래가 멈추고 다음 순서로 넘어가요.'); // v0.3.8: ★ 없음
     p.to(530);
     k = endRoundConfirm(p.h.get(), 3, p.now());
     expect(k.needed).toBe(true);
@@ -606,5 +648,133 @@ describe('다듬기(141 촬영 전)', () => {
     const p = play();
     const q = p.h.get().class.schedule.items.find((it) => it.refId === 'L1-E8')!;
     expect(itemLabel(q)).toBe('1차시 확인 퀴즈');
+  });
+});
+
+describe('(작업 147, PRD 7.5.2.1 v0.3.8) 자동 진행 카드 단순화 — 아직 못 한 학생 · 저절로 안내 · 조용한 큰 버튼', () => {
+  /** 앞 k명(자리 순)이 이 사건 카드를 읽었다(응답 기록) */
+  const readBy = (g: TeacherGame, id: string, k: number): TeacherGame => ({
+    ...g,
+    players: Object.fromEntries(Object.entries(g.players).map(([key, pl]) => [key, pl.seat <= k ? { ...pl, game: { ...pl.game, responses: { ...pl.game.responses, [id]: { read: true } } } } : pl])),
+  });
+  const notDoneOf = (c: NowCard) => c.sub.find((s) => s.testId === 'now-not-done');
+  const hintOf = (c: NowCard) => c.sub.find((s) => s.testId === 'now-auto-hint');
+
+  it('① card: 학생 3명 중 0/2/3명 읽음 → 카드를 아직 안 읽은 학생 3명·1명·모두 카드를 읽었어요 (차시 표지·개념 카드)', () => {
+    const p = play();
+    p.to(5);
+    const g = p.h.get();
+    expect(p.card().state).toBe('card');
+    const id = g.class.currentEvent!.id;
+    const of = (k: number) => nowCard(readBy(g, id, k), viewOf(g), p.now(), UI);
+    expect(of(0).sub[0]).toEqual({ text: '카드를 아직 안 읽은 학생 3명', strong: true, testId: 'now-not-done' });
+    expect(notDoneOf(of(2))!.text).toBe('카드를 아직 안 읽은 학생 1명');
+    expect(notDoneOf(of(3))!.text).toBe('모두 카드를 읽었어요');
+    // 개념 카드(무역·수입·수출)
+    p.to(180);
+    const g2 = p.h.get();
+    const c2 = nowCard(readBy(g2, g2.class.currentEvent!.id, 1), viewOf(g2), p.now(), UI);
+    expect(c2.state).toBe('card');
+    expect(c2.sub[0]!.text).toBe('카드를 아직 안 읽은 학생 2명');
+  });
+
+  it('② respond: 아직 응답 안 한 학생 n명 / 모두 응답했어요, tl-resp-count 남음', () => {
+    const p = play();
+    p.to(30);
+    for (const s of [1, 2]) p.h.run({ type: 'act', seat: s, seq: 50, action: { type: 'respondEvent', eventId: 'L1-E1', response: { choice: 'a' } } }, p.now());
+    const c = p.card();
+    expect(c.state).toBe('respond');
+    const resp = c.sub.find((s) => s.testId === 'tl-resp-count')!;
+    expect(resp).toBeDefined();
+    // 응답 수와 '아직 응답 안 한 학생'은 같은 셈(respondedToCurrent)
+    const n = Number(/학생 (\d+)\/3 응답/.exec(resp.text)![1]);
+    expect(c.sub[0]).toEqual({ text: n === 3 ? '모두 응답했어요' : `아직 응답 안 한 학생 ${3 - n}명`, strong: true, testId: 'now-not-done' });
+  });
+
+  it('③ round: 한 줄 · ready-count · now-not-done, 모두 준비 문구', () => {
+    const p = play();
+    p.to(240);
+    const c = p.card();
+    expect(c.line).toBe('라운드 1 · 학생들이 사고팔고 출항 준비하는 중');
+    expect(c.sub.find((s) => s.testId === 'ready-count')!.text).toBe('출항 준비 끝낸 학생 0/3');
+    expect(notDoneOf(c)!.text).toBe('출항 준비 안 한 학생 3명');
+    const g = p.h.get();
+    const players = Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: true } }]));
+    expect(nowCard({ ...g, players }, viewOf(g), p.now(), UI).line).toBe('모두 출항 준비했어요 · 곧 저절로 다음 순서로 가요');
+  });
+
+  it('④ 대상 상태(card·respond·round·waiting·result)는 quiet + now-auto-hint 맨 끝, 큰 버튼 종류는 예전 그대로', () => {
+    const p = play();
+    const seen = new Map<string, string>();
+    const want: Record<string, string> = { card: 'next', respond: 'closeEvent', round: 'endRound' };
+    for (let s = 1; s <= 600; s += 3) {
+      p.to(s);
+      const c = p.card();
+      const target = ['card', 'respond', 'round', 'waiting', 'result'].includes(c.state);
+      expect(c.quiet, `${s}초 ${c.state}`).toBe(target);
+      if (target) {
+        expect(c.sub.at(-1), `${s}초 ${c.state}`).toEqual({ text: '누르지 않아도 저절로 넘어가요 · 기다려 줄 학생이 있으면 [잠깐 멈춤]', testId: 'now-auto-hint' });
+        expect(c.primary, `${s}초 ${c.state}`).not.toBeNull();
+        if (!seen.has(c.state)) seen.set(c.state, c.primary!.kind);
+      } else {
+        expect(hintOf(c), `${s}초 ${c.state}`).toBeUndefined();
+        expect(notDoneOf(c), `${s}초 ${c.state}`).toBeUndefined();
+      }
+    }
+    expect(seen.get('card')).toBe(want.card);
+    expect(seen.get('respond')).toBe(want.respond);
+    expect(seen.get('round')).toBe(want.round);
+    // 기다림(11)
+    const q = play();
+    q.to(30);
+    q.teacher({ type: 'closeEvent', reveal: true });
+    const w = q.card();
+    expect(w.state).toBe('waiting');
+    expect(w.quiet).toBe(true);
+    expect(w.primary!.kind).toBe('startItem');
+    expect(notDoneOf(w)).toBeUndefined();
+  });
+
+  it('④ 수동 진행 카드는 quiet=false, 문구·보조 정보 그대로(안내·아직 못 한 학생 줄 없음)', () => {
+    const p = play({ manual: true });
+    p.to(2);
+    p.teacher({ type: 'fireNow', id: 'cover:L1', clear: true });
+    let c = p.card();
+    expect(c.state).toBe('card');
+    expect(c.quiet).toBe(false);
+    expect(hintOf(c)).toBeUndefined();
+    expect(notDoneOf(c)).toBeUndefined();
+    p.teacher({ type: 'fireNow', id: 'ev:L1-E1', clear: true });
+    c = p.card();
+    expect(c.state).toBe('respond');
+    expect(c.quiet).toBe(false);
+    expect(c.sub[0]).toMatchObject({ text: '학생 0/3 응답', testId: 'tl-resp-count' });
+    expect(subText(c)).toContain("아직 응답 안 한 학생은 '응답 없음'이 돼요");
+    p.teacher({ type: 'fireNow', id: 'ev:L1-E2', clear: true });
+    p.teacher({ type: 'fireNow', id: 'r:1', clear: true });
+    c = p.card();
+    expect(c.state).toBe('round');
+    expect(c.quiet).toBe(false);
+    expect(c.line).toBe('라운드 1 · 학생들이 사고팔고 항해하는 중');
+    expect(c.sub[0]!.testId).toBe('now-round-left');
+    expect(c.sub.find((s) => s.testId === 'ready-count')!.text).toBe('출항 준비 끝낸 학생 0/3');
+    const g = p.h.get();
+    const players = Object.fromEntries(Object.entries(g.players).map(([k, pl]) => [k, { ...pl, game: { ...pl.game, ready: true } }]));
+    expect(nowCard({ ...g, players }, viewOf(g), p.now(), UI).line).toBe('모두 준비됐어요 — 라운드를 끝낼까요?');
+  });
+
+  it('⑤ 학습지·준비·멈춤 상태는 quiet=false', () => {
+    const h = gameWith(3);
+    expect(nowCard(h.get(), viewOf(h.get()), T0, UI)).toMatchObject({ state: 'ready', quiet: false });
+    const p = play({ unit: true, minutes: 25 }); // v0.3.8: ★ 는 단원 한 판에만
+    p.to(p.h.get().class.schedule.items.find((it) => it.id === 'wsd:W03')!.at + 5);
+    expect(p.card()).toMatchObject({ state: 'worksheet', quiet: false });
+    p.teacher({ type: 'pause' });
+    expect(p.card()).toMatchObject({ state: 'paused', quiet: false });
+  });
+
+  it("⑥ OLD_TEACHER_TERMS: '항해 준비'는 옛 말, '출항 준비'는 새 말", () => {
+    expect('항해 준비 끝낸 학생').toMatch(OLD_TEACHER_TERMS);
+    expect('출항 준비 끝낸 학생 1/3').not.toMatch(OLD_TEACHER_TERMS);
   });
 });

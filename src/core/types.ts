@@ -255,7 +255,15 @@ export interface ClassSettings {
   progressMode: 'auto' | 'manual';
   /** 교사가 끈 상(지표 ID) */
   awardsOff: MetricId[];
+  /**
+   * (v0.3.8, 작업 151, PRD 4.3.7.1) 항해 방식. 'round' = 라운드마다(출항 준비 → 라운드 끝에 출발),
+   * 'free' = 자유롭게(라운드 중 [여기로 출발]로 바로 이동, 운항비는 라운드 끝에 한꺼번에). 규칙 엔진 기본 'round'
+   */
+  voyageMode: VoyageMode;
 }
+
+/** 항해 방식(PRD 4.3.7.1) */
+export type VoyageMode = 'round' | 'free';
 
 /** 학급 투표·학급 결정 결과(사건 ID별) */
 export interface ClassVote {
@@ -448,6 +456,10 @@ export interface PlayerGame {
   /** 첫 생산을 했는가(p.101 순환 그림 카드 1회) */
   producedOnce: boolean;
   log: LogEntry[];
+  /** (작업 151) 자유 항해: 이번 라운드에 쌓인 낼 운항비(라운드 끝에 정산). 옛 상태에는 없음(= 0) */
+  fareDue?: number;
+  /** (작업 151) 자유 항해: 이번 라운드 항해 횟수. 옛 상태에는 없음(= 0) */
+  sailsThisRound?: number;
 }
 
 export interface Player {
@@ -504,6 +516,8 @@ export interface PublicState {
   joinedCount: number;
   onlineCount: number;
   readyCount: number;
+  /** (작업 151) 자유 항해: 이번 라운드 학급 전체 항해 수(라운드마다 판·옛 상태에는 없음) */
+  sailsThisRound?: number;
   /** 현재 사건 응답 수 */
   event: { id: string; responded: number; total: number } | null;
   /** 학습지 번호별 완료 수 */
@@ -549,6 +563,8 @@ export type Action =
   | { type: 'sell'; good: GoodId; qty: number }
   | { type: 'setDestination'; port: PortId | null }
   | { type: 'setReady' }
+  /** (작업 151) 자유 항해: 라운드 중 바로 그 항구로 출발·도착(운항비는 라운드 끝에 정산) */
+  | { type: 'sailTo'; port: PortId }
   | { type: 'cancelReady' }
   | { type: 'produce'; recipe: GoodId; qty: number }
   /** 회사 설립: 깃발 색·문양·아바타(이름은 입장 때 정함) */
@@ -648,6 +664,8 @@ export type GameEvent =
   | { type: 'stayed'; port: PortId; round: number; reason: 'noDestination' | 'notReady' | 'noMoney' | 'portClosed' }
   | { type: 'portCard'; port: PortId }
   | { type: 'loan'; amount: number }
+  /** (작업 151) 자유 항해: 라운드 끝 운항비 정산 */
+  | { type: 'fareSettled'; amount: number; round: number }
   | { type: 'money'; amount: number; reason: string }
   | { type: 'missionStep'; id: string; step: number }
   | { type: 'missionDone'; id: string }

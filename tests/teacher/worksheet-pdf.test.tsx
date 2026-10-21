@@ -258,8 +258,9 @@ describe('WorksheetPdfMenu', () => {
 describe('오늘 순서 한 줄 요약(PRD 7.5.2.3)', () => {
   const L1 = (m: number): SetupValues => ({ ...defaultSetup(), playUnit: 'lesson', lesson: 'L1', tradeMinutes: m });
   it('L1 10분 표본', () => {
+    // v0.3.8(작업 153): 차시 한 판 '알아서' 10분 = 라운드 2개 미만이 되어 '차시 끝에 모아서'(①②③④ 한 팝업), ★ 없음
     expect(orderSummaryOf(L1(10))).toBe(
-      '차시 표지 → 벽란도 시장 → 무역·수입·수출 → 라운드 1 → 부산에 강추위, 천연가스가 필요해요 → 두 섬 이야기 → ③★ 지금 바로 쓰기 → 라운드 2 → 흑연을 어디서 살까요? → 마무리',
+      '차시 표지 → 무역·수입·수출 → 라운드 1 → 부산에 강추위, 천연가스가 필요해요 → 무역이 없다면? → 라운드 2 → 흑연을 어디서 살까요? → 학습지 ①②③④ → 마무리',
     );
     const parts = orderSummaryOf(L1(10))!.split(' → ');
     expect(parts[0]).toBe('차시 표지');
@@ -268,7 +269,7 @@ describe('오늘 순서 한 줄 요약(PRD 7.5.2.3)', () => {
   });
   it('L1 25분 표본: 길면 "… 외 n개"', () => {
     const s = orderSummaryOf(L1(25))!;
-    expect(s.startsWith('차시 표지 → 벽란도 시장 → 무역·수입·수출 → 라운드 1 → ')).toBe(true);
+    expect(s.startsWith('차시 표지 → 벽란도 시장 → 무역·수입·수출 → 학습지 ① → 라운드 1 → ')).toBe(true); // v0.3.8: 활동마다 바로
     expect(s).toMatch(/… 외 \d+개 → 마무리$/);
     expect(s.split(' → ').length).toBeLessThanOrEqual(10);
   });

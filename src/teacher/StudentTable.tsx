@@ -23,6 +23,17 @@ function YesNo({ v }: { v: boolean | null }) {
   return v ? <CheckIcon /> : <DashIcon />;
 }
 
+/** '지금 할 일' 칸(작업 148): 끝냈으면 체크 + 글자, 아직이면 글자만, 할 일 없으면 '·' */
+function NowCell({ now }: { now: StudentRow['now'] }) {
+  if (now.text === '·') return <span class="t-na" aria-label="해당 없음">·</span>;
+  return (
+    <>
+      {now.done === true && <CheckIcon />}
+      <span class="t-small">{now.text}</span>
+    </>
+  );
+}
+
 function hhmm(t: number): string {
   const d = new Date(t);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -101,6 +112,7 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
               <th scope="col">번호</th>
               <th scope="col">회사 이름</th>
               <th scope="col">들어옴</th>
+              <th scope="col">지금 할 일</th>
               <th scope="col">항구</th>
               <th scope="col" class="t-num">자금(만 원)</th>
               <th scope="col">임무</th>
@@ -128,6 +140,9 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
                   <Dot color={r.online ? DOT.green : DOT.gray} label={r.online ? '들어옴' : '안 들어옴'} />
                   <span class="t-small">{r.online ? '들어옴' : r.lastSeenAt ? `${hhmm(r.lastSeenAt)} 나감` : '안 들어옴'}</span>
                 </td>
+                <td data-testid="cell-now" data-v={r.now.done === null ? 'na' : r.now.done ? 'yes' : 'no'}>
+                  <NowCell now={r.now} />
+                </td>
                 <td>
                   {r.portName}
                   {r.dest && <span class="t-small"> → {r.dest}</span>}
@@ -152,7 +167,7 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
             ))}
             {shown.length === 0 && (
               <tr>
-                <td colSpan={9} class="t-empty">
+                <td colSpan={10} class="t-empty">
                   {rows.length === 0 ? '아직 들어온 학생이 없어요.' : '이 조건에 맞는 학생이 없어요.'}
                 </td>
               </tr>

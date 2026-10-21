@@ -27,6 +27,9 @@ async function flowL2(minutes: number) {
     await w.advance(1000, 250);
   };
   for (let i = 0; i < 5; i++) await step();
+  // (작업 153) v0.3.8 차시 한 판 '알아서' = 활동마다 바로 — 15분 판은 학습지 시간 때문에 세관 게시판(2등급)이 빠진다.
+  // 이 시험은 흐름(세관 게시판 집계)을 보므로 15분만 '게임 끝나고'로 고정한다(25분은 기본값 그대로)
+  if (minutes < 25) h.teacher({ type: 'updateSettings', settings: { worksheetMode: 'after' } });
   h.teacher({ type: 'startTrade' });
   let late: SimStudent | null = null;
   let sawCustoms = false;

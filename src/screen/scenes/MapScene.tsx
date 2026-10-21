@@ -32,9 +32,16 @@ export function MapScene({ d, now }: SceneProps) {
             <span class="scr-map__k">{cls.round > 0 ? `라운드 ${cls.round} 끝` : '곧 첫 항해'}</span>
           </p>
         )}
-        <p class="scr-map__ready" data-testid="map-ready">
-          출항 준비 <b>{pub.readyCount}</b>/{pub.joinedCount}
-        </p>
+        {cls.settings.voyageMode === 'free' ? (
+          // (작업 151) 자유 항해: 출항 준비 대신 이번 라운드 항해 수
+          <p class="scr-map__ready" data-testid="map-ready" data-mode="free">
+            이번 라운드 항해 <b>{pub.sailsThisRound ?? 0}</b>번
+          </p>
+        ) : (
+          <p class="scr-map__ready" data-testid="map-ready">
+            출항 준비 <b>{pub.readyCount}</b>/{pub.joinedCount}
+          </p>
+        )}
       </div>
     </div>
   );

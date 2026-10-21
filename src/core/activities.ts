@@ -18,7 +18,7 @@ import type { GameEvent as EventDef } from '../data/types';
 import { applyVNDecision, applyVNImprove, applyVNReport, parseVNDecision, type VNDecision } from './factoryVN';
 import { isRightAnswer } from './letters';
 import { activateMission, applyPersonalEffects, grantDex } from './progress';
-import { clone, seatKey } from './state';
+import { clone, seatKey, spendable } from './state';
 import type { ActiveEffect, Answer, ClassState, GameEvent, Json, Player } from './types';
 
 /** L3-E3 생성형 인공지능 기술 경쟁 [게임 설정, PRD 6.12.4] */
@@ -132,7 +132,7 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
     case 'L3-E3': {
       const invest = Number(r.invest);
       if (!(TECH_RACE.options as readonly number[]).includes(invest)) return 'BAD_RESPONSE';
-      if (p.game.money < invest) return 'NO_MONEY';
+      if (spendable(cs, p) < invest) return 'NO_MONEY';
       p.game.money -= invest;
       if (invest) events.push({ type: 'money', amount: -invest, reason: 'techRace' });
       p.game.responses[eventId] = { invest };
@@ -151,7 +151,7 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
       if (which !== 'wage' && which !== 'env') return 'BAD_RESPONSE';
       const prev = isObj(p.game.responses[eventId]) ? (p.game.responses[eventId] as Record<string, unknown>) : {};
       const done = Array.isArray(prev.improved) ? (prev.improved as string[]) : [];
-      const e2 = applyVNImprove(p, vnDecisionOf(p), which, done, events);
+      const e2 = applyVNImprove(p, vnDecisionOf(p), which, done, events, spendable(cs, p));
       if (e2) return e2;
       p.game.responses[eventId] = { improved: [...done, which] };
       return null;

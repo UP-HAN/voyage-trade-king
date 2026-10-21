@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { PublicClass } from '../../core';
 import { img } from '../../ui/common/asset';
 import type { MeView } from '../predict';
-import { TUTORIAL_TEXT, tutorialCanStart, tutorialStep, tutorialTarget, type TutorialStep } from './logic';
+import { tutorialCanStart, tutorialStep, tutorialTarget, tutorialText, type TutorialStep } from './logic';
 
 type Flag = 'started' | 'done' | 'skipped' | null;
 
@@ -84,7 +84,7 @@ export function Tutorial({ me, cls, pid, code }: { me: MeView; cls: PublicClass;
   }, [canStart, key]);
 
   const active = flag === 'started' && cls.phase !== 'wrapup' && cls.phase !== 'ended';
-  const step: TutorialStep = tutorialStep(me, inPort);
+  const step: TutorialStep = tutorialStep(me, inPort, cls);
 
   // 화면(항구인지)·손가락 위치를 0.4초마다 다시 본다
   useEffect(() => {
@@ -92,7 +92,7 @@ export function Tutorial({ me, cls, pid, code }: { me: MeView; cls: PublicClass;
     const tick = () => {
       const p = inPortScreen();
       setInPort(p);
-      const r = rectOf(tutorialTarget(tutorialStep(me, p)));
+      const r = rectOf(tutorialTarget(tutorialStep(me, p, cls)));
       setTarget(r);
       const b = bubbleRef.current?.getBoundingClientRect?.();
       if (r && b && b.width > 0) {
@@ -106,14 +106,14 @@ export function Tutorial({ me, cls, pid, code }: { me: MeView; cls: PublicClass;
     tick();
     const t = setInterval(tick, 400);
     return () => clearInterval(t);
-  }, [active, me]);
+  }, [active, me, cls]);
 
   if (!active) return null;
   const finish = (v: 'done' | 'skipped') => {
     writeFlag(key, v);
     setFlag(v);
   };
-  const text = step === 'done' ? '잘했어요! 이제 부산으로 가서 천연가스를 팔면 [수입] 도장을 받고 임무를 끝내요.' : TUTORIAL_TEXT[step];
+  const text = step === 'done' ? '잘했어요! 이제 부산으로 가서 천연가스를 팔면 [수입] 도장을 받고 임무를 끝내요.' : tutorialText(step, cls);
   // 항구 화면에서 지도 단계면 해도로 돌아가라고 덧붙인다
   const hint =
     inPort && (step === 'pickDest' || step === 'ready')

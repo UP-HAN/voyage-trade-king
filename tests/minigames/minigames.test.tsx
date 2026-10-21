@@ -21,7 +21,7 @@ import {
   judgeTwoIslands,
   maxUnits,
   reclassQuestions,
-  showExample,
+  twoIslandsScenes,
   totals,
   type Placement,
 } from '../../src/minigames/logic';
@@ -128,13 +128,20 @@ describe('두 섬 이야기: 성공 판정(PRD 6.12.2, p.98~99)', () => {
     expect(judgeTwoIslands({ A: 2, B: 10 }, 99).units).toBe(25);
   });
 
-  it('[예시 따라 하기]: 전체 형태는 3분 뒤, 짧은 형태·따라잡기·마감 뒤에는 처음부터', () => {
-    const base = { short: false, catchUp: false, closed: false, startedAt: 0 };
-    expect(showExample({ ...base, now: 179_000 })).toBe(false);
-    expect(showExample({ ...base, now: 180_000 })).toBe(true);
-    expect(showExample({ ...base, short: true, now: 0 })).toBe(true);
-    expect(showExample({ ...base, catchUp: true, now: 0 })).toBe(true);
-    expect(showExample({ ...base, closed: true, now: 0 })).toBe(true);
+  it('3장면 숫자(작업 150): 혼자 30/60·25/10 → 집중 12/96·50/0 → 바꾼 뒤 32/66·30/30, 두 나라 모두 같거나 많음', () => {
+    const sc = twoIslandsScenes();
+    expect(sc.alone).toEqual({ A: { rice: 30, clothes: 60 }, B: { rice: 25, clothes: 10 } });
+    expect(sc.focus).toEqual({ A: { rice: 12, clothes: 96 }, B: { rice: 50, clothes: 0 } });
+    expect(sc.traded).toEqual({ A: { rice: 32, clothes: 66 }, B: { rice: 30, clothes: 30 } });
+    expect(sc.give).toEqual({ clothes: 30, rice: 20 });
+    expect(sc.riceDays).toEqual({ A: 2, B: 10 });
+    expect(sc.units).toBe(10);
+    for (const k of ['A', 'B'] as const) {
+      expect(sc.traded[k].rice).toBeGreaterThanOrEqual(sc.alone[k].rice);
+      expect(sc.traded[k].clothes).toBeGreaterThanOrEqual(sc.alone[k].clothes);
+    }
+    expect(twoIslands.islands.A.label).toBe('㉮ 나라');
+    expect(twoIslands.islands.B.label).toBe('㉯ 나라');
   });
 
   it('호스트 반영: 검산 예·[예시 따라 하기] 모두 성공 → +50만 원·도감 「무역의 좋은 점」, 1단계 그대로면 TRY_AGAIN', () => {
@@ -289,78 +296,101 @@ describe('학생 화면: 벽란도 시장', () => {
   });
 });
 
-describe('학생 화면: 두 섬 이야기', () => {
-  it('전체 형태: 1단계(5:5) → 2단계 [힌트] → 3단계, [예시 따라 하기]는 처음에는 없다', () => {
+describe('학생 화면: 두 섬 이야기(㉮·㉯ 나라 3장면·버튼 2번, 작업 150)', () => {
+  const nation = (root: FakeElement, k: 'A' | 'B') => {
+    const e = one(root, `ti-nation-${k}`);
+    return `${e.getAttribute('data-rice')}/${e.getAttribute('data-clothes')}`;
+  };
+
+  for (const short of [false, true]) {
+    it(`${short ? '짧은' : '전체'} 형태: 장면 1 → [잘하는 것을 많이 만들어 보기] → 장면 2 → [옷 30벌 ↔ 쌀 20포대 바꾸기] → 장면 3 → [다 했어요]로 보내고 호스트가 성공`, () => {
+      const s = session('L1-E5', short);
+      const log: Action[] = [];
+      let done = 0;
+      const root = mount(layer(s, player(s, 1), log, () => (done += 1)));
+      // 슬라이더·힌트·예시 따라 하기·뒤로 없음
+      for (const id of ['ti-A-slider', 'ti-B-slider', 'ti-hint', 'ti-example', 'ti-back', 'ti-next', 'ti-units-plus']) expect(byTestId(root, id), id).toHaveLength(0);
+      expect(root.find((e) => e.localName === 'input')).toHaveLength(0);
+      expect(root.textContent).toContain('㉮ 나라와 ㉯ 나라 이야기');
+      expect(root.textContent).toContain('교과서 98~99쪽');
+      expect(root.textContent).not.toContain('섬은');
+
+      // 장면 1
+      expect(one(root, 'minigame').getAttribute('data-step')).toBe('scene1');
+      expect(one(root, 'ti-scene-title').textContent).toBe('1. 혼자 살 때');
+      expect(one(root, 'ti-guide').textContent).toContain('㉮ 나라와 ㉯ 나라는 10일 동안 쌀과 옷을 반씩(5일씩) 만들어요.');
+      expect(one(root, 'ti-guide').textContent).toContain('㉮ 나라는 옷을, ㉯ 나라는 쌀을 상대적으로 더 잘 만들어요.');
+      expect(one(root, 'ti-nation-A').textContent).toContain('㉮ 나라');
+      expect(one(root, 'ti-nation-B').textContent).toContain('㉯ 나라');
+      expect(nation(root, 'A')).toBe('30/60');
+      expect(nation(root, 'B')).toBe('25/10');
+      expect(byTestId(root, 'ti-bar')).toHaveLength(4);
+      expect(one(root, 'ti-focus').textContent).toBe('잘하는 것을 많이 만들어 보기');
+      expect(byTestId(root, 'ti-trade')).toHaveLength(0);
+      click(one(root, 'ti-focus'));
+
+      // 장면 2
+      expect(one(root, 'minigame').getAttribute('data-step')).toBe('scene2');
+      expect(one(root, 'ti-scene-title').textContent).toBe('2. 잘하는 것을 많이 만들기');
+      expect(one(root, 'ti-guide').textContent).toContain('㉮ 나라는 옷을 많이(8일), ㉯ 나라는 쌀만(10일) 만들었어요.');
+      expect(one(root, 'ti-guide').textContent).toContain('그런데 ㉮는 쌀이, ㉯는 옷이 모자라요. 서로 바꿔 볼까요?');
+      expect(nation(root, 'A')).toBe('12/96');
+      expect(nation(root, 'B')).toBe('50/0');
+      expect(one(root, 'ti-trade').textContent).toBe('옷 30벌 ↔ 쌀 20포대 바꾸기');
+      expect(log).toEqual([]);
+      click(one(root, 'ti-trade'));
+
+      // 장면 3
+      expect(one(root, 'minigame').getAttribute('data-step')).toBe('scene3');
+      expect(one(root, 'ti-scene-title').textContent).toBe('3. 서로 바꾸니');
+      expect(one(root, 'ti-guide').textContent).toContain('두 나라 모두 혼자 살 때보다 쌀도 옷도 같거나 더 많아졌어요!');
+      expect(nation(root, 'A')).toBe('32/66');
+      expect(nation(root, 'B')).toBe('30/30');
+      expect(one(root, 'ti-give-clothes').textContent).toBe('30');
+      expect(one(root, 'ti-give-rice').textContent).toBe('20');
+      const bars = byTestId(root, 'ti-bar');
+      expect(bars.filter((b) => b.getAttribute('data-when') === 'before').map((b) => b.getAttribute('data-value'))).toEqual(['30', '60', '25', '10']);
+      expect(bars.filter((b) => b.getAttribute('data-when') === 'after').map((b) => b.getAttribute('data-value'))).toEqual(['32', '66', '30', '30']);
+      expect(one(root, 'ti-end').textContent).toContain(twoIslands.endSentence.text);
+      expect(one(root, 'ti-end').textContent).toContain('교과서 99쪽');
+      expect(log).toEqual([]);
+      click(one(root, 'ti-done'));
+      act(() => {
+        one(root, 'ti-done')?.dispatch('click'); // 바로 한 번 더(가드)
+      });
+      expect(log).toEqual([{ type: 'respondEvent', eventId: 'L1-E5', response: { riceDays: { A: 2, B: 10 }, units: 10 } }]);
+      expect(done).toBe(1);
+      const r = applyAction(s.class, player(s, 1), log[0]);
+      expect(r.error).toBeUndefined();
+      expect(r.player.game.money - player(s, 1).game.money).toBe(twoIslands.reward.money);
+      expect(r.player.game.metrics.dex).toContain('trade-benefit');
+    });
+  }
+
+  it('장면 3에서 화면이 닫히면(교사 마감) 그때 결과를 보낸다 — 장면 1·2에서 닫히면 보내지 않음', () => {
     const s = session('L1-E5', false);
-    const root = mount(layer(s, player(s, 1), []));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('stage1');
-    expect(one(root, 'ti-A-made').getAttribute('data-rice')).toBe('30');
-    expect(one(root, 'ti-B-made').getAttribute('data-clothes')).toBe('10');
-    expect(byTestId(root, 'ti-example')).toHaveLength(0);
-    click(one(root, 'ti-next'));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('stage2');
-    click(one(root, 'ti-hint'));
-    expect(one(root, 'ti-hint-text').textContent).toContain(twoIslands.hint);
-    click(one(root, 'ti-next'));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('stage3');
-    expect(one(root, 'ti-complete').getAttribute('disabled')).not.toBeNull();
-    expect(one(root, 'ti-status').getAttribute('data-success')).toBe('0');
-  });
-
-  it('검산 예를 직접 맞추면 성공 → 막대그래프·끝 문장(p.99) → [마치기]에서 배분·교환을 보낸다', () => {
-    const s = session('L1-E5', true);
     const log: Action[] = [];
-    const root = mount(layer(s, player(s, 1), log));
-    for (let i = 0; i < 3; i++) click(one(root, 'ti-A-rice-minus'));
-    for (let i = 0; i < 5; i++) click(one(root, 'ti-B-rice-plus'));
-    for (let i = 0; i < 10; i++) click(one(root, 'ti-units-plus'));
-    expect(one(root, 'ti-A-after').getAttribute('data-rice')).toBe('32');
-    expect(one(root, 'ti-B-after').getAttribute('data-clothes')).toBe('30');
-    expect(byTestId(root, 'ti-A-judge')[0]!.textContent).toContain('목표 달성');
-    expect(one(root, 'ti-status').getAttribute('data-success')).toBe('1');
-    click(one(root, 'ti-complete'));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('result');
-    expect(byTestId(root, 'ti-bar-s1')).toHaveLength(4);
-    expect(one(root, 'ti-end').textContent).toContain(twoIslands.endSentence.text);
-    expect(one(root, 'ti-end').textContent).toContain('p.99');
-    click(one(root, 'minigame-finish'));
+    let root = mount(layer(s, player(s, 1), log));
+    click(one(root, 'ti-focus'));
+    act(() => render(null, dom.root as unknown as Element));
+    expect(log).toEqual([]);
+    root = mount(layer(s, player(s, 1), log)); // 기기 저장이 있으면 장면 2부터, 없으면 장면 1부터
+    if (byTestId(root, 'ti-focus').length) click(one(root, 'ti-focus'));
+    click(one(root, 'ti-trade'));
+    act(() => render(null, dom.root as unknown as Element));
     expect(log).toEqual([{ type: 'respondEvent', eventId: 'L1-E5', response: { riceDays: { A: 2, B: 10 }, units: 10 } }]);
-    // 호스트도 성공으로 받는다
-    const r = applyAction(s.class, player(s, 1), log[0]);
-    expect(r.error).toBeUndefined();
   });
 
-  it('짧은 형태: 3단계 "바꾸기"부터, 1단계 기본값 안내, [예시 따라 하기]가 처음부터 → 완료(보상 동일)', () => {
-    const s = session('L1-E5', true);
-    const log: Action[] = [];
-    const root = mount(layer(s, player(s, 1), log));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('stage3');
-    expect(one(root, 'ti-guide').textContent).toContain('쌀 30·옷 60');
-    // 처음(교환 0): 섬별 ✓ 없이 "아직 바꾸지 않았어요"
-    for (const k of ['A', 'B']) {
-      expect(one(root, `ti-${k}-judge`).getAttribute('data-ok')).toBe('0');
-      expect(one(root, `ti-${k}-judge`).textContent).toContain('아직 바꾸지 않았어요');
-    }
-    expect(one(root, 'ti-A-made').getAttribute('data-rice')).toBe('30');
-    click(one(root, 'ti-example'));
-    expect(one(root, 'minigame').getAttribute('data-step')).toBe('result');
-    click(one(root, 'minigame-finish'));
-    expect(log).toHaveLength(1);
-    const resp = (log[0] as { response: Record<string, unknown> }).response;
-    expect(resp.example).toBe(true);
-    const r = applyAction(s.class, player(s, 1), log[0]);
-    expect(r.error).toBeUndefined();
-    expect(r.player.game.money - player(s, 1).game.money).toBe(50);
-  });
-
-  it('따라잡기로 열면(지난 사건) [예시 따라 하기]가 처음부터 보인다', () => {
+  it('따라잡기로 열어도 같은 3장면(놓친 활동)', () => {
     let s = session('L1-E5', false);
     s = teach(s, { type: 'closeEvent' });
     const root = mount(
       <MinigameLayer eventId="L1-E5" classState={publicClass(s.class)} player={playerView(player(s, 1))} act={() => 'sent'} onDone={() => undefined} catchUp />,
     );
-    expect(byTestId(root, 'ti-example')).toHaveLength(1);
     expect(root.textContent).toContain('놓친 활동');
+    expect(one(root, 'minigame').getAttribute('data-step')).toBe('scene1');
+    expect(byTestId(root, 'ti-focus')).toHaveLength(1);
+    expect(byTestId(root, 'ti-example')).toHaveLength(0);
   });
 });
 

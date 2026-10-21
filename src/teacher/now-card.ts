@@ -138,6 +138,12 @@ export interface NowCard {
   /** [잠깐 멈춤]을 보이는가(무역 시작 뒤 수업 끝 전, 멈춤·연결 문제 상태가 아닐 때) */
   showPause: boolean;
   manual: boolean;
+  /**
+   * (작업 147, PRD 7.5.2.1 v0.3.8 단순화) 자동 진행의 카드·응답·라운드·기다림·결과 상태 — 판이 저절로 흐르므로
+   * 큰 버튼은 '급할 때만' 작은 버튼으로, [잠깐 멈춤]을 큰 주 색 버튼으로 그린다(버튼 종류·testid·동작은 그대로).
+   * nowCard()는 늘 true/false로 채운다(선택 필드인 것은 카드를 손으로 만드는 다른 시험과 맞추려고 — 없으면 false).
+   */
+  quiet?: boolean;
   /** 같은 상태 안에서도 내용이 바뀌면 달라지는 열쇠(두 번 누름 막기·강조 효과) */
   key: string;
 }
@@ -157,6 +163,17 @@ export interface NowUi {
 
 // ─────────────────────────── 작은 계산 ───────────────────────────
 
+/** (작업 147) 자동 진행에서 '조용한' 카드가 되는 상태 */
+const QUIET_STATES: ReadonlySet<NowState> = new Set<NowState>(['card', 'respond', 'round', 'waiting', 'result']);
+
+/** (작업 147) 자동 진행 대상 상태 보조 정보 맨 끝 안내 */
+export const AUTO_HINT_TEXT = '누르지 않아도 저절로 넘어가요 · 기다려 줄 학생이 있으면 [잠깐 멈춤]';
+
+/** (작업 147) "아직 못 한 학생" 한 줄 — 보조 정보 맨 앞(굵게) */
+function notDone(n: number, some: (n: number) => string, none: string): NowSub {
+  return { text: n > 0 ? some(n) : none, strong: true, testId: 'now-not-done' };
+}
+
 /** 남은 초 → "45초" / "1:20" */
 export function leftText(sec: number): string {
   const s = Math.max(0, Math.ceil(sec - 1e-9));
@@ -164,6 +181,16 @@ export function leftText(sec: number): string {
 }
 
 const firable = (it: ScheduleItem) => it.status === 'pending' && it.form !== 'dropped' && it.kind !== 'letter';
+
+/** (작업 151) 이번 라운드에 사고팔기(사기·팔기·생산)를 했는가 — 자유 항해 카드·학생 표 */
+export function tradedThisRound(round: number, p: { game: { log: readonly { round: number; kind: string }[] } }): boolean {
+  return p.game.log.some((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce'));
+}
+
+/** (작업 151) 이번 라운드 항해 횟수(자유 항해 기록 기준) */
+export function sailsInRound(round: number, p: { game: { log: readonly { round: number; kind: string }[] } }): number {
+  return p.game.log.filter((l) => l.round === round && l.kind === 'voyage').length;
+}
 
 /** 다음에 시작할 배치표 항목(core 자동 진행과 같은 순서) */
 export function nextItemOf(c: Pick<ClassState, 'schedule'>): ScheduleItem | null {
@@ -518,10 +545,15 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       const responded = players.filter((p) => respondedToCurrent(c, p) === true).length;
       const total = players.length;
       const live = liveItemOf(c, ce.id);
-      const sub: NowSub[] = [{ text: `학생 ${responded}/${total} 응답`, testId: 'tl-resp-count' }];
+      const sub: NowSub[] = [];
+      // (작업 147) 자동 진행: 맨 앞 '아직 응답 안 한 학생 n명' 한 줄 + 응답 수 한 줄만(옛 '모두 응답했어요'·'응답 없음' 안내는 뺌)
+      if (!manual) sub.push(notDone(players.filter((p) => respondedToCurrent(c, p) !== true).length, (n) => `아직 응답 안 한 학생 ${n}명`, '모두 응답했어요'));
+      sub.push({ text: `학생 ${responded}/${total} 응답`, testId: 'tl-resp-count' });
       sub.push(autoNext(c, live ? live.at + live.durSec : null, next, now));
-      if (total > 0 && responded >= total) sub.push({ text: '모두 응답했어요', strong: true, testId: 'now-all-responded' });
-      else if (responded * 2 < total) sub.push({ text: "아직 응답 안 한 학생은 '응답 없음'이 돼요" });
+      if (manual) {
+        if (total > 0 && responded >= total) sub.push({ text: '모두 응답했어요', strong: true, testId: 'now-all-responded' });
+        else if (responded * 2 < total) sub.push({ text: "아직 응답 안 한 학생은 '응답 없음'이 돼요" });
+      }
       const withResult = hasResultView(eventsById[ce.id]);
       return {
         state: 'respond', tag: stageTag(c, live ?? null), line: `${title} 하는 중`, lineTestId: 'tl-responses',
@@ -539,6 +571,10 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       const name = id ? eventTitle(c, id) : itemLabel(summary!);
       const cover = !!id && !!eventsById[id]?.isCover;
       const sub: NowSub[] = [];
+      // (작업 147) 자동 진행: 사건 카드·표지면 맨 앞 '카드를 아직 안 읽은 학생 n명'(앞 차시 요약 카드는 없음)
+      if (!manual && id) {
+        sub.push(notDone(Object.values(g.players).filter((p) => p.game.responses[id] === undefined).length, (n) => `카드를 아직 안 읽은 학생 ${n}명`, '모두 카드를 읽었어요'));
+      }
       if (cover) sub.push({ text: '차시 질문을 함께 읽어요' });
       sub.push(autoNext(c, live ? live.at + live.durSec : null, next, now));
       return {
@@ -555,12 +591,23 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
     if (c.phase === 'round') {
       const players = Object.values(g.players);
       const joined = view.seats.length;
-      const ready = players.filter((p) => p.game.ready).length;
-      const allReady = joined > 0 && ready >= joined;
-      const sub: NowSub[] = [
-        { text: roundLeftText(c, now), testId: 'now-round-left' },
-        { text: `항해 준비 끝낸 학생 ${ready}/${joined}`, testId: 'ready-count' },
-      ];
+      // (작업 151, PRD 4.3.7.1) 자유 항해: 출항 준비가 없다 — '아직 사고팔지 않은 학생 n명'(이번 라운드 사기·팔기·생산 기록), 준비 수 줄 없음
+      const free = c.settings.voyageMode === 'free';
+      const ready = free ? 0 : players.filter((p) => p.game.ready).length;
+      const allReady = !free && joined > 0 && ready >= joined;
+      const sub: NowSub[] = free
+        ? [
+            ...(manual ? [] : [notDone(players.filter((p) => !tradedThisRound(c.round, p)).length, (n) => `이번 라운드에 아직 사고팔지 않은 학생 ${n}명`, '모두 사고팔기를 했어요')]),
+            { text: roundLeftText(c, now), testId: 'now-round-left' },
+            // (작업 153 추가, 교사 결정) 라운드 끝은 운항비 정산 때일 뿐 — 학생 항해를 멈추는 것은 선생님
+            { text: FREE_PAUSE_HINT, testId: 'now-free-pause' },
+          ]
+        : [
+            // (작업 147) 자동 진행: 맨 앞 '출항 준비 안 한 학생 n명'
+            ...(manual ? [] : [notDone(players.filter((p) => !p.game.ready).length, (n) => `출항 준비 안 한 학생 ${n}명`, '모두 출항 준비했어요')]),
+            { text: roundLeftText(c, now), testId: 'now-round-left' },
+            { text: `출항 준비 끝낸 학생 ${ready}/${joined}`, testId: 'ready-count' },
+          ];
       let secondary: NowButton | null = null;
       // 라운드에 붙은 결정(응답 받는 활동) 진행
       if (ce && !ce.closed && needsResponse(ce.id)) {
@@ -584,7 +631,11 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       } else if (next) sub.push({ text: `다음: ${itemLabel(next)}` });
       return {
         state: 'round', tag: `라운드 ${c.round}/${totalRounds(c)}`,
-        line: allReady ? '모두 준비됐어요 — 라운드를 끝낼까요?' : `라운드 ${c.round} · 학생들이 사고팔고 항해하는 중`,
+        line: free
+          ? `라운드 ${c.round} · 학생들이 자유롭게 항해하며 사고파는 중`
+          : manual
+          ? allReady ? '모두 준비됐어요 — 라운드를 끝낼까요?' : `라운드 ${c.round} · 학생들이 사고팔고 항해하는 중`
+          : allReady ? '모두 출항 준비했어요 · 곧 저절로 다음 순서로 가요' : `라운드 ${c.round} · 학생들이 사고팔고 출항 준비하는 중`,
         lineTestId: allReady ? 'all-ready' : undefined,
         sub,
         primary: endBtn,
@@ -596,6 +647,8 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
     // 11. 다음 항목을 기다림
     // (다듬기) 라운드 밖에서 응답 없는 소식 패널이 떠 있으면(수동 진행에서 라운드 뒤 [다음으로]로 연 소식 등) 그것도 보인다 — 다음 항목을 열 때까지
     const news: NowSub[] = ce && !ce.closed && !needsResponse(ce.id) ? [{ text: newsLine(c, ce.id), testId: 'now-news' }] : [];
+    // (작업 153 추가) 자유 항해 판의 라운드 사이: 학생은 계속 항해·사고팔기를 한다
+    if (c.settings.voyageMode === 'free' && c.phase === 'between' && c.round >= 1) news.push({ text: FREE_BETWEEN_HINT, testId: 'now-free-pause' });
     if (next) {
       const wait = Math.max(0, next.at - e);
       const isRound = next.kind === 'round';
@@ -659,6 +712,10 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
   };
 }
 
+/** (작업 153 추가) 자유 항해 판 교사 안내 */
+export const FREE_PAUSE_HINT = '학생 항해를 멈추려면 [잠깐 멈춤]';
+export const FREE_BETWEEN_HINT = '학생들은 계속 자유롭게 항해해요 · 멈추려면 [잠깐 멈춤]';
+
 /** "라운드 2 남은 1:10" */
 function roundLeftText(c: ClassState, now: number): string {
   const left = c.paused && c.roundRemainingMs !== null ? c.roundRemainingMs / 1000 : c.roundEndsAt !== null ? (c.roundEndsAt - now) / 1000 : 0;
@@ -671,6 +728,9 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
   const c = g.class;
   const started = c.clock.startedAt !== null;
   const showPause = started && b.state !== 'paused' && b.state !== 'ended' && b.state !== 'disconnected' && b.state !== 'replaced';
+  const quiet = c.schedule.mode === 'auto' && QUIET_STATES.has(b.state);
+  // (작업 147) 자동 진행 대상 상태: 보조 정보 맨 끝에 안내 한 줄
+  const sub = quiet ? [...b.sub, { text: AUTO_HINT_TEXT, testId: 'now-auto-hint' }] : b.sub;
   return {
     state: b.state,
     priority: NOW_PRIORITY[b.state],
@@ -678,13 +738,14 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
     line: b.line,
     lineTestId: b.lineTestId,
     eventId: b.eventId,
-    sub: b.sub,
+    sub,
     primary: b.primary,
     secondary: b.secondary,
     notes: notesOf(g, view, now, ui),
     tv: tvChipOf(g, now, ui.screenConnected),
     showPause,
     manual: c.schedule.mode === 'manual',
+    quiet,
     key: `${b.state}:${b.keyExtra ?? ''}:${b.primary?.kind ?? ''}:${b.primary?.itemId ?? ''}`,
   };
 }
@@ -700,7 +761,8 @@ export function endRoundConfirm(g: TeacherGame, joined: number, now: number): { 
   const c = g.class;
   const players = Object.values(g.players);
   const ready = players.filter((p) => p.game.ready).length;
-  const allReady = joined > 0 && ready >= joined;
+  // (작업 151) 자유 항해에는 출항 준비가 없다 → '모두 준비'로 보지 않는다
+  const allReady = c.settings.voyageMode !== 'free' && joined > 0 && ready >= joined;
   const left = c.phase !== 'round' ? 0 : c.paused && c.roundRemainingMs !== null ? c.roundRemainingMs / 1000 : c.roundEndsAt !== null ? Math.max(0, (c.roundEndsAt - now) / 1000) : 0;
   const ce = c.currentEvent;
   const openDecision = ce && !ce.closed && needsResponse(ce.id) ? ce : null;

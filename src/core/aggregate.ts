@@ -137,6 +137,8 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
     joinedCount: list.length,
     onlineCount: list.filter((p) => p.online).length,
     readyCount: list.filter((p) => p.game.ready).length,
+    // (작업 151) 자유 항해: 이번 라운드 학급 전체 항해 수(공용 화면 해도). 라운드마다 판에는 싣지 않는다
+    ...(cs.settings.voyageMode === 'free' ? { sailsThisRound: list.reduce((n, p) => n + (p.game.sailsThisRound ?? 0), 0) } : {}),
     event,
     worksheetDone,
     duringDone,

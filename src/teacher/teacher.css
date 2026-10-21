@@ -308,6 +308,13 @@
 .t-now__reason { max-width: 260px; color: var(--ink-soft); font-size: 16px; text-align: right; }
 .t-now__pause .btn { min-width: 140px; }
 .t-now__pause--ph { display: block; width: 140px; height: 40px; visibility: hidden; }
+/* (작업 147) 조용한 카드(자동 진행): [잠깐 멈춤]이 큰 주 색 버튼, 원래 큰 버튼은 '급할 때만' 작은 버튼 */
+.t-now__pause--big .btn.t-now__pause-big { min-height: 56px; min-width: 220px; padding: 8px 22px; font-size: 22px; font-weight: 700; }
+.t-now__acts--quiet .t-now__primary { gap: 0; }
+.t-now__quiet-cap { color: var(--ink-soft); font-size: 14px; line-height: 1.2; }
+.t-now__big.t-now__big--quiet { min-height: 40px; min-width: 0; padding: 4px 14px; font-size: 15px; font-weight: 600; background: #fff; color: var(--ink); border: 1px solid #a9a294; }
+.t-now__big.t-now__big--quiet:hover:not(:disabled) { background: #f4f1ea; }
+.t-now__big--quiet .t-now__arrow { display: none; }
 .t-now__notes { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 0; padding: 4px 0 0; border-top: 1px dashed var(--brass-dark); list-style: none; font-size: 16px; }
 .t-now__notes li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .t-now__bang { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: var(--stamp-red); color: #fff; font-weight: 700; }

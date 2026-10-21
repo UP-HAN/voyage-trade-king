@@ -9,8 +9,8 @@ import { gameWith } from '../teacher/helpers';
 
 const T0 = 2_000_000;
 
-function play() {
-  const h = gameWith(2, { minutes: 10 });
+function play(minutes = 10) {
+  const h = gameWith(2, { minutes });
   let t = 0;
   let notices: string[] = [];
   const run = (i: SessionInput) => {
@@ -18,6 +18,8 @@ function play() {
     notices = r.outputs.filter((o) => o.type === 'teacher').map((o) => String((o as { data?: { notice?: string } }).data?.notice ?? ''));
     h.run(i, T0 + t * 1000);
   };
+  // (작업 153) 시험 도우미는 학습지 '게임 끝나고'로 고정 — 15분 판은 차시 한 판 기본('알아서' = 활동마다 바로)으로 되돌린다
+  if (minutes === 15) run({ type: 'teacher', action: { type: 'updateSettings', settings: { worksheetMode: 'auto' } } } as unknown as SessionInput);
   run({ type: 'teacher', action: { type: 'startTrade' } });
   const to = (sec: number) => {
     for (; t < sec; ) {
@@ -58,14 +60,16 @@ describe('fireNow clear(작업 137)', () => {
   });
 
   it('clear: 학습지 팝업이면 닫고(계획 길이 = 실제) 다음 항목(라운드)을 연다', () => {
-    const p = play();
-    p.to(475); // ③★ 지금 쓰기
-    expect(p.g().class.worksheet.current).toEqual(['W03']);
-    p.teacher({ type: 'fireNow', id: 'r:2', clear: true });
+    // v0.3.8(작업 153): 차시 L1 15분 '알아서' = 활동마다 바로 → ① 팝업(무역·수입·수출 뒤) 다음이 라운드 1
+    const p = play(15);
+    const w1 = p.g().class.schedule.items.find((it) => it.id === 'ws:W01')!;
+    p.to(w1.at + 5);
+    expect(p.g().class.worksheet.current).toEqual(['W01']);
+    p.teacher({ type: 'fireNow', id: 'r:1', clear: true });
     const g = p.g();
     expect(g.class.worksheet.current).toBeNull();
-    expect(status(g, 'wsd:W03')).toBe('done');
+    expect(status(g, 'ws:W01')).toBe('done');
     expect(g.class.phase).toBe('round');
-    expect(g.class.round).toBe(2);
+    expect(g.class.round).toBe(1);
   });
 });

@@ -55,6 +55,8 @@ export interface StudentProbe {
   enterPort: boolean;
   setReady: 'none' | 'enabled' | 'disabled';
   readyNote: boolean;
+  /** (작업 151) 자유 항해 판의 라운드 할 일 띠(data-mode="free")가 보임 — 출항 준비 없음 */
+  freeVoyage: boolean;
   bottomStatus: string;
   /** 라운드 전·사이 상태 카드(round-wait-card)의 남은 시간 줄 — 카드가 안 보이면 null */
   roundWaitLine: string | null;
@@ -169,6 +171,7 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
         enterPort: v('enter-port'),
         setReady: !vis(sr) ? 'none' : sr!.disabled ? 'disabled' : 'enabled',
         readyNote: v('ready-note'),
+        freeVoyage: Boolean(q('[data-testid="round-steps"][data-mode="free"]')),
         bottomStatus: (q('[data-testid="bottom-status"]')?.innerText ?? '').trim().slice(0, 80),
         roundWaitLine: vis(q('[data-testid="round-wait-card"]')) ? (q('[data-testid="round-wait-line"]')?.innerText ?? '').trim().slice(0, 80) : null,
         money: q('[data-testid="hud-money"]')?.innerText ?? null,
@@ -264,7 +267,7 @@ export async function coverOf(loc: Locator): Promise<CoverInfo | null> {
 }
 
 /** 수업 진행에 꼭 필요한 버튼(가려서 안 눌리면 앱 문제) */
-const CORE_BUTTONS = /^(enter-port|set-ready|pick-confirm|worksheet-done|항구 )/;
+const CORE_BUTTONS = /^(enter-port|set-ready|pick-confirm|pick-sail|worksheet-done|항구 )/;
 
 /** 정상 층에 가려 눌리지 않음 — 학생처럼 층을 먼저 처리한다(실패 아님) */
 class LayerFirst extends Error {
@@ -436,9 +439,19 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
       mem.seen.add('trade-over');
       return null;
     }
-    // 라운드: 사고팔기 → 목적지 → 출항 준비(라운드마다 한 번)
+    // 라운드: 사고팔기 → 목적지 → 출항 준비(라운드마다 한 번).
+    // (작업 151) 자유 항해: 사고팔기 → [여기로 출발](바로 도착·항구 화면 열림) → 다시 사고팔기 — 라운드 상한(3번)은 앱이 막는다
     if (o.phase() === 'round' && !pr.readyNote && pr.inGame) {
       if (later(`round${o.phase()}${pr.bottomStatus}`, 20_000)) return null;
+      if (pr.freeVoyage && pr.portScreen && o.rand() < 0.6) {
+        // 도착해 열린 항구 화면에서 바로 사고판다
+        const sell = p.locator('[data-testid^="sell-card-"] button[data-testid^="sell-"]:not([data-testid$="-plus"]):not([data-testid$="-minus"]):enabled');
+        const buy = p.locator('[data-testid^="buy-card-"] button[data-testid^="buy-"]:not([data-testid$="-plus"]):not([data-testid$="-minus"]):enabled');
+        if ((await sell.count()) > 0 && o.rand() < 0.5) await sell.first().click({ timeout: 2000 }).catch(() => undefined);
+        else if ((await buy.count()) > 0) await buy.first().click({ timeout: 2000 }).catch(() => undefined);
+        await p.getByTestId('port-back').click({ timeout: 2000 }).catch(() => undefined);
+        return 'trade';
+      }
       if (o.rand() < 0.5 && pr.enterPort && !pr.portScreen) {
         await click('enter-port');
         await sleep(400);
@@ -476,10 +489,15 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
           // 다른 회사 배 표지가 항구 위에 겹쳐 있으면 사람은 항구 둘레를 누른다 — 도구는 강제 클릭
           await hit.click({ timeout: 3000, force: true });
           const ok = await p.getByTestId('pick-panel').getAttribute('data-kind', { timeout: 2000 }).catch(() => null);
+          if (ok === 'ok' && (await p.getByTestId('pick-sail').isVisible().catch(() => false))) {
+            await click('pick-sail');
+            return 'sail';
+          }
           if (ok === 'ok') await click('pick-confirm');
           else await p.keyboard.press('Escape').catch(() => undefined);
         }
       }
+      if (pr.freeVoyage) return 'dest';
       if (await p.getByTestId('set-ready').isEnabled({ timeout: 1000 }).catch(() => false)) {
         await click('set-ready');
         return 'set-ready';

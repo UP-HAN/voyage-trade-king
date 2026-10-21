@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { OLD_TEACHER_TERMS } from '../src/teacher/teacher-terms';
-import { openFold, openTvMenu } from './support/voyage-ui';
+import { openFold, openTvMenu, pickWorksheetMode } from './support/voyage-ui';
 
 /**
  * 작업 137 "처음 쓰는 교사" e2e(`?sync=local` + 빌드본 미리보기, Playwright 가짜 시계 — round-start.spec.ts와 같은 기반).
@@ -49,7 +49,7 @@ async function oneBigButton(t: Page, where: string) {
 
 const stateOf = (t: Page) => t.getByTestId('now-card').getAttribute('data-state');
 
-async function openTeacher(ctx: BrowserContext): Promise<{ t: Page; code: string }> {
+async function openTeacher(ctx: BrowserContext, ws?: 'after'): Promise<{ t: Page; code: string }> {
   const t = await ctx.newPage();
   t.on('pageerror', (e) => {
     throw e;
@@ -65,6 +65,7 @@ async function openTeacher(ctx: BrowserContext): Promise<{ t: Page; code: string
   await t.getByTestId('unit-lesson').click();
   await t.getByTestId('lesson-L1').click();
   await t.getByTestId('trade-minutes').getByRole('button', { name: '10분' }).click();
+  if (ws) await pickWorksheetMode(t, ws);
   await t.getByTestId('btn-open').click();
   const codeEl = t.getByTestId('room-code');
   await expect(codeEl).toHaveText(/^\d{6}$/);
@@ -88,10 +89,10 @@ async function joinStudent(ctx: BrowserContext, as: string, code: string, seat: 
   return p;
 }
 
-async function setup(browser: import('@playwright/test').Browser, baseURL: string | undefined, viewport = { width: 1366, height: 768 }) {
+async function setup(browser: import('@playwright/test').Browser, baseURL: string | undefined, viewport = { width: 1366, height: 768 }, ws?: 'after') {
   const ctx = await browser.newContext({ baseURL, viewport });
   await ctx.clock.install();
-  const { t, code } = await openTeacher(ctx);
+  const { t, code } = await openTeacher(ctx, ws);
   return { ctx, t, code };
 }
 
@@ -154,7 +155,8 @@ test('(가) 카드만으로 끝까지 — 큰 버튼과 [잠깐 멈춤]/[이어�
   await t.bringToFront();
   // 무역 시작 전(12)
   await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ready');
-  await expect(t.getByTestId('now-start-summary')).toContainText('약 3분 50초 뒤 라운드 1');
+  // (작업 153) v0.3.8: 차시 한 판 10분 '알아서' = 차시 끝에 모아서(라운드 2개) — 벽란도 시장이 빠져 라운드 1이 당겨짐
+  await expect(t.getByTestId('now-start-summary')).toContainText('약 2분 20초 뒤 라운드 1');
   await oneBigButton(t, '무역 시작 전');
   await checkTerms(t, '무역 시작 전');
   await shot(t, '137-02-ready.png');
@@ -206,7 +208,7 @@ test('(가) 카드만으로 끝까지 — 큰 버튼과 [잠깐 멈춤]/[이어�
     }
     if (st === 'worksheet' && !seen.has('shot-ws')) {
       seen.add('shot-ws');
-      await expect(t.getByTestId('now-line')).toHaveText('학습지 ③★ 지금 바로 쓰기');
+      await expect(t.getByTestId('now-line')).toHaveText('학습지 ①②③④ 쓰는 시간'); // (작업 153) ★ 없음, 차시 끝 묶음
       await shot(t, '137-06-worksheet-during.png');
     }
     if (st === 'wrapup' && !seen.has('shot-wrap')) {
@@ -215,6 +217,8 @@ test('(가) 카드만으로 끝까지 — 큰 버튼과 [잠깐 멈춤]/[이어�
       await shot(t, '137-09-wrapup.png');
     }
     const r = await pressBig(t);
+    // (작업 153) 결과 보여 주기(20초)가 끝나는 사이에 차시 끝 학습지 묶음이 이어서 뜰 수 있다 — 누른 순간의 상태도 센다
+    if (r.state) seen.add(r.state);
     log.push(`${r.state}:${r.label}${r.confirms.length ? `(${r.confirms.join('+')})` : ''}`);
     await run(ctx, t, 1);
   }
@@ -226,7 +230,8 @@ test('(가) 카드만으로 끝까지 — 큰 버튼과 [잠깐 멈춤]/[이어�
   // 수업 끝내기는 확인 2번
   expect(log.find((x) => x.includes('confirm-end-1+confirm-end-2'))).toBeTruthy();
   // 지나간 상태: 준비 → 표지·카드 → 응답 활동 → 라운드 → 학습지 → 결과 → 마무리 → 끝
-  for (const s of ['ready', 'card', 'respond', 'round', 'worksheet', 'paused', 'wrapup', 'ended', 'shot-round-decision']) expect([...seen], `상태 ${s} — ${log.join(' / ')}`).toContain(s);
+  // (작업 153) 10분 '알아서' 배치에는 라운드 밖 응답 활동(벽란도·두 섬)이 없다 → 'respond' 는 빼고 본다
+  for (const s of ['ready', 'card', 'round', 'worksheet', 'paused', 'wrapup', 'ended', 'shot-round-decision']) expect([...seen], `상태 ${s} — ${log.join(' / ')}`).toContain(s);
   // [처음으로]
   await pressBig(t);
   await expect(t.getByTestId('teacher-start')).toBeVisible();
@@ -260,9 +265,10 @@ test('(나) 기다리기만 — 활동 → 라운드 1 → … → 무역 시간
     await run(ctx, t, 1);
   }
   const states = trail.map((x) => x.split('|')[0]);
+  // (작업 151) 1차시 차시 판 기본 = 자유 항해: 라운드 줄은 '자유롭게 항해하며 사고파는 중'
   const lines = trail.map((x) => x.split('|')[1]);
-  // 차례: 표지 → 벽란도 → 무역·수입·수출 → 라운드 1 → 두 섬 → ③★ → 라운드 2(흑연 결정) → 결과 → 마무리
-  const order = ['1차시 표지를 TV에 보여 주는 중', '벽란도 시장 하는 중', '무역·수입·수출을 TV에 보여 주는 중', '라운드 1 · 학생들이 사고팔고 항해하는 중', '두 섬 이야기 하는 중', '학습지 ③★ 지금 바로 쓰기', '라운드 2 · 학생들이 사고팔고 항해하는 중+decision', '라운드 2 · 학생들이 사고팔고 항해하는 중+result', '결산·시상 하는 중'];
+  // (작업 153, v0.3.8) 차례: 표지 → 무역·수입·수출 → 라운드 1 → 무역이 없다면? → 라운드 2(흑연 결정) → 결과 → 학습지 ①②③④(차시 끝 묶음) → 마무리
+  const order = ['1차시 표지를 TV에 보여 주는 중', '무역·수입·수출을 TV에 보여 주는 중', '라운드 1 · 학생들이 자유롭게 항해하며 사고파는 중', '무역이 없다면?를 TV에 보여 주는 중', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+decision', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+result', '학습지 ①②③④ 쓰는 시간', '결산·시상 하는 중'];
   let at = -1;
   for (const want of order) {
     const i = lines.findIndex((l, k) => k > at && l === want);
@@ -331,7 +337,7 @@ test('(다) 수동 진행 — [설정]→[고급]→선생님이 하나씩 넘�
     }
   }
   await expect(t.getByTestId('round-info')).toContainText('라운드 1');
-  expect(fired.length).toBeGreaterThanOrEqual(4); // 표지·벽란도·무역·수입·수출·라운드 1
+  expect(fired.length).toBeGreaterThanOrEqual(3); // 표지·무역·수입·수출·라운드 1 (작업 153: 10분 '알아서' 배치에는 벽란도가 없다)
   // 끝까지: 카드의 큰 버튼만(라운드 끝내기 확인 포함)
   for (let i = 0; i < 40 && (await stateOf(t)) !== 'ended'; i++) {
     await oneBigButton(t, `수동 끝까지 ${i}`);
@@ -348,7 +354,8 @@ test('(다) 수동 진행 — [설정]→[고급]→선생님이 하나씩 넘�
 test('(라) 스크린숏 보충 — 무역 시간 끝(활동 중), 접힘 영역 모두 펼침, 1280×720 라운드 화면 + 큰 버튼 두 번 클릭', async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
   test.setTimeout(400_000);
-  const { ctx, t, code } = await setup(browser, baseURL);
+  // (작업 153) 벽란도 시장(응답 받는 활동)·라운드 1(3:50)이 있는 옛 배치로 — 10분 '알아서'는 v0.3.8에서 벽란도가 빠진다
+  const { ctx, t, code } = await setup(browser, baseURL, undefined, 'after');
   for (const [i, n] of [[1, '해오름무역'], [2, '바다상회']] as const) await joinStudent(ctx, `x0${i}`, code, i, n);
   await t.bringToFront();
   await pressBig(t);
@@ -381,7 +388,7 @@ test('(라) 스크린숏 보충 — 무역 시간 끝(활동 중), 접힘 영역
   await ctx.close();
 
   // 접힘 영역 모두 펼침(라운드 중) + 1280×720 라운드
-  const b = await setup(browser, baseURL);
+  const b = await setup(browser, baseURL, undefined, 'after');
   for (const [i, n] of [[1, '해오름무역'], [2, '바다상회'], [3, '고래해운']] as const) await joinStudent(b.ctx, `y0${i}`, b.code, i, n);
   await b.t.bringToFront();
   await pressBig(b.t);

@@ -43,7 +43,8 @@ describe('[무역 시작] 확인 창 안내 = 배치표', () => {
   it('차시 L1 10분 문구 그대로', () => {
     const s = setup('lesson', ['L1'], 10);
     expect(startConfirmText(s.class, 'lesson', ['L1'])).toBe(
-      "무역 시간 10분이 시작돼요. 먼저 벽란도 시장·무역·수입·수출 활동을 하고 약 3분 50초 뒤 라운드 1이 시작돼요(사전 활동 중에도 '지금 할 일' 카드의 [라운드 바로 시작]으로 당길 수 있어요). 그동안 학생 화면에는 라운드까지 남은 시간이 보여요.",
+      // v0.3.8(작업 153): 차시 L1 10분 '알아서' = 차시 끝에 모아서 → 벽란도 시장이 빠져 라운드 1이 당겨짐
+      "무역 시간 10분이 시작돼요. 먼저 무역·수입·수출 활동을 하고 약 2분 20초 뒤 라운드 1이 시작돼요(사전 활동 중에도 '지금 할 일' 카드의 [라운드 바로 시작]으로 당길 수 있어요). 그동안 학생 화면에는 라운드까지 남은 시간이 보여요.",
     );
   });
 
@@ -54,13 +55,14 @@ describe('[무역 시작] 확인 창 안내 = 배치표', () => {
 });
 
 describe('상단 표시·확인 창', () => {
-  it('"라운드 1까지 3:30" → [지금 라운드 시작] 확인 창에 무역·수입·수출 이름', () => {
+  it('"라운드 1까지 2:00"(v0.3.8 배치) → [지금 라운드 시작] 확인 창에 무역·수입·수출 이름', () => {
     let s = setup('lesson', ['L1'], 10);
     s = hostReduce(s, { type: 'teacher', action: { type: 'startTrade' } }, T0, hooks).snapshot;
-    expect(nextRoundText(s.class, T0 + 20_000)).toBe('라운드 1까지 3:30');
+    expect(nextRoundText(s.class, T0 + 20_000)).toBe('라운드 1까지 2:00');
     const body = roundNowConfirmBody(roundNowPlan(s.class, T0 + 20_000));
     expect(body).toContain('「무역·수입·수출」');
-    expect(body).toContain('함께 빠지는 활동: 벽란도 시장');
+    // v0.3.8(작업 153): 10분 '알아서'는 벽란도 시장이 빠진 배치라 '함께 빠지는 활동' 줄이 없다
+    expect(body).not.toContain('함께 빠지는 활동');
     expect(body).toContain('이 차시의 꼭 할 활동이에요');
     s = hostReduce(s, { type: 'teacher', action: { type: 'startRoundNow', confirm: true } }, T0 + 20_000, hooks).snapshot;
     expect(nextRoundText(s.class, T0 + 21_000)).toBeNull();
