@@ -41,7 +41,15 @@ export interface LessonPartRule {
   missionFirst: string | null;
   /** 꼭 할 임무가 아닌 것에 ' · 시간 나면'을 붙이는가 */
   optionalTag: boolean;
+  /**
+   * (v0.3.10, 작업 165) 세관 게시판(`CUSTOMS_BOARD_EVENT`)을 구간 끝이 아니라 '뒤에 라운드 n개를 남기고' 그 앞에 둔다
+   * (학습지 방식이 '활동마다 바로'일 때만 — ⑤가 바로 뒤에 붙고, 남은 라운드에서 ⑥을 게임하면서 쓴다). null = 지금처럼 구간 끝.
+   */
+  customsBeforeLastRounds: number | null;
 }
+
+/** 세관 게시판 사건(작업 165 — 마지막 라운드 n개 앞으로 옮기는 대상) */
+export const CUSTOMS_BOARD_EVENT = 'L2-E6';
 
 /** 교사 판 설정 버튼 문구(그대로 쓴다) */
 export const LESSON_PART_TEXT: Record<LessonPart, { title: string; sub: string; preview: string }> = {
@@ -82,6 +90,7 @@ const RULES: Record<LessonPart, LessonPartRule> = {
     },
     missionFirst: null,
     optionalTag: true,
+    customsBeforeLastRounds: 2,
   },
   back: {
     part: 'back',
@@ -99,6 +108,7 @@ const RULES: Record<LessonPart, LessonPartRule> = {
     },
     missionFirst: '먼저 할 일: 쌀·원유·로봇·K-콘텐츠처럼 종류가 다른 상품을 사고팔아 수출국 4유형 칸을 채워요',
     optionalTag: false,
+    customsBeforeLastRounds: null,
   },
   all: {
     part: 'all',
@@ -110,6 +120,7 @@ const RULES: Record<LessonPart, LessonPartRule> = {
     cover: null,
     missionFirst: null,
     optionalTag: true,
+    customsBeforeLastRounds: 2,
   },
 };
 
@@ -143,3 +154,16 @@ export function coverTextFor<T extends { id: string; title: string; body: string
   if (!c) return base;
   return { title: c.title, body: c.body, teacherPrompts: c.teacherPrompts ?? base.teacherPrompts };
 }
+
+/**
+ * (v0.3.10, 작업 165, PRD 4.1.1 '2차시 나눠 고르기' 끝) 학습지 ⑥ 게임하면서 함께 쓰기 문구.
+ * - 안내 카드: ⑤ 팝업이 닫히고 다음 라운드가 열리면 학생 화면 아래에 막지 않는 카드로.
+ * - `last`: 맨 끝 ⑥ 팝업(반 전체)의 문항 목록 바로 위 한 줄.
+ */
+export const WS6_ALONG_TEXT = {
+  head: '잠깐! 학습지 ⑥',
+  body1: '지금부터는 학습지 ⑥의 문항을 동시에 쓰면서 게임을 해 보세요!',
+  body2: '1번: 수입한 자원 → 공장에서 만든 상품 → 수출한 곳을 내가 한 대로 적어요. 2번 빈칸과 3번 항해 퀴즈도 풀어요.',
+  ok: '알겠어요',
+  last: '아직 못 쓴 친구들은 남은 문제를 다 풀어보아요. ⑥의 1·2·3번을 모두 쓰고 [다 썼어요]를 눌러요.',
+} as const;

@@ -1468,3 +1468,25 @@
   padding: 0 4px;
   white-space: nowrap;
 }
+
+/* (작업 165, PRD 4.1.1) '잠깐! 학습지 ⑥' 함께 쓰기 안내 카드 — .st-gull 틀 그대로, 같은 자리(흐름 안).
+ * 갈매기 힌트와 같이 켜지면 이 카드를 위에 두고 둘 다 보인다. */
+.st-gull-dock--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.st-along__no {
+  flex: 0 0 44px;
+  font-size: 40px;
+  line-height: 1;
+  text-align: center;
+  color: var(--sea-deep);
+}
+
+.st-along__more {
+  font-size: var(--text-body);
+  line-height: 1.35;
+  color: var(--ink-soft);
+}

@@ -12,6 +12,8 @@ import { WorldMap, type OtherShip } from '../ui/map/WorldMap';
 import { Dex } from './Dex';
 import { StoreContext, useDeviceNow, useServerNow, useSessionValue } from './hooks';
 import { GullHintAgain, GullHintCard, lastGullHint } from './GullHint';
+import { alongCardOn } from './worksheet/along';
+import { Ws6AlongCard } from './worksheet/AlongCard';
 import { Hud } from './Hud';
 import { PortCardModal } from './port/PortCard';
 import { PortScreen } from './port/PortScreen';
@@ -531,6 +533,8 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   // (작업 160b) 본 갈매기 힌트 ID(새로 고침해도 다시 뜨지 않게) + [다시 보기]
   const [hintSeen, setHintSeen] = useSessionValue<string>('voyage.student.gullHintSeen', '');
   const [hintAgain, setHintAgain] = useState(false);
+  // (작업 165) '잠깐! 학습지 ⑥' 안내 카드를 닫은 판(방 코드) — 새로 고침해도 같은 판에서는 다시 안 뜸
+  const [alongSeen, setAlongSeen] = useSessionValue<string>('voyage.student.ws6AlongSeen', '');
   // 처음 입항한 항구의 항구 카드(PRD 6.3.3) — 호스트 항해 처리 이벤트 portCard(작업 108)
   const [portCard, setPortCard] = useState<PortId | null>(null);
   useEffect(
@@ -599,6 +603,9 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   // (작업 160b) 갈매기 힌트 카드: 마지막 힌트가 '본 힌트'와 다르거나 [다시 보기]를 눌렀을 때
   const hint = lastGullHint(me);
   const hintOn = Boolean(hint && cls && founded && phase !== 'prep' && !tradeOver && (hint.id !== hintSeen || hintAgain));
+  // (작업 165) ⑤를 마치고 다음 라운드가 열리면 '⑥을 게임하면서 함께 쓰기' 안내(막지 않음)
+  const roomCode = st.peer.code || '-';
+  const alongOn = Boolean(cls && founded && phase !== 'prep' && !tradeOver && alongCardOn(cls) && alongSeen !== roomCode);
   // 일시정지·이름 막힘 층이 떠 있으면 아래 화면 전체(HUD·도감·설정 메뉴 포함)를 키보드로도 못 건드리게
   const covered = topLayer(st) !== null;
 
@@ -608,15 +615,18 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
         <StatusBands st={st} now={now} />
         {(founded || phase !== 'prep') && <Hud store={store} st={st} now={now} onDex={() => setDex(true)} />}
         <div class="st-main">{main}</div>
-        {hintOn && hint && (
-          <div class="st-gull-dock">
-            <GullHintCard
-              id={hint.id}
-              onOk={() => {
-                setHintSeen(hint.id);
-                setHintAgain(false);
-              }}
-            />
+        {(alongOn || (hintOn && hint)) && (
+          <div class={`st-gull-dock${alongOn && hintOn ? ' st-gull-dock--stack' : ''}`}>
+            {alongOn && <Ws6AlongCard onOk={() => setAlongSeen(roomCode)} />}
+            {hintOn && hint && (
+              <GullHintCard
+                id={hint.id}
+                onOk={() => {
+                  setHintSeen(hint.id);
+                  setHintAgain(false);
+                }}
+              />
+            )}
           </div>
         )}
         {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} onHintAgain={() => setHintAgain(true)} />}

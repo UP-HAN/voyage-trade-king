@@ -5,7 +5,7 @@
 import { render, type VNode } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyAction, playerView, publicClass, seatKey, type HostSnapshot, type TeacherAction } from '../src/core';
+import { applyAction, buildSchedule, playerView, publicClass, seatKey, type HostSnapshot, type TeacherAction } from '../src/core';
 import type { WorksheetId } from '../src/data/types';
 import { hostReduce } from '../src/core/host';
 import { parseScreenData } from '../src/screen/model';
@@ -560,5 +560,58 @@ describe('(작업 153) 팝업 "오늘 학습지 순서" 한 줄', () => {
     const s = snapWith([], { phase: 'wrapup' });
     mountStudent({ ...s, class: { ...s.class, worksheet: { ...s.class.worksheet, current: null } } });
     expect(byTest('worksheet-order')).toHaveLength(0);
+  });
+});
+
+describe('(작업 165) 맨 끝 ⑥ 팝업 "아직 못 쓴 친구들은 …" 한 줄', () => {
+  const LINE = '아직 못 쓴 친구들은 남은 문제를 다 풀어보아요. ⑥의 1·2·3번을 모두 쓰고 [다 썼어요]를 눌러요.';
+  /** 배치표를 실제 buildSchedule 결과로(나눠 고르기·방식) */
+  const planned = (ids: WorksheetId[], part: 'front' | 'back' | 'all', worksheetMode: 'auto' | 'stageEnd' = 'auto', scope: ('L1' | 'L2')[] = ['L2']): HostSnapshot => {
+    const s = snapWith(ids, { scope, waitSec: 0 });
+    const items = buildSchedule({ playUnit: 'lesson', scope, tradeMinutes: 25, lessonPart: part, worksheetMode }).items;
+    return { ...s, class: { ...s.class, settings: { ...s.class.settings, lessonPart: part }, schedule: { ...s.class.schedule, items } } };
+  };
+  const doneSeat1 = (s: HostSnapshot, ids: WorksheetId[]): HostSnapshot => {
+    const k = seatKey(1);
+    return { ...s, players: { ...s.players, [k]: { ...s.players[k], game: { ...s.players[k].game, worksheetDone: [...s.players[k].game.worksheetDone, ...ids] } } } };
+  };
+
+  it('앞 시간·두 시간 모두(⑤와 ⑥ 사이 라운드) ⑥ 팝업: 문항 목록 바로 위에 한 줄, 나머지는 그대로', () => {
+    for (const part of ['front', 'all'] as const) {
+      mountStudent(planned(['W06'], part));
+      expect(text(byTest('worksheet-along')[0]), part).toBe(LINE);
+      expect(text(byTest('worksheet-head')[0])).toBe('잠깐!');
+      expect(byTest('worksheet-row')).toHaveLength(1);
+      expect(byTest('worksheet-done')).toHaveLength(1);
+      expect(LINE).not.toContain('선택');
+      act(() => render(null, dom.root as unknown as Element));
+    }
+  });
+
+  it('[다 썼어요] → "친구들을 기다려요"(한 줄은 사라짐)', () => {
+    const actFn = mountStudent(planned(['W06'], 'front'));
+    act(() => {
+      byTest('worksheet-done')[0]!.dispatch('click');
+    });
+    expect(actFn).toHaveBeenCalledWith({ type: 'markWorksheetDone', ids: ['W06'] });
+    act(() => render(null, dom.root as unknown as Element));
+    mountStudent(doneSeat1(planned(['W06'], 'front'), ['W06']));
+    expect(byTest('worksheet-waiting')).toHaveLength(1);
+    expect(byTest('worksheet-along')).toHaveLength(0);
+  });
+
+  it('⑤ 팝업·⑦ 팝업·1차시 팝업·사이에 라운드가 없는 배치표(차시 끝에 모아서 고정)에는 없다', () => {
+    mountStudent(planned(['W05'], 'front'));
+    expect(byTest('worksheet-along')).toHaveLength(0);
+    act(() => render(null, dom.root as unknown as Element));
+    mountStudent(planned(['W07'], 'all'));
+    expect(byTest('worksheet-along')).toHaveLength(0);
+    act(() => render(null, dom.root as unknown as Element));
+    mountStudent(planned(['W01'], 'front', 'auto', ['L1']));
+    expect(byTest('worksheet-along')).toHaveLength(0);
+    act(() => render(null, dom.root as unknown as Element));
+    // '활동마다 바로'가 아니면 ⑤⑥이 사건 뒤에 따로 놓이지 않는다 — 한 줄 없음
+    mountStudent(planned(['W06'], 'front', 'stageEnd'));
+    expect(byTest('worksheet-along')).toHaveLength(0);
   });
 });

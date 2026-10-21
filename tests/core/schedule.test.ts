@@ -633,3 +633,119 @@ describe('2차시 앞 시간 / 뒤 시간 / 두 시간 모두(v0.3.9, 작업 154
     expect(evIds(s)).not.toContain('L2-E7');
   });
 });
+
+// ─── 작업 165: 학습지 ⑥ 게임하면서 함께 쓰기 — 세관 게시판+⑤를 마지막 라운드 2개 앞으로(PRD 4.1.1 v0.3.10) ───
+describe('세관 게시판·⑤를 마지막 라운드 2개 앞으로(v0.3.10, 작업 165)', () => {
+  const L2 = (part: 'front' | 'back' | 'all', T = 25, extra: Partial<ScheduleInput> = {}) =>
+    buildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: T, lessonPart: part, ...extra });
+  const seq = (s: Schedule) =>
+    s.items.filter((it) => it.kind !== 'letter' && it.form !== 'dropped' && it.refId !== 'L2-E3').map((it) => `${it.id}@${it.at}`);
+  const endOf = (s: Schedule) => Math.max(...s.items.map((it) => it.at + it.durSec));
+  const roundsAfter = (s: Schedule, id: string) => {
+    const e = s.items.find((it) => it.id === id)!;
+    return s.items.filter((it) => it.kind === 'round' && it.at >= e.at + e.durSec).length;
+  };
+
+  it('규칙은 lessonParts 한 곳: 앞 시간·두 시간 모두 2, 뒤 시간 null', () => {
+    expect(lessonPartRuleOf({ playUnit: 'lesson', scope: ['L2'], lessonPart: 'front' })!.customsBeforeLastRounds).toBe(2);
+    expect(lessonPartRuleOf({ playUnit: 'lesson', scope: ['L2'], lessonPart: 'all' })!.customsBeforeLastRounds).toBe(2);
+    expect(lessonPartRuleOf({ playUnit: 'lesson', scope: ['L2'], lessonPart: 'back' })!.customsBeforeLastRounds).toBeNull();
+  });
+
+  it('앞 시간 25분: 라운드 1·2·3 → 세관 게시판 712 → ⑤ 892 → 라운드 4·5 → ⑥ 1380 → 끝 1500', () => {
+    const s = L2('front');
+    checkCommon(s);
+    expect(seq(s)).toEqual([
+      'cover:L2@0', 'sum:L2@20', 'ev:L2-E2@40', 'r:1@160', 'r:2@344', 'r:3@528', 'ev:L2-E6@712', 'ws:W05@892', 'r:4@1012', 'r:5@1196', 'ws:W06@1380',
+    ]);
+    expect(s.items.filter((it) => it.kind === 'round').map((it) => it.durSec)).toEqual([184, 184, 184, 184, 184]);
+    expect(s.items.find((it) => it.id === 'ev:L2-E6')!.durSec).toBe(180);
+    expect(endOf(s)).toBe(1500);
+  });
+
+  it('두 시간 모두 25분: 라운드 1·2 → 세관 게시판 500 → ⑤ 680 → 라운드 3·4 → ⑥⑦⑧ → 끝 1500', () => {
+    const s = L2('all');
+    checkCommon(s);
+    expect(seq(s).filter((x) => !/L2-E[45]@/.test(x))).toEqual([
+      'cover:L2@0', 'sum:L2@20', 'ev:L2-E2@40', 'r:1@160', 'r:2@330', 'ev:L2-E6@500', 'ws:W05@680', 'r:3@800', 'r:4@970', 'ws:W06@1140', 'ws:W07@1260', 'ws:W08@1380',
+    ]);
+    expect(endOf(s)).toBe(1500);
+  });
+
+  const MATRIX: ['front' | 'all', number][] = [
+    ['front', 10], ['front', 15], ['front', 20], ['front', 25], ['front', 30], ['front', 40],
+    ['all', 15], ['all', 20], ['all', 25], ['all', 30], ['all', 40],
+  ];
+  it.each(MATRIX)('%s %i분: 오류 없음, 라운드 ≥ 90초, 끝 ≤ T, 번호 순, 활동마다 바로면 ⑤가 세관 게시판 바로 뒤·뒤에 라운드', (part, T) => {
+    const r = tryBuildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: T, lessonPart: part });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const s = r.schedule;
+    checkCommon(s);
+    for (const it of s.items.filter((x) => x.kind === 'round')) expect(it.durSec).toBeGreaterThanOrEqual(90);
+    expect(endOf(s)).toBeLessThanOrEqual(T * 60);
+    const ws = wsItems(s).flatMap((it) => it.refIds ?? [it.refId]);
+    expect([...ws].sort((a, b) => NO(a) - NO(b))).toEqual(ws);
+    const e6 = s.items.find((it) => it.id === 'ev:L2-E6' && it.form !== 'dropped');
+    if (!e6) return;
+    const k = s.totalRounds;
+    if (s.stages[0].worksheetMode === 'each') {
+      expect(s.items.find((it) => it.id === 'ws:W05')!.at).toBe(e6.at + e6.durSec);
+      expect(roundsAfter(s, 'ev:L2-E6')).toBe(k >= 3 ? 2 : k === 2 ? 1 : 0);
+    } else expect(roundsAfter(s, 'ev:L2-E6')).toBe(0);
+  });
+
+  it.each(['stageEnd', 'after'] as const)("교사가 '%s'로 고정하면 세관 게시판은 지금처럼 마지막 라운드 뒤", (mode) => {
+    for (const part of ['front', 'all'] as const) {
+      for (const T of [25, 40]) {
+        const s = L2(part, T, { worksheetMode: mode });
+        expect(s.items.some((it) => it.id === 'ev:L2-E6' && it.form !== 'dropped'), `${part} ${T}`).toBe(true);
+        expect(roundsAfter(s, 'ev:L2-E6'), `${part} ${T}`).toBe(0);
+      }
+    }
+  });
+
+  // 작업 시작 때(고치기 전) 뜬 기준값: JSON.stringify(items) 의 FNV-1a 32비트
+  const BASELINE: [ScheduleInput, string][] = [
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 10, lessonPart: 'back' }, '0da17d9e'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'back' }, 'f2206c47'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'back' }, '698b8c92'],
+    [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 10 }, 'ef8de1c0'],
+    [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, 'b12ede2d'],
+    [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 40 }, '4819425a'],
+    [{ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, '2fe5b8c0'],
+    [{ playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, '957f1a24'],
+    [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 25 }, 'd6be36b7'],
+    [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 40 }, 'c5490fee'],
+    [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 80 }, 'db9c6093'],
+    [{ playUnit: 'custom', scope: ['L1', 'L2'], tradeMinutes: 25 }, '3aa08e9e'],
+    [{ playUnit: 'custom', scope: ['L1', 'L2'], tradeMinutes: 40, lessonPart: 'front' }, '86b62f48'],
+    [{ playUnit: 'custom', scope: ['L2', 'L3'], tradeMinutes: 25, lessonPart: 'front' }, '5e96f2dc'],
+    [{ playUnit: 'custom', scope: ['L2', 'L3'], tradeMinutes: 40 }, '99043d64'],
+    [{ playUnit: 'custom', scope: ['L1', 'L2', 'L3'], tradeMinutes: 60 }, '05e67bc8'],
+    [{ playUnit: 'custom', scope: ['L3', 'L4'], tradeMinutes: 40 }, '81679ed1'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front', worksheetMode: 'stageEnd' }, 'bb0c1fc9'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'front', worksheetMode: 'stageEnd' }, 'd20b6808'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front', worksheetMode: 'after' }, 'b471018c'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'front', worksheetMode: 'after' }, '7bac78c4'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front', worksheetMode: 'off' }, 'b471018c'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'front', worksheetMode: 'off' }, '7bac78c4'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'stageEnd' }, 'c5fb6dda'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'stageEnd' }, 'aee9e481'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'after' }, '19bbb0a2'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'after' }, 'c81d56e8'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'off' }, '19bbb0a2'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'off' }, 'c81d56e8'],
+  ];
+  const fnv = (str: string) => {
+    let x = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      x ^= str.charCodeAt(i);
+      x = Math.imul(x, 0x01000193) >>> 0;
+    }
+    return x.toString(16).padStart(8, '0');
+  };
+  it.each(BASELINE)('뒤 시간·1·3·4차시·단원 한 판·연속 구간·고정 방식은 고치기 전과 같다: %o', (input, hash) => {
+    expect(fnv(JSON.stringify(buildSchedule(input).items))).toBe(hash);
+  });
+});

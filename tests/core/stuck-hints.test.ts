@@ -12,6 +12,10 @@ import { stuckHintRules } from '../../src/data/stuckHints';
 import type { GoodId, LessonId, PortId } from '../../src/data/types';
 import { act, editPlayer, makeSession, player, teach } from './helpers';
 
+/** 시간은 상수에서 계산한다 — 교사가 firstSec·nextSec 을 바꿔도 이 시험은 그대로 */
+const F = stuckHintRules.firstSec;
+const N = stuckHintRules.nextSec;
+
 const hintsOf = (s: HostSnapshot, seat = 1) => (player(s, seat).game.gullHints ?? []).map((h) => h.id);
 
 /** 2차시 판(훅 없이): 표지 → 임무 M-IPE 발동 → 라운드 1. 회사 설립·무역 시작(startedAt)까지 준비 */
@@ -149,65 +153,67 @@ describe('② 힌트 시계 — 사고팔 수 있던 시간만', () => {
 });
 
 describe('③ 보내는 시각', () => {
-  it('119초 없음, 120초 IPE-MAKE-1:oilp 1번, 239초 없음, 240초 IPE-MAKE-2:oilp, 그 뒤 몇 분이 지나도 없음', () => {
-    let { s, t } = stepN(l2Ready(), 120, 0); // sec 0..119
-    expect(s.stuck!.clock.sec).toBe(119);
+  it(`${F - 1}초 없음, ${F}초 IPE-MAKE-1:oilp 1번, ${F + N - 1}초 없음, ${F + N}초 IPE-MAKE-2:oilp, 그 뒤 몇 분이 지나도 없음`, () => {
+    let { s, t } = stepN(l2Ready(), F, 0); // sec 0..F-1
+    expect(s.stuck!.clock.sec).toBe(F - 1);
     expect(hintsOf(s)).toEqual([]);
-    ({ s, t } = stepN(s, 1, t)); // 120
+    ({ s, t } = stepN(s, 1, t)); // F
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp']);
-    expect(player(s, 1).game.gullHints![0]).toEqual({ id: 'IPE-MAKE-1:oilp', mission: 'M-IPE', at: 120 });
-    ({ s, t } = stepN(s, 119, t)); // 239
+    expect(player(s, 1).game.gullHints![0]).toEqual({ id: 'IPE-MAKE-1:oilp', mission: 'M-IPE', at: F });
+    ({ s, t } = stepN(s, N - 1, t)); // F+N-1
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp']);
-    ({ s, t } = stepN(s, 1, t)); // 240
+    ({ s, t } = stepN(s, 1, t)); // F+N
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
-    ({ s, t } = stepN(s, 600, t));
+    ({ s, t } = stepN(s, 2 * (F + N), t));
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
   });
 
   it('회사를 세우지 않은 학생은 받지 않는다', () => {
     const s0 = editPlayer(l2Ready(), 1, (p) => void (p.company.founded = false));
-    const { s } = stepN(s0, 300, 0);
+    const { s } = stepN(s0, F + N + 60, 0);
     expect(hintsOf(s)).toEqual([]);
   });
 });
 
 describe('④ 진척하면 다시 센다', () => {
-  it('100초에 생산 → 120초 힌트 없음, 220초 IPE-EXPORT-1:oilp', () => {
-    let { s, t } = stepN(l2Ready(), 100, 0); // sec 0..99
+  // P = 첫 힌트 20초 전에 생산
+  const P = F - 20;
+  it(`${P}초에 생산 → ${F}초 힌트 없음, ${P + F}초 IPE-EXPORT-1:oilp`, () => {
+    let { s, t } = stepN(l2Ready(), P, 0); // sec 0..P-1
     s = act(s, 1, { type: 'produce', recipe: 'oilp', qty: 1 }, 1, t).snapshot;
-    ({ s, t } = stepN(s, 21, t)); // 100..120
+    ({ s, t } = stepN(s, 21, t)); // P..F
     expect(hintsOf(s)).toEqual([]);
-    ({ s, t } = stepN(s, 99, t)); // ..219
+    ({ s, t } = stepN(s, P - 1, t)); // ..P+F-1
     expect(hintsOf(s)).toEqual([]);
-    ({ s, t } = stepN(s, 1, t)); // 220
+    ({ s, t } = stepN(s, 1, t)); // P+F
     expect(hintsOf(s)).toEqual(['IPE-EXPORT-1:oilp']);
-    expect(s.stuck!.watch[seatKey(1)]!['M-IPE']).toMatchObject({ key: 'export:oilp', since: 100, sent: 1, lastHintAt: 220 });
+    expect(s.stuck!.watch[seatKey(1)]!['M-IPE']).toMatchObject({ key: 'export:oilp', since: P, sent: 1, lastHintAt: P + F });
   });
 });
 
 describe('⑤ 반복 방지·상한', () => {
   it('이미 받은 힌트는 다시 안 가고 그 상황의 다음 힌트로', () => {
     const s0 = editPlayer(l2Ready(), 1, (p) => void (p.game.gullHints = [{ id: 'IPE-MAKE-1:oilp', mission: 'M-IPE', at: 5 }]));
-    let { s, t } = stepN(s0, 121, 0);
+    let { s, t } = stepN(s0, F + 1, 0);
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
-    ({ s, t } = stepN(s, 600, t));
+    ({ s, t } = stepN(s, 2 * (F + N), t));
     expect(hintsOf(s)).toHaveLength(2);
   });
 
   it('상황이 돌아와도(원유를 다시 실음) 받은 힌트는 다시 안 감', () => {
-    let { s, t } = stepN(l2Ready(), 241, 0);
+    let { s, t } = stepN(l2Ready(), F + N + 1, 0);
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
     s = setCargo(s, []); // buy
     ({ s, t } = stepN(s, 10, t));
     s = setCargo(s, [lot('crude', 2)]); // 다시 make:oilp
-    ({ s, t } = stepN(s, 600, t));
+    ({ s, t } = stepN(s, 2 * (F + N), t));
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
   });
 
   it('임무당 5개 상한', () => {
     const five = ['A', 'B', 'C', 'D', 'E'].map((x, i) => ({ id: `X-${x}`, mission: 'M-IPE', at: i }));
     const s0 = editPlayer(l2Ready(), 1, (p) => void (p.game.gullHints = five));
-    const { s } = stepN(s0, 600, 0);
+    const { s } = stepN(s0, 2 * (F + N), 0);
     expect(hintsOf(s)).toEqual(five.map((h) => h.id));
     expect(stuckHintRules.perMission).toBe(5);
   });
@@ -218,7 +224,7 @@ describe('⑤ 반복 방지·상한', () => {
     const cargos: CargoLot[][] = [[lot('crude', 2)], [], [lot('graphite', 1, 'domestic', 'BUS')], [lot('iron', 2)], [lot('nickel', 1)], [lot('chem', 1)]];
     for (const c of cargos) {
       s = setCargo(s, c);
-      ({ s, t } = stepN(s, 300, t));
+      ({ s, t } = stepN(s, F + N + 60, t));
     }
     const ids = hintsOf(s);
     expect(ids.length).toBe(5);
@@ -228,10 +234,10 @@ describe('⑤ 반복 방지·상한', () => {
 
 describe('⑥ 오프라인 학생', () => {
   it('오프라인이면 받지 않고 감시 상태도 그대로 → 다시 온라인이면 그 틱에 받음', () => {
-    let { s, t } = stepN(l2Ready(), 100, 0);
+    let { s, t } = stepN(l2Ready(), F - 20, 0);
     s = hostReduce(s, { type: 'presence', seat: 1, online: false }, t).snapshot;
     const watchBefore = JSON.stringify(s.stuck!.watch);
-    ({ s, t } = stepN(s, 100, t)); // sec 199
+    ({ s, t } = stepN(s, 100, t)); // sec F+79 (오프라인 동안 첫 힌트 시각을 지남)
     expect(hintsOf(s)).toEqual([]);
     expect(JSON.stringify(s.stuck!.watch)).toBe(watchBefore);
     s = hostReduce(s, { type: 'presence', seat: 1, online: true }, t).snapshot;
@@ -263,7 +269,9 @@ function realGame(o: { scope?: LessonId[]; lessonPart?: 'all' | 'front' | 'back'
 const tickAt = (s: HostSnapshot, e: number) => hostReduce(s, { type: 'tick' }, T0 + e * 1000, hooks);
 
 describe('⑦ 일시정지 제외(실제 무역 훅)', () => {
-  it('라운드 중 60초 → [잠깐 멈춤] 300초 → 이어서 하기 → 59초: 힌트 없음, 1초 더: 힌트', () => {
+  // 멈춤 전 B초 + 이어서 하기 뒤 (F - B - 1)초 = F - 1초 → 1초 더: 힌트
+  const B = 60;
+  it(`라운드 중 ${B}초 → [잠깐 멈춤] 300초 → 이어서 하기 → ${F - B - 1}초: 힌트 없음, 1초 더: 힌트`, () => {
     let s = realGame();
     let e = 0;
     // 첫 라운드(임무 열림)까지
@@ -272,15 +280,15 @@ describe('⑦ 일시정지 제외(실제 무역 훅)', () => {
       expect(e).toBeLessThan(1500);
     }
     const startSec = s.stuck!.clock.sec;
-    for (let i = 0; i < 60; i++) s = tickAt(s, ++e).snapshot;
-    expect(s.stuck!.clock.sec - startSec).toBe(60);
+    for (let i = 0; i < B; i++) s = tickAt(s, ++e).snapshot;
+    expect(s.stuck!.clock.sec - startSec).toBe(B);
     s = hostReduce(s, { type: 'teacher', action: { type: 'pause' } }, T0 + e * 1000 + 500, hooks).snapshot;
     for (let i = 0; i < 300; i++) s = tickAt(s, ++e).snapshot;
-    expect(s.stuck!.clock.sec - startSec).toBe(60);
+    expect(s.stuck!.clock.sec - startSec).toBe(B);
     s = hostReduce(s, { type: 'teacher', action: { type: 'resume' } }, T0 + e * 1000 + 500, hooks).snapshot;
     expect(s.class.phase).toBe('round');
-    for (let i = 0; i < 60; i++) s = tickAt(s, ++e).snapshot; // 첫 틱은 기준점 → 59초
-    expect(s.stuck!.clock.sec - startSec).toBe(119);
+    for (let i = 0; i < F - B; i++) s = tickAt(s, ++e).snapshot; // 첫 틱은 기준점 → F-B-1초
+    expect(s.stuck!.clock.sec - startSec).toBe(F - 1);
     expect(hintsOf(s)).toEqual([]);
     s = tickAt(s, ++e).snapshot;
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp']);
@@ -289,23 +297,23 @@ describe('⑦ 일시정지 제외(실제 무역 훅)', () => {
 
 describe('⑧ 재접속·복원', () => {
   it('JSON 저장 → normalizeSnapshot 뒤에도 시계·감시가 이어지고 같은 힌트 다시 안 감, 2번째는 원래 시각에', () => {
-    let { s, t } = stepN(l2Ready(), 150, 0); // sec 149, MAKE-1 받음
+    let { s, t } = stepN(l2Ready(), F + 30, 0); // sec F+29, MAKE-1 받음
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp']);
     const restored = normalizeSnapshot(JSON.parse(JSON.stringify(s)))!;
     expect(restored.stuck).toEqual(s.stuck);
     expect(hintsOf(restored)).toEqual(['IPE-MAKE-1:oilp']);
     s = restored;
-    ({ s, t } = stepN(s, 90, t)); // 150..239
+    ({ s, t } = stepN(s, N - 30, t)); // F+30..F+N-1
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp']);
-    ({ s, t } = stepN(s, 1, t)); // 240
+    ({ s, t } = stepN(s, 1, t)); // F+N
     expect(hintsOf(s)).toEqual(['IPE-MAKE-1:oilp', 'IPE-MAKE-2:oilp']);
   });
 
   it('normalizePlayer 가 gullHints 를 지키고(없으면 넣지 않음), playerView 에 들어 있다', () => {
-    const { s } = stepN(l2Ready(), 121, 0);
+    const { s } = stepN(l2Ready(), F + 1, 0);
     const p = player(s, 1);
     expect(normalizePlayer(JSON.parse(JSON.stringify(p))).game.gullHints).toEqual(p.game.gullHints);
-    expect(playerView(p).game.gullHints).toEqual([{ id: 'IPE-MAKE-1:oilp', mission: 'M-IPE', at: 120 }]);
+    expect(playerView(p).game.gullHints).toEqual([{ id: 'IPE-MAKE-1:oilp', mission: 'M-IPE', at: F }]);
     const old = JSON.parse(JSON.stringify(p)) as Player;
     delete old.game.gullHints;
     expect('gullHints' in normalizePlayer(old).game).toBe(false);
@@ -332,12 +340,12 @@ describe('⑨ 출력', () => {
       p.game.gullHints = [{ id: 'IPE-BUY-1', mission: 'M-IPE', at: 0 }, { id: 'IPE-BUY-2', mission: 'M-IPE', at: 0 }];
     });
     // 첫 틱(기준점)·시계만 도는 틱: 출력 없음
-    for (let e = 0; e < 120; e++) {
+    for (let e = 0; e < F; e++) {
       const r = hostReduce(s, { type: 'tick' }, e * 1000);
       expect(kinds(r.outputs), `e=${e}`).toEqual([]);
       s = r.snapshot;
     }
-    const r = hostReduce(s, { type: 'tick' }, 120 * 1000);
+    const r = hostReduce(s, { type: 'tick' }, F * 1000);
     expect(kinds(r.outputs)).toEqual(['seat:me:1', 'seat:events:1']);
     const ev = r.outputs.find((o) => o.kind === 'events');
     expect(ev && ev.kind === 'events' ? ev.events : []).toEqual([{ type: 'gullHint', id: 'IPE-MAKE-1:oilp', mission: 'M-IPE' }]);
@@ -354,7 +362,7 @@ describe('⑨ 출력', () => {
     while (!(s.class.phase === 'round' && player(s, 1).game.missions['M-IPE']?.status === 'active')) s = tickAt(s, ++e).snapshot;
     // 매 틱: 힌트 감시 상태를 지운 같은 스냅숏으로 돌린 것과 공개 출력이 같다(힌트 시계는 공개 출력을 만들지 않음)
     const pub = (o: HostOutput[]) => JSON.stringify(o.filter((x) => x.to === 'all'));
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < F + 80; i++) {
       e++;
       const r = tickAt(s, e);
       const bare = hostReduce({ ...s, stuck: undefined }, { type: 'tick' }, T0 + e * 1000, hooks);
@@ -377,8 +385,12 @@ describe('⑩ 다른 판에서는 아무것도 안 감', () => {
     expect(s.stuck?.watch ?? {}).toEqual({});
   });
 
-  it('enabled 상수는 켜져 있고 시간은 2분·2분', () => {
-    expect(stuckHintRules).toMatchObject({ enabled: true, firstSec: 120, nextSec: 120, maxStepMs: 2000 });
+  it('enabled 상수는 켜져 있고 시간은 1분 이상 정수(기본값 2분·2분, 교사 10-22 확인)', () => {
+    expect(stuckHintRules).toMatchObject({ enabled: true, maxStepMs: 2000 });
+    for (const v of [F, N]) {
+      expect(Number.isInteger(v)).toBe(true);
+      expect(v).toBeGreaterThanOrEqual(60);
+    }
     expect(stuckHintRules.missions).toEqual(['M-IPE']);
   });
 });

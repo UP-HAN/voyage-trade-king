@@ -41,7 +41,7 @@ import {
   type FillStepId,
 } from '../data/schedule';
 import { duringWorksheetIds, worksheetById, worksheetFor } from '../data/worksheet';
-import { isLessonPart, lessonPartRules, type LessonPart, type LessonPartRule } from '../data/lessonParts';
+import { CUSTOMS_BOARD_EVENT, isLessonPart, lessonPartRules, type LessonPart, type LessonPartRule } from '../data/lessonParts';
 import type { Difficulty, GameEvent as EventDef, LessonId, WorksheetId, WrapStep } from '../data/types';
 import { LESSON_IDS } from '../data/types';
 import { elapsedSec } from './clock';
@@ -392,6 +392,11 @@ interface StageParams {
   carryDuring?: readonly WorksheetId[];
   /** 차시 한 판(PRD 4.3.3 v0.3.8 규칙 2): ★ 지금 쓰기를 쓰지 않는다 */
   noDuring?: boolean;
+  /**
+   * (작업 165, PRD 4.1.1) 구간 끝 차단형 활동 `id`를 '뒤에 라운드 `keep`개를 남기고' 그 앞에 둔다.
+   * '활동마다 바로'이고 그 활동 뒤 학습지가 남아 있을 때만. 없으면 지금처럼 구간 끝
+   */
+  midTail?: { id: string; keep: number };
 }
 
 interface StagePlan {
@@ -768,6 +773,19 @@ function planStage(p: StageParams): StagePlan {
   const anchored = live.filter((c) => c.def.anchor.startsWith('round:') || (c.def.anchor === 'stageEnd' && !blockingIn(c.def, c.form)));
   const blockingFlow = flow.filter((c) => blockingIn(c.def, c.form));
   const k2 = roundSecs.length;
+  // (작업 165) 구간 끝 활동 하나를 마지막 라운드 keep개 앞으로(라운드 1개 이하면 그대로 구간 끝)
+  let midTail: Cand | null = null;
+  let midTailBefore = 0;
+  if (p.midTail && wsMode === 'each') {
+    const { id, keep } = p.midTail;
+    const c = tail.find((x) => x.id === id);
+    const j = Math.max(2, k2 - keep + 1);
+    if (c && j <= k2 && p.pendingWs.some((w) => worksheetById[w].afterEvent === id)) {
+      midTail = c;
+      midTailBefore = j;
+      tail.splice(tail.indexOf(c), 1);
+    }
+  }
   const counts = distribute(blockingFlow.length, k2);
   const slotOf = new Map<string, number>();
   /** 비차단 활동이 붙는 라운드(구간 안 새 라운드 번호 1..k) + 라운드 중간 여부 */
@@ -842,6 +860,13 @@ function planStage(p: StageParams): StagePlan {
       if (c.tier === 1) tier1Before = true;
       pushWs(wsAfterEvent(c.id));
       pushDuring(duringAfter(c.id));
+    }
+    if (midTail && j === midTailBefore) {
+      const d = costIn(midTail.def, midTail.form);
+      items.push(evItem(midTail, t, d));
+      t += d;
+      pushWs(wsAfterEvent(midTail.id));
+      pushDuring(duringAfter(midTail.id));
     }
     const roundNo = p.firstRound + j - 1;
     const L = roundSecs[j - 1];
@@ -1087,6 +1112,8 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
   let t = startSec;
   let nextRound = firstRound;
   const lessonGame = input.playUnit === 'lesson';
+  const keep = lessonPartRuleOf(input)?.customsBeforeLastRounds ?? null;
+  const midTail = keep !== null ? { id: CUSTOMS_BOARD_EVENT, keep } : undefined;
   for (const s of specs) {
     const planWith = (wsPolicy: 'auto' | WorksheetPlacement) => planStage({
       stage: s.stage,
@@ -1109,6 +1136,7 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
       doneDuring: s.doneDuring,
       carryDuring: s.carryDuring,
       noDuring: lessonGame,
+      ...(midTail ? { midTail } : {}),
     });
     const plan = lessonGame && input.worksheetMode === 'auto' ? lessonAutoPlan(planWith, s) : planWith(input.worksheetMode);
     out.items.push(...plan.items);

@@ -235,6 +235,14 @@
   color: var(--brass-dark);
 }
 
+/* (작업 165) 맨 끝 ⑥ 팝업: '아직 못 쓴 친구들은 …' 한 줄 */
+.ws-along {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* (작업 153) 팝업 머리 아래 '오늘 학습지 순서' 한 줄 — 지금 번호 굵게 */
 .ws-order {
   align-self: center;

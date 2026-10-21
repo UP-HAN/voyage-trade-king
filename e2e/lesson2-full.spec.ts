@@ -161,6 +161,64 @@ interface Seen {
   /** 학생이 본 사건 카드(확인 전) */
   cards: Set<string>;
   helperCustoms: string | null;
+  /** (작업 165) '잠깐! 학습지 ⑥' 함께 쓰기 카드를 본 학생 / 맨 끝 ⑥ 팝업 한 줄 / 스크린숏 이름 머리 */
+  along: Set<string>;
+  alongLine: string | null;
+  tag: string;
+}
+
+/** (작업 165) 스크린숏 */
+const SHOTS165 = process.env.SHOT_DIR_165 ?? join(process.cwd(), '.orch', 'tasks', '165-worksheet6-alongside', 'shots');
+
+/** (작업 165) 안내 카드가 떠 있어도 이 버튼들(보이는 것)은 화면 안이고 위에 다른 것이 덮지 않는다 */
+async function notCovered(s: Page, re: string, what: string) {
+  const r = await s.evaluate((src) => {
+    const rx = new RegExp(src);
+    const els = [...document.querySelectorAll('button[data-testid]')].filter((e) => rx.test(e.getAttribute('data-testid') ?? ''));
+    const bad: string[] = [];
+    let n = 0;
+    // 스크롤 상자 밖으로 잘린 버튼(스크롤하면 보임)은 빼고, 보이는 영역 안에 다 들어온 버튼만 본다
+    const clipOf = (el: Element) => {
+      let top = 0;
+      let bottom = innerHeight;
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const o = getComputedStyle(p);
+        if (/(auto|scroll|hidden)/.test(o.overflowY)) {
+          const r = p.getBoundingClientRect();
+          top = Math.max(top, r.top);
+          bottom = Math.min(bottom, r.bottom);
+        }
+      }
+      return { top, bottom };
+    };
+    for (const el of els) {
+      const b = el.getBoundingClientRect();
+      const clip = clipOf(el);
+      if (b.width === 0 || b.top < clip.top - 1 || b.bottom > clip.bottom + 1) continue;
+      n++;
+      const hit = document.elementFromPoint(b.left + b.width / 2, Math.min(b.top + b.height / 2, innerHeight - 1));
+      if (b.bottom > innerHeight + 1 || !hit || !(el === hit || el.contains(hit))) bad.push(el.getAttribute('data-testid') ?? '');
+    }
+    return { n, bad };
+  }, re);
+  expect(r.n, `${what}: 버튼이 보인다`).toBeGreaterThan(0);
+  expect(r.bad, `${what}: 가려진 버튼`).toEqual([]);
+}
+
+/** (작업 165) 카드: 문구, 해도·항구 화면 스크린숏(1366×768), 하단 바·항구 버튼을 가리지 않음 */
+async function alongShots(s: Page, tag: string) {
+  await expect(s.getByTestId('ws6-along-text')).toHaveText('지금부터는 학습지 ⑥의 문항을 동시에 쓰면서 게임을 해 보세요!');
+  await expect(s.getByTestId('ws6-along')).toContainText('잠깐! 학습지 ⑥');
+  if (await s.getByTestId('port-screen').count()) await s.getByTestId('port-back').click();
+  await expect(s.getByTestId('ws6-along')).toBeVisible();
+  await notCovered(s, '^(enter-port|hud-dex)$', '해도');
+  await shot(s, `165-${tag}-ws6-along-map.png`, SHOTS165);
+  await s.getByTestId('enter-port').click();
+  await expect(s.getByTestId('port-screen')).toBeVisible();
+  if (await visible(s, 'port-card-ok')) await s.getByTestId('port-card-ok').click();
+  await expect(s.getByTestId('ws6-along')).toBeVisible();
+  await notCovered(s, '^(port-back|(buy|sell|make)-[a-z0-9]+)$', '항구 화면');
+  await shot(s, `165-${tag}-ws6-along-port.png`, SHOTS165);
 }
 
 /** 학생 화면에 떠 있는 것 정리(카드 확인·임무 패널·학습지 다 썼어요·확인 퀴즈 답·항구 카드·개념 카드) */
@@ -180,6 +238,12 @@ async function tidy(s: Page, seen: Seen, label: string) {
           await shot(s, `L2-07c-student-worksheet-order-${ids[0]}.png`);
         }
       }
+      // (작업 165) 맨 끝 ⑥ 팝업: "아직 못 쓴 친구들은 …" 한 줄
+      const alongLine = s.getByTestId('worksheet-along');
+      if (label === 's1' && ids[0] === 'W06' && seen.alongLine === null && (await alongLine.count())) {
+        seen.alongLine = (await alongLine.innerText()).trim();
+        await shot(s, `165-${seen.tag}-ws6-last-popup.png`, SHOTS165);
+      }
       const helper = s.locator('[data-testid="worksheet-helper"][data-helper="customsBoard"]');
       if (await helper.count()) {
         seen.helperCustoms = (await helper.first().innerText()).trim();
@@ -193,6 +257,17 @@ async function tidy(s: Page, seen: Seen, label: string) {
         await done.click();
         did = true;
       }
+    }
+    // (작업 165) '잠깐! 학습지 ⑥' 함께 쓰기 카드(막지 않음) → [알겠어요]로 닫으면 같은 판에서 다시 안 뜸
+    if (await visible(s, 'ws6-along')) {
+      if (label === 's1' && !seen.shots.has('ws6-along')) {
+        seen.shots.add('ws6-along');
+        await alongShots(s, seen.tag);
+      }
+      seen.along.add(label);
+      await s.getByTestId('ws6-along-ok').click();
+      await expect(s.getByTestId('ws6-along')).toHaveCount(0);
+      did = true;
     }
     // 확인 퀴즈: 문항마다 첫 보기
     const qBtns = s.locator('[data-testid="quiz-card"] button[data-testid^="quiz-CQ-"]:not([disabled])');
@@ -293,7 +368,7 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
     await t.bringToFront();
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ready');
 
-    const seen: Seen = { worksheets: new Set(), orders: new Map(), quiz: new Set(), shots: new Set(), cards: new Set(), helperCustoms: null };
+    const seen: Seen = { worksheets: new Set(), orders: new Map(), quiz: new Set(), shots: new Set(), cards: new Set(), helperCustoms: null, along: new Set(), alongLine: null, tag: P };
     const roundsDone = new Set<number>();
     const log: string[] = [];
     const scenes = new Set<string>();
@@ -487,7 +562,12 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
       expect(seen.orders.get('W06')).toMatch(/^오늘 학습지: ⑤✓? → ⑥ 지금 → ⑦ → ⑧$/);
       expect(seen.orders.get('W08')).toMatch(/^오늘 학습지: ⑤✓? → ⑥✓? → ⑦✓? → ⑧ 지금$/);
     }
-    expect(seen.helperCustoms ?? '').toContain('자동차');
+    // (작업 165) 세관 게시판·⑤ 뒤 라운드에 '⑥ 함께 쓰기' 카드(학생 모두), 맨 끝 ⑥ 팝업에 한 줄
+    expect([...seen.along].sort(), '⑥ 함께 쓰기 카드를 본 학생').toEqual(['s1', 's2', 's3']);
+    expect(seen.alongLine).toBe('아직 못 쓴 친구들은 남은 문제를 다 풀어보아요. ⑥의 1·2·3번을 모두 쓰고 [다 썼어요]를 눌러요.');
+    // (작업 165) 15분 앞 시간(라운드 2개)은 세관 게시판·⑤가 라운드 1 뒤로 와서, 수출(라운드 2에 팖)이 ⑤ 도우미에 아직 없다
+    if (minutes === 15) expect(seen.helperCustoms ?? '').toContain('많이 내보낸 상품: —');
+    else expect(seen.helperCustoms ?? '').toContain('자동차');
     expect(seen.helperCustoms ?? '').toMatch(/들여온 상품: [^/]*원유/);
     expect(roundsDone.size).toBeGreaterThanOrEqual(2);
     // 자원 수입 → 생산 → 수출 순환을 끝까지(수정 1회차, 2차시 핵심 p.101)

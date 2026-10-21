@@ -32,7 +32,8 @@ import {
 import { DURING_AFTER_NEWS_TEXT } from '../../data/schedule';
 import { bundleTitle, duringLabel, worksheetById, worksheetFor } from '../../data/worksheet';
 import type { LessonId, WorksheetId } from '../../data/types';
-import { lessonPartRulesOf, type LessonPart } from '../../data/lessonParts';
+import { lessonPartRulesOf, WS6_ALONG_TEXT, type LessonPart } from '../../data/lessonParts';
+import { alongPlanned } from './along';
 import { resentWorksheets } from '../../core/host';
 import { fx } from '../../ui/common/fx';
 import { Dex } from '../Dex';
@@ -315,6 +316,11 @@ function WorksheetPopup({
         </div>
       ) : (
         <>
+          {!during && ids.length === 1 && ids[0] === 'W06' && alongPlanned(cls) && (
+            <p class="ws-along" data-testid="worksheet-along">
+              {WS6_ALONG_TEXT.last}
+            </p>
+          )}
           <ol class="ws-rows">
             {rows.map((r) => {
               const w = worksheetById[r.id];
