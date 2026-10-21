@@ -15,6 +15,7 @@ import { lazy, Suspense } from 'preact/compat';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentType } from 'preact';
 import { roundNowPlan, tradeClock } from '../core';
+import { DemoOpenButton } from '../demo/DemoOpenButton';
 import { fx } from '../ui/common/fx';
 import type { HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
@@ -508,6 +509,8 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
                   이 화면을 TV로 보여 주기
                 </button>
                 {openedScreen && !linked && <p class="t-small">창이 열리면 TV(확장 모니터)로 끌어 F11로 전체 화면을 해요.</p>}
+                {/* (작업 169) 교사 시범 화면 — 수업 방과 따로 도는 연습 판을 새 창으로 */}
+                <DemoOpenButton variant="menu" onOpened={() => setTvMenu(false)} />
               </div>
             )}
           </span>

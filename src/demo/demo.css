@@ -1,0 +1,61 @@
+/* 교사 시범 화면(작업 169): 맨 위 띠 + 그 아래 학생 화면(높이를 띠만큼 줄임) */
+.demo-app {
+  --demo-band-h: 38px;
+}
+
+.demo-band {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: var(--demo-band-h);
+  padding: 0 14px;
+  background: repeating-linear-gradient(-45deg, var(--brass) 0 18px, var(--sunset) 18px 36px);
+  color: var(--ink);
+  border-bottom: 2px solid var(--brass-dark);
+  font-family: var(--font-body);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.demo-band__title {
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: var(--parchment-light);
+  font-size: 18px;
+}
+
+.demo-band__sub {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(239, 226, 191, 0.85);
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.demo-band .demo-band__reset {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 2px 14px;
+  font-size: 15px;
+}
+
+.demo-app .st-app,
+.demo-app .st-entry,
+.demo-app .st-full {
+  min-height: calc(100vh - var(--demo-band-h));
+  min-height: calc(100dvh - var(--demo-band-h));
+}
+
+.demo-app .st-game {
+  height: calc(100vh - var(--demo-band-h));
+  height: calc(100dvh - var(--demo-band-h));
+}
+
+@media (max-width: 640px) {
+  .demo-band__sub {
+    display: none;
+  }
+}

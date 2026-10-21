@@ -242,6 +242,10 @@
 .t-guidebook__link { display: inline-flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 6px 12px; border: 2px solid var(--sea); border-radius: 8px; background: #e3ecef; color: var(--ink); font-size: 16px; font-weight: 700; text-decoration: none; }
 .t-guidebook__link:hover, .t-guidebook__link:focus-visible { background: #d3e2e7; }
 .t-guidebook__meta { color: var(--ink-soft); font-weight: 400; white-space: nowrap; }
+/* (작업 169) 교사 시범 화면 열기 */
+.t-demo-open { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; }
+.t-demo-open .btn { min-height: 40px; padding: 4px 14px; font-size: 16px; }
+.t-demo-open__hint { color: var(--ink-soft); font-size: 16px; }
 
 .t-wsm { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .t-wsm__main { display: flex; flex-wrap: wrap; gap: 8px; }

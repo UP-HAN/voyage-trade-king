@@ -16,6 +16,7 @@ import { playUnitLabel, scopeLabel, type TeacherGame } from './game';
 import { mmss, tradeRemainingSec } from './schedule-view';
 import type { StoredHost } from '../sync/host-store';
 import { WorksheetPdfMenu } from './WorksheetPdfMenu';
+import { DemoOpenButton } from '../demo/DemoOpenButton';
 import { availableGuides, guideMetaText, type GuidePdf } from './guide-pdfs';
 
 /** 수업 준비 3단계 상자를 접었는지 기억하는 열쇠(교사 localStorage) */
@@ -191,6 +192,8 @@ export function StartScreen({ resume, busy, error, onNew, onResume, onImport }: 
           </div>
           <PrepGuide />
           <GuidePdfLinks />
+          {/* (작업 169) 교사 시범 화면 */}
+          <DemoOpenButton />
           <div class="t-start__small">
             <label class="link-small t-file" data-testid="btn-import">
               판 옮기기 파일 열기

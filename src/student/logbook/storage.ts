@@ -8,6 +8,7 @@
  *   124의 `voyage.peer` 기록(`logbook` 칸 한 개)은 방을 나가면 지워지고 판 하나만 담아서, 판별 목록을 이 키에 따로 둔다(result.md 가정).
  * 학생 자기 회사 기록만 담는다(다른 학생 정보·출석번호 없음).
  */
+import { isDemoHref } from '../../route';
 import { peerStorageForHref, type PeerStorageLike } from '../../sync/peer-store';
 import type { LogbookEntry } from './model';
 
@@ -19,6 +20,8 @@ export const LOGBOOK_MAX = 10;
 
 export function logbookStorage(href?: string): PeerStorageLike | null {
   const h = href ?? (typeof location !== 'undefined' ? location.href : 'http://localhost/');
+  // (작업 169) 교사 시범 화면(#/demo)은 기기에 기록장을 남기지 않는다(진짜 수업 기록장을 '끝난 판'으로 바꾸지 않게)
+  if (isDemoHref(h)) return null;
   return peerStorageForHref(h);
 }
 

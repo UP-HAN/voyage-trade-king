@@ -1,5 +1,5 @@
 /**
- * 해시 라우터 (PRD 10.1 라우팅): #/ 타이틀, #/play 학생, #/teacher 교사, #/screen 공용 화면.
+ * 해시 라우터 (PRD 10.1 라우팅): #/ 타이틀, #/play 학생, #/teacher 교사, #/screen 공용 화면, #/demo 교사 시범 화면(작업 169).
  * 해시 라우팅이므로 하위 경로(/voyage/ 등)에서 새로 고침해도 404가 나지 않는다.
  * 각 화면 폴더는 라우트 진입점 하나(index.tsx)의 기본 내보내기를 lazy import 한다(PRD 12장 5).
  */
@@ -15,6 +15,8 @@ const ROUTES: Record<string, Loader> = {
   '/play': () => import('./student/index'),
   '/teacher': () => import('./teacher/index'),
   '/screen': () => import('./screen/index'),
+  // (작업 169) 교사 시범 화면 — 서버·수업 방에 붙지 않는 연습 판
+  '/demo': () => import('./demo/index'),
 };
 
 function useHashRoute(): string {
