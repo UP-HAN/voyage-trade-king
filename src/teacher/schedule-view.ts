@@ -63,9 +63,9 @@ export function isTier1(it: ScheduleItem): boolean {
 }
 
 /** 지금 쓰기 번호가 뜨는 자리(미리보기 문구) */
-const DURING_WHERE: Readonly<Record<string, string>> = { W03: '두 섬 뒤', W14: '베트남 결정 뒤' };
+const DURING_WHERE: Readonly<Record<string, string>> = { W03: '두 나라 이야기 뒤', W14: '베트남 결정 뒤' };
 
-/** 판 설정 미리보기 한 줄: "지금 쓰기: ③(두 섬 뒤) ⑭(베트남 결정 뒤)" — 넣은 번호가 없으면 null (작업 132, PRD 4.3.3.1) */
+/** 판 설정 미리보기 한 줄: "지금 쓰기: ③(두 나라 이야기 뒤) ⑭(베트남 결정 뒤)" — 넣은 번호가 없으면 null (작업 132, PRD 4.3.3.1) */
 export function duringPreviewLine(placed: readonly string[]): string | null {
   if (!placed.length) return null;
   return `지금 쓰기: ${placed.map((id) => `${worksheetNo(id)}(${DURING_WHERE[id] ?? '체험 뒤'})`).join(' ')}`;

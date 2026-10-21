@@ -450,7 +450,7 @@ describe("(작업 132) 지금 쓰기 ③★·⑭★ 팝업", () => {
     const actFn = mountStudent(snap, 1, () => NOW + 1000);
     expect(byTest('worksheet-popup')[0]!.getAttribute('data-during')).toBe('1');
     expect(text(byTest('worksheet-head')[0])).toBe('잠깐! ③★ 지금 써요');
-    expect(text(byTest('worksheet-prompt')[0])).toBe('지금 써요! 두 섬이 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.');
+    expect(text(byTest('worksheet-prompt')[0])).toBe('지금 써요! 두 나라가 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.');
     expect(text(byTest('worksheet-pages')[0])).toBe('교과서 98~99쪽');
     expect(text(byTest('worksheet-helper')[0])).toContain('[내 기록:');
     expect(text(byTest('worksheet-during-rest')[0])).toBe('나머지 칸은 끝나고 써요');

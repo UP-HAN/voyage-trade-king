@@ -293,7 +293,7 @@ export function barsFor(d: ScreenData, eventId: string): BarsModel | null {
     const t = pub.twoIslands;
     return {
       ...base,
-      question: '두 섬의 교환에 성공한 회사',
+      question: '두 나라의 교환에 성공한 회사',
       countOnly: false,
       rows: [
         { label: '성공', value: t.success },

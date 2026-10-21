@@ -209,7 +209,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.sub[0]).toEqual({ text: '출항 준비 안 한 학생 3명', strong: true, testId: 'now-not-done' });
     expect(subText(c)).toContain('라운드 1 남은 1:40'); // v0.3.8(작업 153): 차시 한 판 ★ 없음 → 라운드가 20초 김
     expect(c.sub.find((s) => s.testId === 'ready-count')!.text).toBe('출항 준비 끝낸 학생 0/3');
-    expect(subText(c)).toContain('다음: 두 섬 이야기');
+    expect(subText(c)).toContain('다음: ㉮ 나라와 ㉯ 나라 이야기');
     expect(c.primary).toMatchObject({ label: '라운드 끝내기', kind: 'endRound', testId: 'btn-end-round', tone: 'secondary' });
     // 한 명만 출항 준비
     const g = p.h.get();
@@ -632,7 +632,7 @@ describe('다듬기(141 촬영 전)', () => {
     p.teacher({ type: 'fireNow', id: 'ev:L1-E6', clear: true });
     let c = p.card();
     expect(c.state).toBe('waiting');
-    expect(c.line).toBe('다음: 두 섬 이야기');
+    expect(c.line).toBe('다음: ㉮ 나라와 ㉯ 나라 이야기');
     expect(c.sub[0]).toMatchObject({ text: "학생 화면에 '부산에 강추위, 천연가스가 필요해요' 소식이 떠 있어요", testId: 'now-news' });
     p.to(20);
     expect(p.card().sub[0]!.testId).toBe('now-news');

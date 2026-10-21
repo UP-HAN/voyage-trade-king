@@ -24,7 +24,7 @@ export const conceptCards: readonly ConceptCard[] = [
     text: '살아가는 데 필요한 모든 물자나 서비스를 한 나라 안에서 구하기는 어려워요. 천연가스가 매장되어 있는 곳은 많지 않아서 일부 국가에서만 생산할 수 있고, 비행기를 만드는 데는 수준 높은 기술이 필요해서 일부 국가에서만 만들 수 있어요.',
   },
   {
-    id: 'trade-benefit', title: '무역의 좋은 점', lesson: 'L1', unlock: 'L1-E5 두 섬 이야기', pages: [99],
+    id: 'trade-benefit', title: '무역의 좋은 점', lesson: 'L1', unlock: 'L1-E5 ㉮ 나라와 ㉯ 나라 이야기', pages: [99],
     text: '여러 나라가 각각 효율적으로 생산하는 상품을 수출하고, 효율적으로 생산하기 어려운 상품을 수입하면 더 우수한 품질의 상품을 저렴한 가격으로 사용할 수 있어요.',
   },
   {

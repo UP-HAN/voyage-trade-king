@@ -21,7 +21,8 @@ const perSheet = path.join(dist, '장별');
 // 먼저 임시 폴더에 만들고, 모든 검사를 통과했을 때만 print/dist로 복사한다(138이 dist를 가져다 쓰므로)
 const tmp = path.join(root, 'print', '.dist-tmp');
 const tmpSheet = path.join(tmp, '장별');
-const taskDir = path.join(root, '.orch', 'tasks', '140-worksheet-extra-questions');
+// (작업 157) 스크린숏을 남길 작업 폴더. 기본은 140 그대로, WORKSHEET_SHOTS_TASK로 다른 작업 폴더를 고를 수 있다.
+const taskDir = path.join(root, '.orch', 'tasks', process.env.WORKSHEET_SHOTS_TASK || '140-worksheet-extra-questions');
 const shots = path.join(taskDir, 'shots');
 const prevShots = path.join(root, '.orch', 'tasks', '139-worksheet-design-system', 'shots'); // 139 판(읽기만)
 const imgDir = path.join(src, 'img');
@@ -33,6 +34,21 @@ const refQuiz = path.join(src, 'ref', 'quiz-v1.2.json');
 const ALLOWED_DIFFS = [
   { act: '4', where: '④ 활동 제목', from: '흑연 선택', to: '흑연, 어디서 살까?' },
   { act: null, where: 'L4-1 차시 제목(머리띠 data-title, 대조 대상 아님)', from: '기업의 선택', to: '기업의 결정' },
+  // (작업 157, PRD v0.3.8) 게임 화면과 같은 말로: 두 섬 → ㉮·㉯ 나라(작업 150), ★ 지금 쓰기 없음(작업 153). 차례대로 바꿔 대조한다.
+  { act: '3', where: '③ 활동 제목', from: '두 섬 이야기 — 무역의 좋은 점', to: '㉮ 나라와 ㉯ 나라 이야기 — 무역의 좋은 점' },
+  { act: '3', where: '③-1 문항', from: '두 섬이 가진 양', to: '두 나라가 가진 양' },
+  { act: '3', where: '③-1 표 머리(게임 장면 이름)', from: '혼자 살 때(1단계)', to: '1. 혼자 살 때' },
+  { act: '3', where: '③-1 표 머리(게임 장면 이름)', from: '바꾼 뒤(3단계)', to: '3. 서로 바꾸니' },
+  { act: '3', where: '③-1 표 줄', from: '㉮섬', to: '㉮ 나라' },
+  { act: '3', where: '③-1 표 줄', from: '㉯섬', to: '㉯ 나라' },
+  { act: '3', where: '③-2 문항', from: '각 섬이 잘 만드는', to: '각 나라가 잘 만드는' },
+  { act: '3', where: '③-2 때 안내(★ 지금 쓰기 없음)', from: '어떤 점이 좋은지 써요. (두 섬 이야기가 끝나자마자)', to: '어떤 점이 좋은지 써요.' },
+  { act: '14', where: '⑭-2 때 안내(★ 지금 쓰기 없음)', from: '결정한 까닭을 써요. (보도 보기 전에)', to: '결정한 까닭을 써요.' },
+];
+// (작업 157) 136 대조에서 허용하는 꼬리표 개수 차이: ★ 지금 써요(.tag.now)는 ③·⑭에서 뺐다(작업 153 — 차시 한 판은 ★ 지금 쓰기 없음).
+const ALLOWED_TAG_DIFFS = [
+  { act: '3', tag: 'now', from: 1, to: 0 },
+  { act: '14', tag: 'now', from: 1, to: 0 },
 ];
 // 항해 퀴즈가 들어가는 쪽(활동 번호)과 하위 문항 수
 const QUIZ_PLAN = { 2: 3, 3: 2, 4: 2, 6: 3, 10: 3, 15: 3 };
@@ -210,7 +226,10 @@ function compareText(oldT, newT) {
     const allowed = ALLOWED_DIFFS.filter((d) => d.act === n && wt.includes(norm(d.to)));
     for (const d of allowed) wt = wt.replace(norm(d.to), norm(d.from));
     const same = o.text === wt;
-    const tagSame = JSON.stringify(o.tags) === JSON.stringify(w.tags);
+    const wantTags = { ...o.tags };
+    const tagAllowed = ALLOWED_TAG_DIFFS.filter((d) => d.act === n && o.tags[d.tag] === d.from);
+    for (const d of tagAllowed) wantTags[d.tag] = d.to;
+    const tagSame = JSON.stringify(wantTags) === JSON.stringify(w.tags);
     const hintSame = JSON.stringify(o.hints) === JSON.stringify(w.hints);
     if (!same || !tagSame || !hintSame) ok = false;
     let diff = '';
@@ -219,7 +238,8 @@ function compareText(oldT, newT) {
       diff = ` 글자 다름 @${i}: 136「${o.text.slice(Math.max(0, i - 10), i + 20)}」 새「${wt.slice(Math.max(0, i - 10), i + 20)}」`;
     }
     const optName = w.kinds ? `${w.kinds.includes('check') ? '체크!' : '특별 항해'}${w.tags.opt}(=136 선택${o.tags.opt})` : `opt${w.tags.opt}`;
-    const allow = allowed.map((d) => ` · 허용 차이: ${d.where}「${d.from}」→「${d.to}」`).join('');
+    const allow = allowed.map((d) => ` · 허용 차이: ${d.where}「${d.from}」→「${d.to}」`).join('')
+      + tagAllowed.map((d) => ` · 허용 꼬리표 차이: ${d.tag} ${d.from}→${d.to}`).join('');
     lines.push(`  ${same && tagSame && hintSame ? '같음' : '다름'} ${String(n).padStart(2)}: 글자 ${o.text.length}자${same ? '' : `/${wt.length}자`}, 꼬리표 rec${w.tags.rec}·now${w.tags.now}·${optName}${tagSame ? '' : `(136: ${JSON.stringify(o.tags)})`}, 초성 ${w.hints.join('/') || '-'}${hintSame ? '' : '(다름)'}${allow}${diff}`);
   }
   const saySame = oldT.says.length === newT.says.length && oldT.says.every((s) => newT.says.includes(s));
@@ -339,6 +359,7 @@ async function render(browser, htmlFile, { pdfOut, student, shotPrefix }) {
     await page.evaluate(() => document.body.classList.add('shot'));
     if (student) {
       for (const sel of ['.tag.quiz', '.tag.check', '.tag.special', '.tag.rec', '.tag.now']) {
+        if (!(await page.locator(sel).count())) continue; // (작업 157) ★ 지금 써요(.tag.now)는 이제 학생용에 없다
         const f = path.join(shots, `_tag-${sel.split('.').pop()}.png`);
         fs.writeFileSync(f, await page.locator(sel).first().screenshot());
         tagShots.push(f);
