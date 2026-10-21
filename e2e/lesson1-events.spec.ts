@@ -474,12 +474,18 @@ test('A. 차시 한 판 L1: 모든 사건이 배치표 시각에 뜨고 응답·
   await shot(scr, 'screen-L1-E8-rates-1920.png');
   await shot(s2, 'student-L1-E8-explain-1366.png');
 
-  // 결과를 보여 주는 동안은 무역이 끝나지 않는다 → 교사 [다음]으로 일찍 넘기면 계획 끝 → 마무리
+  // 결과를 보여 주는 동안은 순서가 끝나지 않는다 → 교사 [다음]으로 일찍 넘기면 계획 끝
+  // (작업 162) 계획이 끝나도 판은 저절로 끝나지 않는다 — '오늘 순서를 다 했어요' 카드의 [마무리로]를 누르면 마무리
   await ctx.clock.runFor(8000);
   await t.waitForTimeout(300);
   await expect(s1.getByTestId('trade-over')).toHaveCount(0);
   await expect(screenEvent(scr, 'L1-E8').getByTestId('quiz-rate')).toHaveCount(2);
   await t.getByTestId('btn-end-result').click();
+  await advanceUntil(ctx, t, async () => (await t.getByTestId('now-finish').count()) > 0, 10);
+  await ctx.clock.runFor(5000);
+  await t.waitForTimeout(200);
+  await expect(s1.getByTestId('trade-over')).toHaveCount(0);
+  await t.getByTestId('now-finish').click();
   await advanceUntil(ctx, t, async () => (await s1.getByTestId('trade-over').count()) > 0, 10);
   for (const s of [s1, s2, s3]) await expect(s.getByTestId('trade-over')).toBeVisible({ timeout: 15_000 });
   expect(errors).toEqual([]);

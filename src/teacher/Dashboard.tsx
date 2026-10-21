@@ -5,7 +5,7 @@
  * - 위쪽 띠 한 줄(≤ 48px): 학급 이름 · 방 코드 · 연결 점 …… [학습지 인쇄 ▾](138 WorksheetPdfMenu) [TV 화면 ▾] [설정]
  * - (저장 공간 오류 빨간 띠)
  * - '지금 할 일' 카드(now-card.ts가 고른 상태 하나 — 한 줄 + 큰 버튼 하나 + [잠깐 멈춤] + 알림 줄 + "TV: ○○")
- * - 진행 줄(무역 시작 뒤): 무역 시간 남음 · 라운드 · 차시 띠 · 다음 항목 · [시간 조절 ▾]
+ * - 진행 줄(무역 시작 뒤): 추천 시간 남음/지남(작업 162) · 라운드 · 차시 띠 · 다음 항목 · [시간 조절 ▾]
  * - 아래 2단(각자 스크롤): 왼쪽 학생 표, 오른쪽 접힘 영역 5개(시간 조절·오늘 순서·입장 관리·학습지·편지/돌발/공정한 바다).
  *   무역 시작 전에는 오른쪽 맨 위에 방 코드 크게, 마무리 중에는 마무리 순서, 판이 끝나면 결과 안내만.
  * 옛 상단 진행 바 3줄·10초 전 예고 띠·"모두 준비됨" 띠·입장 마감 제안 띠·time-up 창은 카드 상태·알림 줄로 흡수했다.
@@ -14,7 +14,7 @@
 import { lazy, Suspense } from 'preact/compat';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentType } from 'preact';
-import { roundNowPlan } from '../core';
+import { roundNowPlan, tradeClock } from '../core';
 import { fx } from '../ui/common/fx';
 import type { HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
@@ -148,6 +148,10 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
   const c = game?.class ?? null;
   const started = !!c && c.clock.startedAt !== null;
   const remaining = c ? tradeRemainingSec(c, now) : 0;
+  // (작업 162) 무역 시간 T는 '추천 시간' — 넘어도 판은 계속된다. 넘은 초(넘지 않았으면 0 미만)
+  const elapsed = c && started ? tradeClock.elapsedSec(c.clock, now) : 0;
+  const overSec = c && started && !c.tradeEnded ? elapsed - c.clock.durationSec : -1;
+  const over = overSec >= 0;
 
   // 남은 5분·1분 경고(소리) — 그대로
   const prevRemain = useRef<number | null>(null);
@@ -310,16 +314,20 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
     actions.dispatch({ type: 'endRound' });
     return true;
   };
-  /** 지금 마무리로(무역 시간이 남았을 때 — 확인 1번) */
+  /**
+   * [마무리로](작업 162): 판을 끝내는 유일한 길. 남은 순서(아직 시작 안 한 항목 또는 지금 하는 항목)가 있으면 확인 1번,
+   * 없으면(오늘 순서를 다 함) 확인 없이 바로. 추천 시간 전이면 남은 추천 시간을, 지났으면 남은 순서 이름을 보인다.
+   */
   const finishEarly = async (): Promise<boolean> => {
-    const left = tradeRemainingSec(c, actions.now());
-    if (left >= 1) {
-      const rest = nextItemOf(c);
+    const t = actions.now();
+    const left = tradeRemainingSec(c, t);
+    const rest = nextItemOf(c) ?? c.schedule.items.find((it) => it.status === 'live' && it.kind !== 'letter' && it.form !== 'dropped') ?? null;
+    if (rest) {
       const yes = await ask({
         title: '지금 마무리로 갈까요?',
-        body: rest
-          ? `무역 시간이 ${mmss(left)} 남았어요. 지금 마무리로 가면 남은 라운드와 활동은 하지 않아요.`
-          : `남은 순서는 없어요. 지금 마무리로 가면 남은 무역 시간(${mmss(left)})은 쓰지 않아요.`,
+        body: left >= 1
+          ? `추천 시간이 ${mmss(left)} 남았어요. 지금 마무리로 가면 남은 라운드와 활동은 하지 않아요.`
+          : `아직 남은 순서가 있어요: ${itemLabel(rest)}. 지금 마무리로 갈까요?`,
         ok: '지금 마무리로',
         danger: true,
         testId: 'confirm-finish',
@@ -442,7 +450,7 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
   const founded = Object.values(game.players).filter((p) => p.company.founded).length;
   const bands = started ? stageBands(c, game.meta.scope, game.meta.playUnit, now) : [];
   const next = started && !c.tradeEnded ? nextItemOf(c) : null;
-  const nextIn = next ? Math.max(0, next.at - (c.clock.durationSec - remaining)) : 0;
+  const nextIn = next ? Math.max(0, next.at - elapsed) : 0;
   const nextRound = started && !c.tradeEnded ? nextRoundText(c, now) : null;
   const roundLeft = roundRemainingSec(c, now);
   const wrapping = c.tradeEnded && !ended;
@@ -527,15 +535,20 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
       {started && !ended && (
         <div class="t-progress" data-testid="progress-line">
           <span
-            class={`t-clock${c.paused ? ' t-clock--paused' : ''}${remaining <= 60 && !c.tradeEnded ? ' t-clock--warn' : ''}${remaining <= 300 && remaining > 60 ? ' t-clock--soon' : ''}`}
+            class={`t-clock${c.paused ? ' t-clock--paused' : ''}${over ? ' t-clock--over' : ''}${!over && remaining <= 60 && !c.tradeEnded ? ' t-clock--warn' : ''}${!over && remaining <= 300 && remaining > 60 ? ' t-clock--soon' : ''}`}
             data-testid="trade-clock"
             data-sec={Math.round(remaining)}
+            data-over={over ? '1' : undefined}
           >
             {c.tradeEnded ? (
               <>무역이 끝났어요 · 마무리 중</>
+            ) : over ? (
+              <>
+                추천 시간 <b>+{mmss(overSec)}</b> 지남
+              </>
             ) : (
               <>
-                무역 시간 <b>{mmss(remaining)}</b> 남음
+                추천 시간 <b>{mmss(remaining)}</b> 남음
               </>
             )}
             {c.paused && <span class="t-clock__state">멈춤</span>}
@@ -558,7 +571,7 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
               {nextRound}
             </span>
           )}
-          {next && !timeUp && (
+          {next && (
             <span class="t-progress__next" data-testid="progress-next">
               다음: {itemLabel(next)} · {mmss(nextIn)} 뒤
             </span>
@@ -607,6 +620,7 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
               <TimeFold
                 started={started}
                 remaining={remaining}
+                overSec={overSec}
                 tradeEnded={c.tradeEnded}
                 customMin={customMin}
                 onCustomMin={setCustomMin}
@@ -673,10 +687,15 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
   );
 }
 
-/** '시간 조절' 접힘 영역: 남은 시간, [+1분] [+3분] [+5분] [−1분], 직접 "__분 [늘리기] [줄이기]", [지금 마무리로] */
+/**
+ * '시간 조절' 접힘 영역: 추천 시간까지 남은 시간(지났으면 "+m:ss 지남"), [+1분] [+3분] [+5분] [−1분], 직접 "__분 [늘리기] [줄이기]", [지금 마무리로].
+ * (작업 162) 시간 조절은 '추천 시간 바꾸기'(아직 시작 안 한 항목 다시 배치) — 추천 시간이 지나도 판은 계속된다.
+ */
 function TimeFold(p: {
   started: boolean;
   remaining: number;
+  /** 추천 시간을 넘은 초(넘지 않았으면 0 미만) */
+  overSec: number;
   tradeEnded: boolean;
   customMin: string;
   onCustomMin: (v: string) => void;
@@ -689,9 +708,18 @@ function TimeFold(p: {
   return (
     <div class="t-timefold" data-testid="time-fold">
       <p>
-        남은 무역 시간 <b data-testid="time-left">{mmss(p.remaining)}</b>
+        {p.started && p.overSec >= 0 ? (
+          <>
+            추천 시간 <b data-testid="time-left" data-over="1">+{mmss(p.overSec)}</b> 지남
+          </>
+        ) : (
+          <>
+            추천 시간까지 <b data-testid="time-left">{mmss(p.remaining)}</b>
+          </>
+        )}
         {!p.started && <span class="t-small"> (무역 시작 전 — 정한 시간을 바꿔요)</span>}
       </p>
+      {p.started && <p class="t-small" data-testid="time-fold-hint">추천 시간이 지나도 판은 계속돼요. 끝낼 때 [마무리로]</p>}
       <div class="t-seg" role="group" aria-label="무역 시간 바꾸기">
         {[1, 3, 5].map((m) => (
           <button key={m} type="button" class="t-seg__btn" data-testid={`btn-extend-${m}`} onClick={() => p.onExtend(m)}>

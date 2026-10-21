@@ -477,6 +477,36 @@ describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배
     expect(toasts).toEqual([resoldText('흑연', 20, per * 20, price * 20 - per * 20)]);
   });
 
+  it('렌더(161b): 되팔기 수량은 1로 시작, [모두] 한 번에 20상자 → [되팔기] 20', () => {
+    const s = l2Sha();
+    const bought = applyAction(s.class, player(s, 1), { type: 'buy', good: 'graphite', qty: 20 });
+    const log: unknown[] = [];
+    const root = mount(<PortScreen store={fakeStore(log, [])} st={fakeState(s, bought.player)} onBack={() => undefined} />);
+    expect(byTestId(root, 'resell-graphite-qty')[0]!.textContent).toBe('1상자');
+    const all = byTestId(root, 'resell-graphite-all')[0]!;
+    expect(all.textContent).toBe('모두');
+    expect(all.getAttribute('aria-label')).toBe('가진 20상자 모두');
+    expect(all.hasAttribute('disabled')).toBe(false);
+    act(() => {
+      all.dispatch('click');
+    });
+    expect(byTestId(root, 'resell-graphite-qty')[0]!.textContent).toBe('20상자');
+    expect(byTestId(root, 'resell-graphite-all')[0]!.hasAttribute('disabled')).toBe(true);
+    // [−]로 줄이면 [모두]가 다시 켜진다
+    act(() => {
+      byTestId(root, 'resell-graphite-minus')[0]!.dispatch('click');
+    });
+    expect(byTestId(root, 'resell-graphite-qty')[0]!.textContent).toBe('19상자');
+    expect(byTestId(root, 'resell-graphite-all')[0]!.hasAttribute('disabled')).toBe(false);
+    act(() => {
+      byTestId(root, 'resell-graphite-all')[0]!.dispatch('click');
+    });
+    act(() => {
+      byTestId(root, 'resell-graphite')[0]!.dispatch('click');
+    });
+    expect(log).toEqual([{ type: 'resell', good: 'graphite', qty: 20 }]);
+  });
+
   it('렌더: 여기서 팔 수 있는 카드에는 힌트·되팔기 상자가 없다', () => {
     const s = l2Sha((p) => {
       p.game.cargo = [lot({ good: 'chip', qty: 5, unitCost: 90, origin: 'korea', boughtAt: 'BUS' })];

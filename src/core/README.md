@@ -21,6 +21,7 @@
 | `host.ts` | 호스트 리듀서 `hostReduce`, `createHostReducer`, 세션(124) 모양 어댑터 `createSessionReducer`. 훅 `onTick`·`onHostGap`·`onTeacherAction`(123) |
 | `clock.ts` | (123) 무역 시계 순수 계산: `startTrade`·`pause`·`resume`·`extend`·`shorten`·`hostGap`·`elapsedSec`·`remaining`·`elapsedRatio` (index 에서는 `tradeClock.*`) |
 | `schedule.ts` | (123) 자동 배치 `buildSchedule`/`tryBuildSchedule`, 다시 배치 `reschedule`, 미리보기 `previewSchedule`, 마무리 `buildWrapup`, 확장 지점 `extraPlacers` |
+| `stuckHints.ts` | (160b) 막힌 학생 갈매기 힌트: `situationOf`(상황 키), `stepStuckHints`(틱마다, `host.ts`가 무역 훅 다음에 부름). 힌트 시계·감시는 호스트 전용 `HostSnapshot.stuck` |
 | `trade.ts` | (123) 리듀서 훅 `createTradeHooks(base)` — 틱 자동 진행·시간 끝·교사 시간 조작·hostGap. 대시보드 계산 `lateness`, `tradeRemaining`. 확장 지점 `itemFirers` |
 
 앱(교사 화면)은 `createSessionReducer(createTradeHooks({ validateName: validateCompanyName }))`처럼 훅을 넣어 쓴다. 훅이 없으면 `startTrade` 등은 103처럼 `NOT_IMPLEMENTED`.

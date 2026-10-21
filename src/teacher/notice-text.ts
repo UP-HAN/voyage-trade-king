@@ -8,7 +8,10 @@ import { appErrorToKorean } from '../sync/app-messages';
 export const TEACHER_NOTICE_TEXT: Readonly<Record<string, string>> = {
   // 무역 시계·진행
   TRADE_STARTED: '무역이 이미 시작됐어요.',
-  TRADE_ENDED: '무역 시간이 끝났어요. 마무리 단계로 넘어가요.',
+  // (작업 162) 무역 끝은 선생님 [마무리로]로만 온다 — '시간이 끝났다'가 아니라 '무역이 끝났다'
+  TRADE_ENDED: '무역이 끝났어요. 마무리 단계로 넘어가요.',
+  // (작업 162) 추천 시간(T)을 처음 넘은 순간 한 번(토스트) — 판은 계속된다
+  OVERTIME: '추천 시간이 지났어요. 판은 계속돼요 — 끝낼 때 [마무리로]를 누르세요.',
   NOT_STARTED: '무역을 시작한 뒤에 할 수 있어요.',
   ENDED: '판이 이미 끝났어요.',
   BAD_SEC: '그만큼은 바꿀 수 없어요(무역 시간 5~90분).',
@@ -17,10 +20,10 @@ export const TEACHER_NOTICE_TEXT: Readonly<Record<string, string>> = {
   ALREADY_PAUSED: '이미 멈춰 있어요.',
   NOT_PAUSED: '멈춰 있지 않아요.',
   BAD_MODE: '그 진행 방식은 고를 수 없어요.',
-  PLAN_DONE: '계획한 활동이 모두 끝났어요.',
+  PLAN_DONE: '계획한 활동이 모두 끝났어요.', // (작업 162) 보내는 곳 없음 — 문구만 남김
   // (작업 134) [지금 라운드 시작]
   PAUSED: '잠깐 멈춤 중이에요. [이어서 하기]를 먼저 눌러 주세요.',
-  TIME_IS_UP: '무역 시간이 끝났어요. 마무리로 넘어가요.',
+  TIME_IS_UP: '추천 시간이 지났어요.', // (작업 162) 보내는 곳 없음 — 문구만 남김
   NO_NEXT_ROUND: '남은 라운드가 없어요.',
   ROUND_NOW_TIER1: '꼭 할 활동이 빠지게 돼요. 한 번 더 확인해요.',
   // 배치표 항목

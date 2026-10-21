@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JsonObject } from '@shared/protocol';
 import { findSeatKeys } from '../../src/sync/app-messages';
 import { teacherViews } from '../../src/teacher/game';
-import { botAction, COMPANY_NAMES, makeSimWorld, ReduceTimer, rng, type SimStudent } from './sim-world';
+import { botAction, COMPANY_NAMES, finishWhenPlanDone, makeSimWorld, ReduceTimer, rng, type SimStudent } from './sim-world';
 
 const N = 30;
 const MINUTES = 30;
@@ -89,6 +89,8 @@ describe('30명 시뮬레이션 — 차시 한 판 L1 30분(자동 진행)', () 
     while (h.game().class.phase !== 'wrapup' && guard++ < (MINUTES + 6) * 60) {
       stepBots();
       await w.advance(1000, 250);
+      // (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로]
+      finishWhenPlanDone(h);
     }
     const tEnd = Math.floor(w.now() / 1000);
     expect(h.game().class.phase).toBe('wrapup');

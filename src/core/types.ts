@@ -467,6 +467,35 @@ export interface PlayerGame {
   fareDue?: number;
   /** (작업 151) 자유 항해: 이번 라운드 항해 횟수. 옛 상태에는 없음(= 0) */
   sailsThisRound?: number;
+  /** (작업 160b) 받은 갈매기 힌트(막힌 학생 자동 힌트, 받은 순). 옛 상태에는 없음(= []) */
+  gullHints?: GullHintRecord[];
+}
+
+/** (작업 160b) 학생이 받은 갈매기 힌트 한 개 */
+export interface GullHintRecord {
+  id: string;
+  mission: string;
+  /** 힌트 시계 초 */
+  at: number;
+}
+
+/** (작업 160b) 한 학생·한 임무의 막힘 감시 */
+export interface StuckWatch {
+  /** 상황 키(임무 단계 + 배에 실린 것) — 바뀌면 다시 센다 */
+  key: string;
+  /** 이 상황이 시작된 힌트 시계 초(= 마지막 진척) */
+  since: number;
+  lastHintAt: number | null;
+  /** 이 상황에서 보낸 힌트 수 */
+  sent: number;
+}
+
+/** (작업 160b) 호스트 전용 막힘 감시 상태(공개 상태·학생 상태에 실리지 않음) */
+export interface StuckState {
+  /** 힌트 시계: 사고팔 수 있던 시간만 센다(무역 시계와 따로) */
+  clock: { sec: number; lastAt: number | null };
+  /** 좌석 키 → 임무 ID → 감시 */
+  watch: Record<string, Record<string, StuckWatch>>;
 }
 
 export interface Player {
@@ -494,6 +523,8 @@ export interface HostSnapshot {
   savedAt: number;
   /** 공개 상태 버전(바뀔 때마다 1씩) */
   rev: number;
+  /** (작업 160b) 막힌 학생 갈매기 힌트 감시 — 호스트 전용. 옛 상태에는 없음 */
+  stuck?: StuckState;
 }
 
 // ─── 공개 상태(방 전체) ───────────────────────────────────
@@ -688,7 +719,9 @@ export type GameEvent =
   | { type: 'recipeUnlocked'; recipe: GoodId }
   | { type: 'nameChanged'; name: string; status: NameStatus }
   | { type: 'companyFounded' }
-  | { type: 'worksheetDone'; ids: WorksheetId[]; during?: boolean };
+  | { type: 'worksheetDone'; ids: WorksheetId[]; during?: boolean }
+  /** (작업 160b) 막힌 학생에게 간 갈매기 힌트 */
+  | { type: 'gullHint'; id: string; mission: string };
 
 export interface ActionResult {
   player: Player;

@@ -18,11 +18,22 @@ import { openTvMenu } from './support/voyage-ui';
 const RUN = process.env.LESSON2_E2E === '1';
 const SHOTS = process.env.SHOT_DIR ?? join(process.cwd(), '.orch', 'tasks', '115-lesson2-factory-relay', 'shots');
 
-async function shot(page: Page, name: string) {
-  mkdirSync(SHOTS, { recursive: true });
+/** (작업 162) 추천 시간 스크린숏 */
+const SHOTS162 = process.env.SHOT_DIR_162 ?? join(process.cwd(), '.orch', 'tasks', '162-no-time-end', 'shots');
+
+/** (작업 162) 학생·TV 화면에 시간 숫자·'시간 끝/곧 끝나요' 말이 없다(학습지 [다 썼어요] 버튼의 "(n초 뒤에 켜져요)"는 뺀다) */
+async function noTimeText(p: Page, where: string) {
+  const text = await p.evaluate(() => document.body.innerText);
+  const clean = text.replace(/\(\d+초 뒤에 켜져요\)/g, '');
+  expect(clean, `${where}: m:ss`).not.toMatch(/\b\d{1,2}:\d{2}\b/);
+  expect(clean, `${where}: 시간 끝 말`).not.toMatch(/무역 시간이 끝|곧 끝|시간이 다 됐|남은 시간|추천 시간/);
+}
+
+async function shot(page: Page, name: string, dir = SHOTS) {
+  mkdirSync(dir, { recursive: true });
   await page.evaluate(() => document.fonts.ready).catch(() => undefined);
   await page.waitForTimeout(250);
-  await page.screenshot({ path: join(SHOTS, name) });
+  await page.screenshot({ path: join(dir, name) });
 }
 
 test.use({ actionTimeout: 15_000 });
@@ -413,6 +424,37 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
           await t.bringToFront();
         }
       }
+      // (작업 162) 순서를 다 해도 판은 저절로 끝나지 않는다 — 1분을 더 기다려도 그대로, 학생은 계속 자유 항해(라운드 사이 사고팔기·출발).
+      // 결산·시상은 선생님 [마무리로](큰 버튼, 남은 순서가 없어 확인 없음) 뒤에만
+      if (st === 'waiting' && line === '오늘 순서를 다 했어요' && !seen.shots.has('plan-done')) {
+        seen.shots.add('plan-done');
+        await expect(t.getByTestId('now-plan-done-hint')).toHaveText('학생들은 계속 자유롭게 항해해요 · 끝낼 때 [마무리로]를 누르세요');
+        await run(ctx, t, 60);
+        await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'waiting');
+        await expect(t.getByTestId('now-plan-done')).toHaveText('오늘 순서를 다 했어요');
+        for (const [i, s] of students.entries()) await tidy(s, seen, `s${i + 1}`);
+        await sailTo(s3, 'BUS');
+        await tidy(s3, seen, 's3');
+        await t.bringToFront();
+        if (minutes === 25) {
+          // 공개수업 판: 추천 시간(25분)이 지날 때까지 그대로 두어도 끝나지 않는다 — T 뒤 교사·TV·학생 화면
+          const clock = t.getByTestId('trade-clock');
+          for (let i = 0; i < 26 * 60 && (await clock.getAttribute('data-over')) !== '1'; i++) await tick(ctx, t, 1000);
+          await run(ctx, t, 70);
+          await expect(clock).toHaveAttribute('data-over', '1');
+          await expect(t.getByTestId('now-late')).toHaveText('추천 시간이 지났어요 · 1분 더 하는 중');
+          await expect(t.getByTestId('now-plan-done')).toHaveText('오늘 순서를 다 했어요');
+          await sailTo(s3, 'SHA'); // T 뒤에도 자유 항해
+          await tidy(s3, seen, 's3');
+          await t.bringToFront();
+          await shot(t, '162-plan-done-teacher-L2-25.png', SHOTS162);
+          await shot(scr, '162-plan-done-tv-L2-25.png', SHOTS162);
+          await shot(s3, '162-plan-done-student-L2-25.png', SHOTS162);
+        }
+        await noTimeText(scr, 'TV(순서를 다 함)');
+        for (const [i, s] of students.entries()) await noTimeText(s, `s${i + 1}(순서를 다 함)`);
+        await expect(t.getByTestId('now-primary')).toHaveAttribute('data-kind', 'finishEarly');
+      }
       const res = await pressBig(t);
       log.push(`${res.state}:${res.label}${res.confirms.length ? `(${res.confirms.join('+')})` : ''}`);
       await run(ctx, t, 1);
@@ -423,6 +465,9 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
     }
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ended');
     test.info().annotations.push({ type: '누른 순서', description: log.join(' → ') });
+    // (작업 162) 순서를 다 한 카드에서 [마무리로]를 눌러 마무리로 갔다(저절로 가지 않음)
+    expect(seen.shots.has('plan-done'), `순서를 다 함 카드 — ${log.join(' / ')}`).toBe(true);
+    expect(log.some((x) => x.startsWith('waiting:마무리로'))).toBe(true);
     // 지나간 장면·학습지·임무
     expect([...scenes]).toContain('customs');
     expect(customsShot).toBe(true);

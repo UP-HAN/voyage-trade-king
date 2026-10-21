@@ -26,6 +26,7 @@ import {
 } from '../../src/teacher/game';
 import type { PlayUnit } from '../../src/core';
 import { MemStorage } from '../sync/session-helpers';
+import { planDone as planDoneOf } from '../core/helpers';
 
 export { MemStorage };
 
@@ -303,3 +304,14 @@ export function makeSimWorld(o: { latencyMs?: number; resumeGrace?: number; reco
 export type SimWorld = ReturnType<typeof makeSimWorld>;
 
 export { botAction, COMPANY_NAMES, rng } from './bot';
+export { planDone } from '../core/helpers';
+
+/**
+ * (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로](finishNow)를 누르는 것을 흉내 낸다.
+ * 눌렀으면 true. 옛 시험의 'phase가 wrapup이 될 때까지' 고리에서 매 걸음 부른다.
+ */
+export function finishWhenPlanDone(h: Pick<SimHost, 'game' | 'teacher'>): boolean {
+  if (!planDoneOf(h.game().class)) return false;
+  h.teacher({ type: 'finishNow' });
+  return true;
+}

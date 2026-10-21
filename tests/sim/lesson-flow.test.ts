@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { catchUpQueue, type PlayUnit, type PublicPayload } from '../../src/core';
 import type { LessonId } from '../../src/data/types';
 import { seatKey } from '../../src/sync/host-session';
-import { botAction, makeSimWorld, rng, type SimStudent } from './sim-world';
+import { botAction, finishWhenPlanDone, makeSimWorld, rng, type SimStudent } from './sim-world';
 
 async function flow(playUnit: PlayUnit, scope: LessonId[], minutes: number) {
   const w = makeSimWorld();
@@ -46,6 +46,8 @@ async function flow(playUnit: PlayUnit, scope: LessonId[], minutes: number) {
   const stagesSeen: LessonId[] = [];
   for (let i = 0; i < (minutes + 8) * 60 && h.game().class.phase !== 'wrapup'; i++) {
     await step();
+    // (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로]
+    finishWhenPlanDone(h);
     const cs = h.game().class;
     if (stagesSeen.at(-1) !== cs.stage) stagesSeen.push(cs.stage);
     // 1라운드 중 s2 새로 고침(같은 저장소로 새 저장소 객체)

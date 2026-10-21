@@ -15,6 +15,7 @@ import type {
   ClassSettings,
   ClassState,
   Company,
+  GullHintRecord,
   HostSnapshot,
   Json,
   LettersState,
@@ -25,6 +26,8 @@ import type {
   PlayerGame,
   ScheduleState,
   SessionMeta,
+  StuckState,
+  StuckWatch,
   WorksheetState,
 } from './types';
 
@@ -381,6 +384,8 @@ export function normalizePlayer(raw: unknown): Player {
     // (작업 151) 옛 상태에는 없음 → 0
     fareDue: Math.max(0, num(g.fareDue, 0)),
     sailsThisRound: Math.max(0, num(g.sailsThisRound, 0)),
+    // (작업 160b) 받은 갈매기 힌트 — 없으면 넣지 않는다(duringDone 방식)
+    ...(Array.isArray(g.gullHints) ? { gullHints: normalizeGullHints(g.gullHints) } : {}),
   };
   // 옛 필드(name: 실명·별명 등)는 옮기지 않는다
   return {
@@ -522,5 +527,36 @@ export function normalizeSnapshot(raw: unknown): HostSnapshot | null {
     hostToken: str(raw.hostToken, ''),
     savedAt: num(raw.savedAt, 0),
     rev: num(raw.rev, 0),
+    ...withStuck(normalizeStuck(raw.stuck)),
   };
+}
+
+const withStuck = (s: StuckState | null): { stuck?: StuckState } => (s ? { stuck: s } : {});
+
+/** (작업 160b) 갈매기 힌트 기록: {id, mission, at}만 옮긴다 */
+function normalizeGullHints(v: unknown[]): GullHintRecord[] {
+  const out: GullHintRecord[] = [];
+  for (const h of v) {
+    if (!isObj(h) || typeof h.id !== 'string' || typeof h.mission !== 'string') continue;
+    out.push({ id: h.id, mission: h.mission, at: num(h.at, 0) });
+  }
+  return out;
+}
+
+/** (작업 160b) 막힘 감시 상태: 모양이 맞으면 옮기고, 아니면 null(넣지 않음) */
+function normalizeStuck(v: unknown): StuckState | null {
+  if (!isObj(v) || !isObj(v.clock) || !isObj(v.watch)) return null;
+  const sec = v.clock.sec;
+  if (typeof sec !== 'number' || !Number.isFinite(sec)) return null;
+  const watch: StuckState['watch'] = {};
+  for (const [seat, ms] of Object.entries(v.watch)) {
+    if (!isObj(ms)) continue;
+    const per: Record<string, StuckWatch> = {};
+    for (const [mid, w] of Object.entries(ms)) {
+      if (!isObj(w) || typeof w.key !== 'string') continue;
+      per[mid] = { key: w.key, since: num(w.since, 0), lastHintAt: numOrNull(w.lastHintAt), sent: Math.max(0, num(w.sent, 0)) };
+    }
+    watch[seat] = per;
+  }
+  return { clock: { sec, lastAt: numOrNull(v.clock.lastAt) }, watch };
 }

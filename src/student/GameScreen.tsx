@@ -11,6 +11,7 @@ import { flagHex } from '../ui/common/FlagIcon';
 import { WorldMap, type OtherShip } from '../ui/map/WorldMap';
 import { Dex } from './Dex';
 import { StoreContext, useDeviceNow, useServerNow, useSessionValue } from './hooks';
+import { GullHintAgain, GullHintCard, lastGullHint } from './GullHint';
 import { Hud } from './Hud';
 import { PortCardModal } from './port/PortCard';
 import { PortScreen } from './port/PortScreen';
@@ -341,7 +342,9 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
   );
 }
 
-function MissionBar({ me }: { me: MeView }) {
+function MissionBar({ me, onHintAgain }: { me: MeView; onHintAgain?: () => void }) {
+  // (작업 160b) 받은 갈매기 힌트가 있으면 임무 줄 끝에 "갈매기 힌트 다시 보기"
+  const again = onHintAgain && lastGullHint(me) ? <GullHintAgain onClick={onHintAgain} /> : null;
   // (작업 115) 임무가 여럿이면(2차시 3종) 한 줄에 칩으로: 제목 줄임 + 단계 칸
   const many = Object.entries(me.game.missions).filter(([id]) => missionsById[id]);
   if (many.length > 1) {
@@ -365,6 +368,7 @@ function MissionBar({ me }: { me: MeView }) {
             </div>
           );
         })}
+        {again}
       </div>
     );
   }
@@ -372,7 +376,7 @@ function MissionBar({ me }: { me: MeView }) {
   const list = Object.entries(me.game.missions);
   const entry = list.find(([, m]) => m.status === 'active') ?? [...list].reverse().find(([, m]) => m.status === 'done');
   const def = entry ? missionsById[entry[0]] : undefined;
-  if (!entry || !def) return <div class="st-mission st-mission--none">임무 없음 · 자유 항해</div>;
+  if (!entry || !def) return <div class="st-mission st-mission--none">임무 없음 · 자유 항해{again}</div>;
   const complete = entry[1].status === 'done';
   const done = complete ? def.steps.length : entry[1].steps.filter(Boolean).length;
   const total = def.steps.length;
@@ -387,6 +391,7 @@ function MissionBar({ me }: { me: MeView }) {
           <span key={i} class={`st-mission__step${complete || entry[1].steps[i] ? ' is-done' : ''}`} />
         ))}
       </span>
+      {again}
     </div>
   );
 }
@@ -394,7 +399,7 @@ function MissionBar({ me }: { me: MeView }) {
 // 연속 클릭 가드는 guard.ts로 옮겼다(작업 111 사건 응답 버튼도 같은 것을 씀). 기존 import 경로를 위해 다시 내보낸다
 export { READY_TOGGLE_GUARD_MS, toggleAllowed } from './guard';
 
-function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: StudentState; onPort: () => void; now: number }) {
+function BottomBar({ store, st, onPort, now, onHintAgain }: { store: StudentStore; st: StudentState; onPort: () => void; now: number; onHintAgain?: () => void }) {
   const me = st.peer.me!;
   const lastToggle = useRef<number | null>(null);
   const toggle = (type: 'setReady' | 'cancelReady') => {
@@ -428,7 +433,7 @@ function BottomBar({ store, st, onPort, now }: { store: StudentStore; st: Studen
   return (
     <footer class="st-bottom" data-testid="bottom-bar">
       {trading && cls && <RoundStepsBar cls={cls} me={me} />}
-      <MissionBar me={me} />
+      <MissionBar me={me} onHintAgain={onHintAgain} />
       <div class="st-bottom__dest" data-testid="bottom-status">
         {status}
         {sending && (
@@ -523,6 +528,9 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   const [view, setView] = useSessionValue<'map' | 'port'>('voyage.student.view', 'map');
   const [dex, setDex] = useState(false);
   const [editFlag, setEditFlag] = useState(false);
+  // (작업 160b) 본 갈매기 힌트 ID(새로 고침해도 다시 뜨지 않게) + [다시 보기]
+  const [hintSeen, setHintSeen] = useSessionValue<string>('voyage.student.gullHintSeen', '');
+  const [hintAgain, setHintAgain] = useState(false);
   // 처음 입항한 항구의 항구 카드(PRD 6.3.3) — 호스트 항해 처리 이벤트 portCard(작업 108)
   const [portCard, setPortCard] = useState<PortId | null>(null);
   useEffect(
@@ -588,6 +596,9 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
     );
 
   const showBottom = Boolean(cls) && founded && phase !== 'prep' && !tradeOver && (view === 'map' || waitPhase);
+  // (작업 160b) 갈매기 힌트 카드: 마지막 힌트가 '본 힌트'와 다르거나 [다시 보기]를 눌렀을 때
+  const hint = lastGullHint(me);
+  const hintOn = Boolean(hint && cls && founded && phase !== 'prep' && !tradeOver && (hint.id !== hintSeen || hintAgain));
   // 일시정지·이름 막힘 층이 떠 있으면 아래 화면 전체(HUD·도감·설정 메뉴 포함)를 키보드로도 못 건드리게
   const covered = topLayer(st) !== null;
 
@@ -597,7 +608,18 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
         <StatusBands st={st} now={now} />
         {(founded || phase !== 'prep') && <Hud store={store} st={st} now={now} onDex={() => setDex(true)} />}
         <div class="st-main">{main}</div>
-        {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} />}
+        {hintOn && hint && (
+          <div class="st-gull-dock">
+            <GullHintCard
+              id={hint.id}
+              onOk={() => {
+                setHintSeen(hint.id);
+                setHintAgain(false);
+              }}
+            />
+          </div>
+        )}
+        {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} onHintAgain={() => setHintAgain(true)} />}
         {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} onClose={() => setDex(false)} />}
         {/* (작업 134) 처음 입항 항구 카드: 라운드 중에는 아래 화면을 막지 않는 작은 카드(왼쪽 위) — 거래 버튼·결정 패널을 가리지 않게 */}
         {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round' || isTradingPhase(cls)} onClose={() => setPortCard(null)} />}

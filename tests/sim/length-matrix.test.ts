@@ -11,6 +11,7 @@ import { tradeClock, tradeWorksheets, type HostSnapshot, type PlayUnit } from '.
 import type { LessonId, WorksheetId } from '../../src/data/types';
 import { seatKey } from '../../src/sync/host-session';
 import { newTeacherGame, teacherReducer, type TeacherGame } from '../../src/teacher/game';
+import { planDone } from '../core/helpers';
 
 const T0 = Date.UTC(2026, 9, 12, 1, 0, 0);
 
@@ -33,6 +34,8 @@ function playToEnd(playUnit: PlayUnit, scope: LessonId[], minutes: number, n = 4
   for (let i = 0; i < (minutes + 10) * 60 && g.class.phase !== 'wrapup'; i++) {
     now += 1000;
     g = run(g, { type: 'tick' }, now);
+    // (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로]
+    if (planDone(g.class)) g = run(g, { type: 'teacher', action: { type: 'finishNow' } }, now);
     for (const id of g.class.worksheet.current ?? []) opened.add(id);
     if (stages.at(-1) !== g.class.stage) stages.push(g.class.stage);
     // 라운드마다 출항 준비(항해 처리 확인용)

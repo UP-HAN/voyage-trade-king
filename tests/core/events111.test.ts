@@ -7,7 +7,7 @@ import { hostReduce } from '../../src/core/host';
 import { createTradeHooks } from '../../src/core/trade';
 import type { HostSnapshot, ScheduleItem } from '../../src/core/types';
 import { checkQuizFor } from '../../src/data/checkQuiz';
-import { act, makeSession, player, startFirstRound, teach } from './helpers';
+import { act, makeSession, planDone, player, startFirstRound, teach } from './helpers';
 
 /** L1 판, 학생 n명, 라운드 1 → 사건 발동 */
 function fired(id: string, n = 3, short = false): HostSnapshot {
@@ -165,7 +165,8 @@ describe('(수정 1회차) 마감한 사건의 결과 보여 주기', () => {
     return s;
   };
 
-  it('자동 마감: 마지막 항목 L1-E8은 칸 끝 20초 전에 마감 → 결과 20초 → 그다음 무역 끝(판 끝 ≤ T)', () => {
+  // (작업 162) 옛 기대 '그다음 무역 끝'은 '그다음 순서를 다 함(planDone)'으로 — 판은 저절로 끝나지 않고 교사 [마무리로]를 기다린다
+  it('자동 마감: 마지막 항목 L1-E8은 칸 끝 20초 전에 마감 → 결과 20초 → 그다음 순서를 다 함(판 끝 ≤ T, 저절로 결산 안 함)', () => {
     let s = l1WithQuiz();
     const it = s.class.schedule.items.find((x) => x.refId === 'L1-E8')!;
     const end = it.at + it.durSec;
@@ -174,14 +175,15 @@ describe('(수정 1회차) 마감한 사건의 결과 보여 주기', () => {
     expect(s.class.currentEvent).toMatchObject({ id: 'L1-E8', closed: false });
     s = tickTo(s, T0 + (end - EVENT_RESULT_SHOW_SEC) * 1000, T0 + (end - EVENT_RESULT_SHOW_SEC + 1) * 1000);
     expect(s.class.currentEvent).toMatchObject({ id: 'L1-E8', closed: true, revealed: true });
-    expect(s.class.tradeEnded).toBe(false); // 결과를 보여 주는 동안 무역이 끝나지 않는다
+    expect(planDone(s.class)).toBe(false); // 결과를 보여 주는 동안 순서가 끝났다고 보지 않는다
     s = tickTo(s, T0 + (end - EVENT_RESULT_SHOW_SEC + 2) * 1000, T0 + (end - 1) * 1000);
-    expect(s.class.tradeEnded).toBe(false);
+    expect(planDone(s.class)).toBe(false);
     s = tickTo(s, T0 + end * 1000, T0 + (end + 1) * 1000);
-    expect(s.class.tradeEnded).toBe(true);
+    expect(planDone(s.class)).toBe(true);
+    expect(s.class.tradeEnded).toBe(false);
   });
 
-  it('교사 [마감](공개 없이): 마지막 항목이어도 결과 20초 뒤 무역 끝, [다음]이면 바로', () => {
+  it('교사 [마감](공개 없이): 마지막 항목이어도 결과 20초 뒤 순서를 다 함, [다음]이면 바로(작업 162: 결산은 교사가)', () => {
     let s = l1WithQuiz();
     const it = s.class.schedule.items.find((x) => x.refId === 'L1-E8')!;
     const t1 = T0 + (it.at + 5) * 1000;
@@ -189,11 +191,12 @@ describe('(수정 1회차) 마감한 사건의 결과 보여 주기', () => {
     expect(s.class.currentEvent).toMatchObject({ id: 'L1-E8', closed: false });
     s = hostReduce(s, { type: 'teacher', action: { type: 'closeEvent', reveal: true } }, t1 + 500, hooks).snapshot;
     s = tickTo(s, t1 + 1000, t1 + 10_000);
-    expect(s.class.tradeEnded).toBe(false);
+    expect(planDone(s.class)).toBe(false);
     expect(resultShowing(s.class, t1 + 10_000)).toBe(true);
     s = hostReduce(s, { type: 'teacher', action: { type: 'endResult' } }, t1 + 10_500, hooks).snapshot;
     s = tickTo(s, t1 + 11_000, t1 + 12_000);
-    expect(s.class.tradeEnded).toBe(true);
+    expect(planDone(s.class)).toBe(true);
+    expect(s.class.tradeEnded).toBe(false);
   });
 
   it('비차단 결정(L1-E7)은 라운드 칸 끝 20초 전에 마감되어 라운드 안에서 결과를 보인다(다음 항목 시각 그대로)', () => {

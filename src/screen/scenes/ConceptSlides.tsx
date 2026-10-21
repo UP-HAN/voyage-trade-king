@@ -3,7 +3,7 @@
  *
  * 가운데 차단 카드로 뜨는 개념 사건(L1-E2·L1-E4·L2-E2, 짧은 형태 포함)을 공용 화면에서 PPT처럼 한 장씩 보여 준다.
  * - 장 목록(`conceptSlides`): 제목 장 → 본문 장(1~2문장씩) → 교과서 장(`textbook` note 하나에 한 장). 짧은 형태면 교과서 장 생략.
- * - 넘김은 저절로(`slideIndexAt`): 장당 시간 = (closesAt − openedAt) / 장 수, closesAt이 없거나 수동 진행이면 20초. 마지막 장에 머문다.
+ * - 넘김은 **눌러서만**(10-22 교사 피드백): 클릭·←/→·[◀][▶]. 저절로 넘기지 않는다(`slideIndexAt`은 시험용으로 남아 있음).
  * - 이 창 안에서 키보드 ←/→로 한 장 앞/뒤(다음 저절로 넘김 때까지 유지). 교사 대시보드에는 버튼이 없다.
  * - 공통 카드 부품(`src/ui/cards`)은 고치지 않고 사건 데이터로 직접 그린다(문장 나누기는 `eventCardModel`의 짧은 형태 규칙을 그대로 따름).
  * - 머리 띠의 `card-band`·`card-title`·`card-pages`는 예전 공용 화면 카드와 같은 testid(공용 화면 테스트 호환).
@@ -101,12 +101,20 @@ export interface ConceptSlidesProps {
 export function ConceptSlides({ def, short, openedAt, closesAt, now, manual = false, children }: ConceptSlidesProps) {
   const slides = conceptSlides(def, { short });
   const n = slides.length;
-  const auto = slideIndexAt(n, openedAt, closesAt, now, manual);
-  // ←/→로 옮긴 장: 다음 저절로 넘김(auto가 바뀜)까지 유지
-  const [nudge, setNudge] = useState<{ auto: number; idx: number; ev: string } | null>(null);
-  const k = nudge && nudge.auto === auto && nudge.ev === def.id ? Math.max(0, Math.min(n - 1, nudge.idx)) : auto;
-  const kRef = useRef({ k, auto, n, id: def.id });
-  kRef.current = { k, auto, n, id: def.id };
+  // 교사 피드백(10-22): 슬라이드는 저절로 넘어가지 않는다 — 클릭·←/→·아래 [◀][▶]로만 한 장씩 넘긴다.
+  // (사건 자체가 끝나면 이 장면이 사라지는 것은 그대로다. slideIndexAt은 시험·다른 곳에서 쓰므로 남겨 둔다.)
+  const [pick, setPick] = useState<{ ev: string; idx: number }>({ ev: def.id, idx: 0 });
+  const k = pick.ev === def.id ? Math.max(0, Math.min(n - 1, pick.idx)) : 0;
+  const kRef = useRef({ k, n, id: def.id });
+  kRef.current = { k, n, id: def.id };
+  const go = (delta: number) => {
+    const c = kRef.current;
+    setPick({ ev: c.id, idx: Math.max(0, Math.min(c.n - 1, c.k + delta)) });
+  };
+  void openedAt;
+  void closesAt;
+  void now;
+  void manual;
 
   useEffect(() => {
     const w = typeof window !== 'undefined' ? window : null;
@@ -114,8 +122,7 @@ export function ConceptSlides({ def, short, openedAt, closesAt, now, manual = fa
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       const c = kRef.current;
-      const next = Math.max(0, Math.min(c.n - 1, c.k + (e.key === 'ArrowRight' ? 1 : -1)));
-      setNudge({ auto: c.auto, idx: next, ev: c.id });
+      setPick({ ev: c.id, idx: Math.max(0, Math.min(c.n - 1, c.k + (e.key === 'ArrowRight' ? 1 : -1))) });
     };
     w.addEventListener('keydown', onKey);
     return () => w.removeEventListener('keydown', onKey);
@@ -136,7 +143,10 @@ export function ConceptSlides({ def, short, openedAt, closesAt, now, manual = fa
   const s = slides[k];
   const title = displayTitle(def.title);
   return (
-    <section class="scr-slides" data-testid="concept-slides" data-event={def.id} data-slide={k} data-total={n} aria-roledescription="슬라이드" aria-label={title}>
+    <section class="scr-slides" data-testid="concept-slides" data-event={def.id} data-slide={k} data-total={n} aria-roledescription="슬라이드" aria-label={title} onClick={(e) => {
+      if ((e.target as HTMLElement).closest?.('button')) return;
+      go(1);
+    }}>
       {s.kind !== 'title' && (
         <header class="scr-slides__head">
           <span class="scr-slides__band" data-testid="card-band">
@@ -187,12 +197,18 @@ export function ConceptSlides({ def, short, openedAt, closesAt, now, manual = fa
         )}
       </div>
       <footer class="scr-slides__foot">
+        <button type="button" class="scr-slides__nav" data-testid="slide-prev" aria-label="앞 장" disabled={k <= 0} onClick={() => go(-1)}>
+          ◀
+        </button>
         <span class="scr-slides__dots" aria-hidden="true" data-testid="slide-dots">
           {slides.map((_, i) => (i === k ? '●' : '○')).join('')}
         </span>
         <span class="scr-slides__num" data-testid="slide-num">
           {k + 1} / {n}
         </span>
+        <button type="button" class="scr-slides__nav" data-testid="slide-next" aria-label="다음 장" disabled={k >= n - 1} onClick={() => go(1)}>
+          ▶
+        </button>
         {children}
       </footer>
     </section>

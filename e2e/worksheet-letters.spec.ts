@@ -398,10 +398,13 @@ test('B. 차시 한 판 L1 30분: ③★ 지금 쓰기 → 구간 끝 묶음 팝
   await expect(t.getByTestId('ws-panel-done')).toHaveText('1/2');
   await expect(t.getByTestId('ws-missing')).toHaveText('아직 안 쓴 회사: 4 파도상회');
   await shot(t, 'B3-teacher-bundle-panel-1366.png');
-  // 자동 진행: 구간 끝 묶음 3분(180초)이 지나면 닫히고 무역 시간이 끝난다(묶음이 판의 마지막 칸) — 끝나고 쓸 번호 없음
+  // 자동 진행: 구간 끝 묶음 3분(180초)이 지나면 닫히고 순서가 끝난다(묶음이 판의 마지막 칸) — 끝나고 쓸 번호 없음
+  // (작업 162) 판은 저절로 끝나지 않는다 — '오늘 순서를 다 했어요' 카드의 [마무리로]
   await advanceUntil(ctx, t, async () => (await s1.getByTestId('worksheet-popup').count()) === 0, 240);
   await expect(s2.getByTestId('worksheet-popup')).toHaveCount(0);
-  await advanceUntil(ctx, t, async () => (await s1.getByTestId('trade-over').count()) > 0, 120);
+  await advanceUntil(ctx, t, async () => (await t.getByTestId('now-finish').count()) > 0, 120);
+  await t.getByTestId('now-finish').click();
+  await advanceUntil(ctx, t, async () => (await s1.getByTestId('trade-over').count()) > 0, 30);
   await expect(s1.getByTestId('after-worksheets-student')).toHaveCount(0);
   await ctx.close();
 });

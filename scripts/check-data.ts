@@ -39,6 +39,7 @@ import * as recipesMod from '../src/data/recipes';
 import * as routesMod from '../src/data/routes';
 import * as scheduleMod from '../src/data/schedule';
 import * as shipsMod from '../src/data/ships';
+import * as stuckHintsMod from '../src/data/stuckHints';
 import * as termsMod from '../src/data/terms';
 import * as textMod from '../src/data/text';
 import * as twoIslandsMod from '../src/data/twoIslands';
@@ -66,6 +67,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'routes.ts': routesMod,
   'schedule.ts': scheduleMod,
   'ships.ts': shipsMod,
+  // (작업 160b) 막힌 학생 갈매기 힌트 문구(stuckHintCatalog 로 쪽수·금지어 검사)
+  'stuckHints.ts': stuckHintsMod,
   'terms.ts': termsMod,
   'text.ts': textMod,
   'twoIslands.ts': twoIslandsMod,

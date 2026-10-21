@@ -299,6 +299,28 @@
   min-width: 64px;
 }
 
+/* (작업 161b) 되팔기 [모두] — 스테퍼 버튼과 같은 테두리, 높이는 터치 최소 */
+.pt-all-btn {
+  flex: 0 0 auto;
+  min-width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0 10px;
+  border: 2px solid var(--brass-dark);
+  border-radius: var(--radius);
+  background: var(--parchment-light);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pt-all-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .pt-resell__text {
   margin: 0;
   font-size: 16px;

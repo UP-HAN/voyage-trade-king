@@ -522,6 +522,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     let approveSeenAt: number | null = null;
     let timeUpSeenAt: number | null = null;
     let finishSeenAt: number | null = null;
+    let planDoneSeenAt: number | null = null;
     let startRoundNowUsed: string = '안 함';
 
     const ready = (x: Timed<unknown>): boolean => {
@@ -853,6 +854,17 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
                     finishSeenAt = null;
                   }
                 } else finishSeenAt = null;
+                // (작업 162) 자동 진행도 판이 저절로 끝나지 않는다 — '오늘 순서를 다 했어요' 카드의 [마무리로]를 교사가 누른다
+                const planDoneBtn = T.locator('[data-testid="now-primary"][data-kind="finishEarly"] button');
+                if (pub.mode !== 'manual' && (await planDoneBtn.isVisible().catch(() => false))) {
+                  planDoneSeenAt ??= now();
+                  if (now() - planDoneSeenAt > 6000) {
+                    await planDoneBtn.click({ timeout: 3000 }).catch(() => undefined);
+                    if (await T.getByTestId('confirm-finish').isVisible({ timeout: 2000 }).catch(() => false)) await T.getByTestId('confirm-ok').click().catch(() => undefined);
+                    step('교사: 오늘 순서를 다 함 카드 [마무리로]');
+                    planDoneSeenAt = null;
+                  }
+                } else planDoneSeenAt = null;
                 if (tpx.rejoinReqs > 0) {
                   approveSeenAt ??= now();
                   if (now() - approveSeenAt > 5000) {
@@ -1025,12 +1037,9 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
               wrapMissing.reported = true;
               await problem({ kind: 'teacher-guidance', severity: '막힘', key: 'wrap-missing', title: '무역이 끝났는데 교사 화면에 마무리 패널이 없음', detail: '공개 상태 tradeEnded인데 wrapup-panel이 보이지 않아요.', page: t });
             }
+            // (작업 162) 추천 시간이 지나도 '무역 시간 끝(timeUp)' 카드는 더 없다(지금 카드 그대로 + 늦음 줄) — 옛 'timeup-missing' 검사는 끔
             if (T0.timeUp) timeUpModalSeen = true;
-            const tu = timeUpMissing.update(P.timeUp && !timeUpModalSeen && !T0.timeUp && !T0.wrapup, n);
-            if (tu > 15_000 && !timeUpMissing.reported) {
-              timeUpMissing.reported = true;
-              await problem({ kind: 'teacher-guidance', severity: '문제', key: 'timeup-missing', title: '무역 시간이 끝났는데 교사 화면에 안내가 없음', detail: "schedule.timeUp인데 '지금 할 일' 카드가 '무역 시간이 끝났어요'(timeUp)가 아니에요.", page: t });
-            }
+            void timeUpMissing;
             const nc = teacherNoCountdown.update(P.mode === 'auto' && P.round === 0 && P.phase !== 'round' && !hasTeacherRoundCountdown(T0.text), n);
             if (nc > 30_000 && !teacherNoCountdown.reported) {
               teacherNoCountdown.reported = true;

@@ -1361,3 +1361,110 @@
   font-size: 16px;
   color: var(--ink-soft);
 }
+
+/* ---------- (작업 160b) 막힌 학생 갈매기 힌트 카드 ----------
+ * 비모달. 겹쳐 띄우지 않고 화면 아래(하단 바 바로 위, 항구 화면이면 맨 아래) 흐름 안 왼쪽에 둔다 → 하단 바·거래 버튼을 가리지 않는다.
+ * st-game__base 안이라 일시정지 층이 뜨면 inert 로 함께 덮인다. */
+.st-gull-dock {
+  position: relative;
+  z-index: 52;
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-start;
+  padding: 6px 12px;
+  background: var(--sea-deep);
+}
+
+.st-gull {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(1080px, 100%);
+  max-height: 24vh;
+  overflow: auto;
+  padding: 6px 12px;
+  border: 3px solid var(--brass);
+  border-radius: 14px;
+  background: var(--parchment-light);
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  animation: st-gull-in var(--dur-base) ease-out both;
+}
+
+@keyframes st-gull-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-gull {
+    animation: none;
+  }
+}
+
+.st-gull__face {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.st-gull__face.img-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.st-gull__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.st-gull__body p {
+  margin: 0;
+}
+
+.st-gull__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 19px;
+}
+
+.st-gull__fake {
+  padding: 0 8px;
+  border-radius: 6px;
+  border-left: 4px solid var(--stamp-red);
+  background: rgba(192, 98, 63, 0.14);
+  font-size: var(--text-small);
+}
+
+.st-gull__text {
+  font-size: var(--text-body);
+  line-height: 1.35;
+}
+
+.st-gull__pages {
+  color: var(--ink-soft);
+  font-size: var(--text-small);
+}
+
+.st-gull__ok {
+  flex: 0 0 auto;
+  min-height: var(--touch-min);
+}
+
+.st-gull-again {
+  align-self: flex-start;
+  padding: 0 4px;
+  white-space: nowrap;
+}

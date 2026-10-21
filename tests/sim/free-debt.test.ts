@@ -13,7 +13,7 @@ import { isPortClosed, type Action, type PublicPayload } from '../../src/core';
 import type { LessonId } from '../../src/data/types';
 import { seatKey } from '../../src/sync/host-session';
 import { classForPredict } from '../../src/student/predict';
-import { botAction, COMPANY_NAMES, makeSimWorld, rng, type SimStudent } from './sim-world';
+import { botAction, COMPANY_NAMES, finishWhenPlanDone, makeSimWorld, rng, type SimStudent } from './sim-world';
 
 const N = 25;
 const MINUTES = 25;
@@ -56,7 +56,11 @@ async function runFree(scope: LessonId[], seed: number) {
   };
   for (let i = 0; i < 5; i++) await step();
   h.teacher({ type: 'startTrade' });
-  for (let i = 0; i < (MINUTES + 8) * 60 && h.game().class.phase !== 'wrapup'; i++) await step();
+  // (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로]
+  for (let i = 0; i < (MINUTES + 8) * 60 && h.game().class.phase !== 'wrapup'; i++) {
+    await step();
+    finishWhenPlanDone(h);
+  }
   for (let i = 0; i < 5; i++) await w.advance(1000, 250);
   const g = h.game();
   const rows = students.map((s) => {

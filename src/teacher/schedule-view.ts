@@ -203,7 +203,7 @@ export const ROUND_NOW_BLOCK_TEXT: Readonly<Record<RoundNowBlock, string>> = {
   ROUND_IN_PROGRESS: '라운드가 진행 중이에요',
   WORKSHEET_OPEN: '학습지 시간이 끝나면 누를 수 있어요',
   PAUSED: '잠깐 멈춤 중이에요',
-  TIME_IS_UP: '무역 시간이 끝났어요',
+  TIME_IS_UP: '추천 시간이 지났어요', // (작업 162) core 가 더는 막지 않음 — 문구만 남김
   NO_NEXT_ROUND: '남은 라운드가 없어요',
 };
 

@@ -125,7 +125,7 @@ describe('ConceptSlides 렌더', () => {
   const show = (now: number) => act(() => render(<ConceptSlides def={def} short={false} openedAt={O} closesAt={C} now={now} />, dom.root as unknown as Element));
   const slideNo = () => Number(byTest('concept-slides')[0]!.getAttribute('data-slide'));
 
-  it('시간에 따라 data-slide 0 → 1 → … → 마지막(4)에 머묾, 점 표시와 k / n', () => {
+  it('저절로 넘어가지 않는다 — 시간이 아무리 지나도 처음 장(0)에 머묾, 점 표시와 k / n', () => {
     show(O);
     const box = byTest('concept-slides')[0]!;
     expect(box.getAttribute('data-total')).toBe('5');
@@ -134,39 +134,38 @@ describe('ConceptSlides 렌더', () => {
     expect(byTest('slide-pages')[0]!.textContent).toBe('교과서 96쪽');
     expect(byTest('slide-dots')[0]!.textContent).toBe('●○○○○');
     expect(byTest('slide-num')[0]!.textContent).toBe('1 / 5');
-    const seen: number[] = [];
     for (let t = 0; t <= 140_000; t += 20_000) {
       show(O + t);
-      seen.push(slideNo());
+      expect(slideNo()).toBe(0);
     }
-    expect(seen).toEqual([0, 1, 2, 3, 4, 4, 4, 4]);
-    expect(byTest('slide-textbook')[0]!.textContent).toContain('교과서 96쪽');
-    expect(byTest('slide-num')[0]!.textContent).toBe('5 / 5');
   });
 
-  it('본문 장: 머리 띠(개념 · 제목 · 교과서 연결 p.96) + 문장', () => {
-    show(O + 20_000);
+  it('본문 장: 머리 띠(개념 · 제목 · 교과서 연결 p.96) + 문장 — 눌러서 넘긴 뒤', () => {
+    show(O);
+    press('ArrowRight');
     expect(byTest('card-title')[0]!.textContent).toBe('무역·수입·수출');
     expect(byTest('card-pages')[0]!.textContent).toBe('교과서 연결 p.96');
     expect(byTest('slide-body')[0]!.textContent).toContain('무역이에요');
   });
 
-  it('←/→로 한 장 앞/뒤, 다음 저절로 넘김 때 저절로 장으로', () => {
+  it('←/→로 한 장씩 넘기고(시간이 지나도 유지) 처음·마지막 장에서 멈춤', () => {
     show(O + 1_000);
     expect(slideNo()).toBe(0);
+    expect(byTest('slide-prev')).toHaveLength(1); // [◀][▶] 버튼이 있다(눌림 동작은 e2e 화면 시험에서 본다)
+    expect(byTest('slide-next')).toHaveLength(1);
     press('ArrowRight');
     expect(slideNo()).toBe(1);
     press('ArrowRight');
     expect(slideNo()).toBe(2);
     press('ArrowLeft');
     expect(slideNo()).toBe(1);
-    show(O + 5_000); // 같은 저절로 장(0) 동안은 유지
+    show(O + 60_000); // 시간이 지나도 고른 장을 유지
     expect(slideNo()).toBe(1);
-    show(O + 40_000); // 저절로 장이 2로 바뀜
+    press('ArrowRight');
     expect(slideNo()).toBe(2);
-    press('ArrowLeft');
-    press('ArrowLeft');
-    press('ArrowLeft');
+    for (let i = 0; i < 10; i++) press('ArrowRight');
+    expect(slideNo()).toBe(4); // 마지막 장 너머로는 안 감
+    for (let i = 0; i < 10; i++) press('ArrowLeft');
     expect(slideNo()).toBe(0); // 처음 장 아래로는 안 감
   });
 });

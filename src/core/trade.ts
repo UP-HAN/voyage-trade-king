@@ -7,7 +7,9 @@
  *   (짧은 형태면 short), 라운드 → `startRound`, 학습지 → `openWorksheet`). 끝 시각이 지난 차단형 활동·학습지는 닫는다.
  *   10초 안 항목은 `schedule.upcoming` + 교사 알림 'UPCOMING'. 수동 진행이면 발동하지 않고 `schedule.waiting`만 둔다.
  *   무역 시간 25%(또는 첫 구간 끝 중 먼저)에 모든 학생의 도약 기준 자산을 기록한다.
- *   시간 끝: 라운드 중이면 즉시 무역 끝(항해 정산). 차단형 활동 중이면 'TIME_UP' 알림 → 활동이 끝나거나 2분 뒤 무역 끝.
+ *   (작업 162) 무역 시간 T는 '추천 시간'이다: 경과가 T를 넘으면 `schedule.timeUp`을 한 번 기록하고 교사 알림 'OVERTIME'을
+ *   한 번 보낼 뿐, 판은 끝나지 않는다(남은 항목은 늦게라도 차례로 발동). 계획한 항목을 다 해도 끝나지 않는다.
+ *   판을 끝내는 것은 교사의 finishNow([마무리로])뿐이고, 무역 중 endSession([수업 끝내기])도 먼저 무역 끝을 거친다.
  *   무역 끝 → 마무리(`phase:'wrapup'`), 남은 편지 만료, 마무리 항목 목록(`schedule.wrapup`).
  * - 교사 행동: startTrade, pause, resume, extend, shorten, setRoundSec, setItemForm, postpone, skipItem, fireNow,
  *   setProgressMode, finishNow, startRoundNow(작업 134 — 사전 활동 건너뛰고 라운드를 지금, 뒤 항목은 당겨 다시 배치).
@@ -41,8 +43,13 @@ import type { ClassState, HostOutput, HostSnapshot, ItemForm, ScheduleItem, Sche
 
 /** 예고(초 전) */
 export const UPCOMING_SEC = 10;
-/** 차단형 활동 중 시간이 끝났을 때 기다리는 최대 초(기본 '이 활동 끝나고') */
+/**
+ * (옛) 차단형 활동 중 시간이 끝났을 때 기다리던 최대 초. 작업 162에서 시간 끝 자동 결산을 없애 더는 쓰지 않는다
+ * (밖에서 읽는 곳이 있어 상수만 남긴다).
+ */
 export const TIME_UP_GRACE_SEC = 120;
+/** (작업 162) 추천 시간(T)이 지난 뒤 늦게 여는 라운드의 최소 길이(초) */
+export const OVERTIME_ROUND_MIN_SEC = 90;
 /** [1분 미루기] */
 export const POSTPONE_DEFAULT_SEC = 60;
 /** 도약 기준 자산 기록 시점(무역 시간 비율) */
@@ -186,7 +193,9 @@ function fireItem(ctx: Ctx, it: ScheduleItem, e: number, manualNow: boolean): Fi
         return 'fired';
       }
       if (c.phase === 'round' || c.phase === 'event' || c.phase === 'worksheet') return 'wait';
-      const durationSec = manualNow ? it.durSec : Math.max(30, Math.round(it.at + it.durSec - e));
+      // (작업 162) 추천 시간이 지난 뒤 늦게 여는 라운드는 최소 90초(그 전 동작은 그대로)
+      const minSec = e >= c.clock.durationSec ? OVERTIME_ROUND_MIN_SEC : 30;
+      const durationSec = manualNow ? it.durSec : Math.max(minSec, Math.round(it.at + it.durSec - e));
       const err = act(ctx, { type: 'startRound', durationSec });
       if (err) return 'wait';
       mark(ctx, it.id, 'live', manualNow ? { at: startAt, durSec: durationSec } : {});
@@ -320,17 +329,16 @@ function finishTrade(ctx: Ctx): void {
   notice(ctx, 'TRADE_ENDED');
 }
 
-function handleTimeUp(ctx: Ctx): void {
+/**
+ * (작업 162) 추천 시간(T)이 지났다: 처음 넘은 틱에 `schedule.timeUp`을 기록하고 교사에게 'OVERTIME'을 한 번 알린다.
+ * 판은 끝내지 않는다(옛 handleTimeUp의 자동 결산·2분 유예는 없앰). [+n분]으로 T가 다시 남으면 extend가 timeUp을 지우므로
+ * 다시 넘을 때 한 번 더 알린다.
+ */
+function markOvertime(ctx: Ctx, e: number): void {
   const c = cls(ctx);
-  const busy = c.phase === 'event' || c.phase === 'worksheet' || resultHold(ctx);
-  if (!busy) return finishTrade(ctx);
-  const tu = c.schedule.timeUp ?? null;
-  if (!tu) {
-    setSchedule(ctx, { ...c.schedule, timeUp: { at: ctx.now } });
-    notice(ctx, 'TIME_UP', '무역 시간이 끝났어요 — [지금 결산] [이 활동 끝나고(최대 2분)]');
-    return;
-  }
-  if (ctx.now - tu.at >= TIME_UP_GRACE_SEC * 1000) finishTrade(ctx);
+  if (e < c.clock.durationSec || c.schedule.timeUp) return;
+  setSchedule(ctx, { ...c.schedule, timeUp: { at: ctx.now } });
+  notice(ctx, 'OVERTIME');
 }
 
 /** 틱 처리 본체 */
@@ -348,32 +356,17 @@ function advance(ctx: Ctx): void {
   if (cls(ctx).paused) return;
   const e = elapsed(ctx);
   const auto = cls(ctx).schedule.mode === 'auto';
-  if (auto && !cls(ctx).schedule.timeUp) closeExpired(ctx, e);
-  if (e >= cls(ctx).clock.durationSec) {
-    handleTimeUp(ctx);
-    return;
-  }
+  // (작업 162) T 뒤에도 끝 시각이 지난 활동·학습지는 제때 닫는다
+  if (auto) closeExpired(ctx, e);
+  markOvertime(ctx, e);
   maybeRecordBase(ctx, e);
-  // 마감한 차단형 사건의 결과를 보여 주는 동안에는 다음 항목을 발동하지 않고, 계획이 끝났다고 보지 않는다(작업 111)
+  // 마감한 차단형 사건의 결과를 보여 주는 동안에는 다음 항목을 발동하지 않는다(작업 111)
   const hold = resultHold(ctx);
   if (auto && !hold) fireDue(ctx, e);
   syncStatuses(ctx);
-  if (auto && !hold && planFinished(ctx, e)) {
-    // 일찍 끝낸 라운드로 마지막 구간 계획이 무역 시간보다 먼저 끝났다 → 결산으로(PRD 4.3.7, 2회차 결정)
-    notice(ctx, 'PLAN_DONE');
-    finishTrade(ctx);
-    return;
-  }
+  // (작업 162) 계획한 항목을 모두 마쳐도 판을 끝내지 않는다(옛 'PLAN_DONE' → 자동 결산 없앰).
+  // 자유 항해 판은 라운드 사이에도 사고팔기·항해가 되고, 라운드마다 판은 거래가 멈춘 채 교사의 [마무리로]를 기다린다.
   updateUpcoming(ctx, e);
-}
-
-/** 남은 계획 항목이 없고(빠진 활동 제외) 진행 중인 것도 없다 */
-function planFinished(ctx: Ctx, _e: number): boolean {
-  const c = cls(ctx);
-  if (c.phase !== 'between') return false;
-  // 끝난(done·skipped) 항목의 계획 길이는 보지 않는다 — 남은(pending·live) 계획 항목이 없으면 끝
-  const items = c.schedule.items.filter((it) => it.form !== 'dropped' && it.kind !== 'letter');
-  return items.length > 0 && !items.some((it) => it.status === 'pending' || it.status === 'live');
 }
 
 // ─── 다시 배치 ────────────────────────────────────────────
@@ -478,12 +471,16 @@ function teacherAction(ctx: Ctx, action: TeacherAction): boolean {
       }
       const ck = action.type === 'extend' ? clock.extend(c.clock, s) : clock.shorten(c.clock, s, ctx.now);
       if (!ck) return fail('CANNOT_SHORTEN');
+      const over = clock.isTimeUp(ck, ctx.now);
       setClass(ctx, {
         ...c,
         clock: ck,
         settings: { ...c.settings, tradeMinutes: ck.durationSec / 60 },
-        schedule: { ...c.schedule, timeUp: clock.isTimeUp(ck, ctx.now) ? (c.schedule.timeUp ?? null) : null },
+        schedule: { ...c.schedule, timeUp: over ? (c.schedule.timeUp ?? null) : null },
       });
+      // (작업 162) 늘려도 아직 추천 시간이 지난 상태면 다시 배치하지 않는다 — 나눌 시간이 0이라 남은 항목이 빠지기만 한다.
+      // 남은 항목은 지금처럼 늦게라도 차례로 발동한다
+      if (over && started(c) && clock.isTimeUp(c.clock, ctx.now)) return true;
       const err = replan(ctx, { type: 'time' });
       if (err) return fail(err);
       return true;
@@ -574,6 +571,14 @@ function teacherAction(ctx: Ctx, action: TeacherAction): boolean {
     }
     case 'startRoundNow':
       return startRoundNow(ctx, action, fail);
+    case 'endSession': {
+      // (작업 162) 무역 중에 [수업 끝내기]를 바로 눌러도 먼저 무역 끝(운항비 정산·남은 편지 만료·마무리 목록)을 거친다
+      if (!started(c) || c.tradeEnded || c.phase === 'ended') return false;
+      finishTrade(ctx);
+      const err = act(ctx, { type: 'endSession' });
+      if (err) return fail(err);
+      return true;
+    }
     default:
       return false;
   }
@@ -662,7 +667,7 @@ export function roundNowPlan(c: RoundNowClass, now: number): RoundNowPlan {
   const base: RoundNowPlan = { ...empty, round, waitSec: round ? round.at - e : 0 };
   if (!round) return { ...base, block: 'NO_NEXT_ROUND' };
   if (c.paused) return { ...base, block: 'PAUSED' };
-  if (c.schedule.timeUp) return { ...base, block: 'TIME_IS_UP' };
+  // (작업 162) 추천 시간이 지나도 남은 라운드는 [라운드 지금 시작]으로 열 수 있다('TIME_IS_UP'은 타입에만 남김)
   // 학습지 팝업은 쓰는 시간을 지킨다(PRD 7.7) — 선생님이 학습지 시간을 끝낸 뒤에
   if (c.phase === 'worksheet' || c.worksheet.current) return { ...base, block: 'WORKSHEET_OPEN' };
   const pre = items.filter((it, i) => {

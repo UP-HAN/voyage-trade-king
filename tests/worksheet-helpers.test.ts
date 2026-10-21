@@ -18,6 +18,7 @@ import {
 import { worksheet, worksheetById } from '../src/data/worksheet';
 import { helperDefs, NEW_HELPER_KEYS } from '../src/data/worksheetHelpers';
 import type { HelperKey, LessonId, WorksheetId } from '../src/data/types';
+import { planDone } from './core/helpers';
 
 const ALL_KEYS = Object.keys(helperDefs) as HelperKey[];
 
@@ -208,7 +209,10 @@ describe('이번 판 학습지 번호(배치표 기준) — 차시 한 판이면
 describe('판을 돌렸을 때 뜨는 팝업', () => {
   it('차시 한 판 L2 25분: 팝업은 ⑤~⑧만 뜬다', () => {
     const g = newPlay({ playUnit: 'lesson', scope: ['L2'], minutes: 25 });
-    g.tick(25 * 60 + 200);
+    // (작업 162) 판은 저절로 끝나지 않는다 — 순서가 다 끝나면 교사가 [마무리로]
+    g.tick(25 * 60 + 200, () => {
+      if (planDone(g.snap.class)) g.teacher({ type: 'finishNow' });
+    });
     const flat = g.seen.flat();
     expect(flat.length).toBeGreaterThan(0);
     for (const id of flat) expect(['W05', 'W06', 'W07', 'W08']).toContain(id);

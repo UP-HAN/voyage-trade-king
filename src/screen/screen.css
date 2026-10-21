@@ -394,3 +394,5 @@
 .scr-slides__dots { letter-spacing: 0.3em; color: var(--sea-deep); }
 .scr-slides__num { font-variant-numeric: tabular-nums; }
 .scr-slides__foot .scr-event__count { margin-left: auto; }
+.scr-slides__nav { font: inherit; font-size: var(--scr-small); min-width: calc(var(--u) * 3.2); min-height: calc(var(--u) * 3.2); padding: 0 calc(var(--u) * 0.8); border-radius: 999px; border: 2px solid var(--brass); background: transparent; color: var(--ink); cursor: pointer; }
+.scr-slides__nav:disabled { opacity: 0.3; cursor: default; }

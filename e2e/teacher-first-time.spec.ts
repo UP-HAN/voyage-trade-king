@@ -10,20 +10,31 @@ import { openFold, openTvMenu, pickWorksheetMode } from './support/voyage-ui';
  * (가) 카드만으로 끝까지: 시작 화면 → [새 판 열기] → 차시 한 판 → 1차시 → 10분 → [방 열기] → 학생 3명 입장·회사 설립 →
  *      '지금 할 일' 카드의 큰 버튼과 [잠깐 멈춤]/[이어서 하기] 1번만(접힘 영역·위쪽 띠·오늘 순서는 한 번도 누르지 않음) →
  *      마무리 → 수업 끝내기(확인 2번) → ended → [처음으로]. 단계마다 큰 버튼이 정확히 1개.
- * (나) 기다리기만: [무역 시작] 뒤 아무것도 누르지 않아도 활동 → 라운드 1 → … → 무역 시간 끝 → 마무리 첫 항목 자동 시작. 그 뒤 [다음으로]·수업 끝내기.
+ * (나) 기다리기만: [무역 시작] 뒤 아무것도 누르지 않아도 활동 → 라운드 1 → … → '오늘 순서를 다 했어요'(작업 162: 판은 저절로 끝나지 않음 —
+ *      추천 시간이 지나도 그대로) → [마무리로] 한 번 → 마무리 첫 항목 자동 시작. 그 뒤 [다음으로]·수업 끝내기.
  * (다) 수동 진행: [설정] → [고급] → '선생님이 하나씩 넘기기' 뒤 카드 [다음으로]만으로 라운드 1이 열리고 끝까지.
- * (라) 스크린숏 보충: 무역 시간 끝(활동 중), 접힘 영역 모두 펼침, 1280×720 라운드 화면.
+ * (라) 스크린숏 보충: 추천 시간이 지남(활동 중 — 작업 162: 옛 '무역 시간 끝' 카드 대신 지금 카드 + 늦음 줄), 접힘 영역 모두 펼침, 1280×720 라운드 화면.
  * 용어 검사: 단계마다 교사 화면 보이는 글자에 옛 말(1등급·배치 n판·발동·빠진 활동·입장 마감·출항 준비·일시정지·발표 모드·마감)이 없다.
  * 실행: tests/e2e-preview.playwright.config.ts(FIRSTTIME_E2E=1). 스크린숏은 .orch/tasks/137-teacher-ux-now-card/shots/(SHOT_DIR 있으면 그쪽).
  */
 const RUN = process.env.FIRSTTIME_E2E === '1';
 const SHOTS = process.env.SHOT_DIR ?? join(process.cwd(), '.orch', 'tasks', '137-teacher-ux-now-card', 'shots');
+/** (작업 162) 추천 시간 스크린숏 */
+const SHOTS162 = process.env.SHOT_DIR_162 ?? join(process.cwd(), '.orch', 'tasks', '162-no-time-end', 'shots');
 
-async function shot(page: Page, name: string) {
-  mkdirSync(SHOTS, { recursive: true });
+async function shot(page: Page, name: string, dir = SHOTS) {
+  mkdirSync(dir, { recursive: true });
   await page.evaluate(() => document.fonts.ready).catch(() => undefined);
   await page.waitForTimeout(350);
-  await page.screenshot({ path: join(SHOTS, name) });
+  await page.screenshot({ path: join(dir, name) });
+}
+
+/** (작업 162) 학생 화면에 시간 숫자·'시간 끝/곧 끝나요' 말이 없다(학습지 [다 썼어요] 버튼의 "(n초 뒤에 켜져요)"는 뺀다) */
+async function noTimeText(p: Page, where: string) {
+  const text = await p.evaluate(() => document.body.innerText);
+  const clean = text.replace(/\(\d+초 뒤에 켜져요\)/g, '');
+  expect(clean, `${where}: m:ss`).not.toMatch(/\b\d{1,2}:\d{2}\b/);
+  expect(clean, `${where}: 시간 끝 말`).not.toMatch(/무역 시간이 끝|곧 끝|시간이 다 됐|남은 시간|추천 시간/);
 }
 
 /** 교사 화면에 보이는 글자에 옛 말이 없다(설정 [고급] 맨 아래 작은 글씨 "배치 n판"은 뺀다) */
@@ -239,7 +250,7 @@ test('(가) 카드만으로 끝까지 — 큰 버튼과 [잠깐 멈춤]/[이어�
   await ctx.close();
 });
 
-test('(나) 기다리기만 — 활동 → 라운드 1 → … → 무역 시간 끝 → 마무리 첫 항목 자동 시작, 그 뒤 [다음으로]·수업 끝내기', async ({ browser, baseURL }) => {
+test('(나) 기다리기만 — 활동 → 라운드 1 → … → 오늘 순서를 다 함(추천 시간이 지나도 그대로) → [마무리로] → 마무리 첫 항목 자동 시작, 그 뒤 [다음으로]·수업 끝내기', async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
   test.setTimeout(600_000);
   const { ctx, t, code } = await setup(browser, baseURL);
@@ -251,9 +262,32 @@ test('(나) 기다리기만 — 활동 → 라운드 1 → … → 무역 시간
   expect(r0.confirms).toEqual(['confirm-start']);
   // 이제 아무것도 누르지 않는다 — 카드 상태와 줄을 기록
   const trail: string[] = [];
-  for (let sec = 0; sec < 640; sec++) {
+  let finished = false;
+  for (let sec = 0; sec < 700; sec++) {
     const st = (await stateOf(t)) ?? '';
     const line = (await t.locator('.t-now__line').innerText().catch(() => '')).trim();
+    // (작업 162) 순서를 다 해도 저절로 마무리로 가지 않는다 — 추천 시간(10분)을 넘긴 뒤에도 그대로인지 보고 [마무리로]
+    if (!finished && st === 'waiting' && line === '오늘 순서를 다 했어요' && sec >= 630) {
+      const clock = t.getByTestId('trade-clock');
+      await expect(clock).toHaveAttribute('data-over', '1');
+      await expect(clock).toContainText(/추천 시간 \+\d+:\d{2} 지남/);
+      await expect(t.getByTestId('now-late')).toHaveText(/^추천 시간이 지났어요/);
+      await expect(t.getByTestId('now-plan-done-hint')).toHaveText('학생들은 계속 자유롭게 항해해요 · 끝낼 때 [마무리로]를 누르세요');
+      await oneBigButton(t, '오늘 순서를 다 함');
+      await checkTerms(t, '오늘 순서를 다 함');
+      await shot(t, '162-plan-done-teacher.png', SHOTS162);
+      // 학생 화면(자유 항해 — 라운드 사이에도 사고팔기): 시간 숫자·'끝나요' 말 없음
+      await s1.bringToFront();
+      await noTimeText(s1, '학생(추천 시간 뒤)');
+      await shot(s1, '162-overtime-student.png', SHOTS162);
+      await t.bringToFront();
+      const r = await pressBig(t); // [마무리로] — 남은 순서가 없어 확인 없이
+      expect(r.kind).toBe('finishEarly');
+      expect(r.confirms).toEqual([]);
+      finished = true;
+      await run(ctx, t, 1);
+      continue;
+    }
     // (수정 1회차) 라운드 중 결정·결과는 라운드 카드의 보조 정보 — 줄 뒤에 표시를 붙여 기록
     const extra = st !== 'round' ? '' : (await t.getByTestId('tl-result').count()) ? '+result' : (await t.getByTestId('tl-resp-count').count()) ? '+decision' : '';
     if (extra === '+result' && !trail.some((x) => x.endsWith('+result'))) await shot(t, '137-04-result.png');
@@ -261,14 +295,14 @@ test('(나) 기다리기만 — 활동 → 라운드 1 → … → 무역 시간
     if (trail[trail.length - 1] !== key) trail.push(key);
     if (st === 'wrapup') break;
     // 자동 진행 문구: 활동 중에는 "n초 뒤 저절로 다음"
-    if ((st === 'respond' || st === 'card') && sec % 30 === 5) await expect(t.locator('.t-now__sub')).toContainText(/뒤 저절로 다음|저절로/);
+    if ((st === 'respond' || st === 'card') && sec % 30 === 5) await expect(t.locator('.t-now__sub')).toContainText(/뒤 저절로 다음|저절로|\[마무리로\]/);
     await run(ctx, t, 1);
   }
   const states = trail.map((x) => x.split('|')[0]);
   // (작업 151) 1차시 차시 판 기본 = 자유 항해: 라운드 줄은 '자유롭게 항해하며 사고파는 중'
   const lines = trail.map((x) => x.split('|')[1]);
   // (작업 153, v0.3.8) 차례: 표지 → 무역·수입·수출 → 라운드 1 → 무역이 없다면? → 라운드 2(흑연 결정) → 결과 → 학습지 ①②③④(차시 끝 묶음) → 마무리
-  const order = ['1차시 표지를 TV에 보여 주는 중', '무역·수입·수출을 TV에 보여 주는 중', '라운드 1 · 학생들이 자유롭게 항해하며 사고파는 중', '무역이 없다면?를 TV에 보여 주는 중', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+decision', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+result', '학습지 ①②③④ 쓰는 시간', '결산·시상 하는 중'];
+  const order = ['1차시 표지를 TV에 보여 주는 중', '무역·수입·수출을 TV에 보여 주는 중', '라운드 1 · 학생들이 자유롭게 항해하며 사고파는 중', '무역이 없다면?를 TV에 보여 주는 중', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+decision', '라운드 2 · 학생들이 자유롭게 항해하며 사고파는 중+result', '학습지 ①②③④ 쓰는 시간', '오늘 순서를 다 했어요', '결산·시상 하는 중'];
   let at = -1;
   for (const want of order) {
     const i = lines.findIndex((l, k) => k > at && l === want);
@@ -276,6 +310,7 @@ test('(나) 기다리기만 — 활동 → 라운드 1 → … → 무역 시간
     at = i;
   }
   expect(states[states.length - 1]).toBe('wrapup');
+  expect(finished, `[마무리로]를 누름 — ${trail.join(' / ')}`).toBe(true);
   // 마무리 첫 항목(결산·시상)이 저절로 시작 — 학생 화면도 결산
   await expect(t.locator('[data-testid="wrap-item"][data-id="awards"]')).toHaveAttribute('data-status', 'live');
   await expect(s1.getByTestId('wrap-awards')).toBeVisible({ timeout: 15_000 });
@@ -351,7 +386,7 @@ test('(다) 수동 진행 — [설정]→[고급]→선생님이 하나씩 넘�
   await ctx.close();
 });
 
-test('(라) 스크린숏 보충 — 무역 시간 끝(활동 중), 접힘 영역 모두 펼침, 1280×720 라운드 화면 + 큰 버튼 두 번 클릭', async ({ browser, baseURL }) => {
+test('(라) 스크린숏 보충 — 추천 시간이 지남(활동 중), 접힘 영역 모두 펼침, 1280×720 라운드 화면 + 큰 버튼 두 번 클릭', async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
   test.setTimeout(400_000);
   // (작업 153) 벽란도 시장(응답 받는 활동)·라운드 1(3:50)이 있는 옛 배치로 — 10분 '알아서'는 v0.3.8에서 벽란도가 빠진다
@@ -368,7 +403,7 @@ test('(라) 스크린숏 보충 — 무역 시간 끝(활동 중), 접힘 영역
   await expect(t.locator('.t-now__line')).toHaveText(/^다음: 무역·수입·수출 · /);
   await run(ctx, t, 2);
   await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'waiting');
-  // 무역 시간 끝(활동 중): '시간 조절'에서 줄여 활동 중에 시간이 끝나게
+  // 추천 시간이 지남(활동 중): '시간 조절'에서 줄여 활동 중에 추천 시간이 지나게
   await t.getByTestId('now-primary').locator('button').click(); // [지금 시작] 무역·수입·수출(카드)
   await run(ctx, t, 1);
   await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'card');
@@ -378,13 +413,30 @@ test('(라) 스크린숏 보충 — 무역 시간 끝(활동 중), 접힘 영역
   await t.getByTestId('btn-custom-shorten').click();
   await confirmIfAsked(t);
   await expect.poll(async () => Number(await t.getByTestId('trade-clock').getAttribute('data-sec'))).toBeLessThan(80);
-  for (let i = 0; i < 90 && (await stateOf(t)) !== 'timeUp'; i++) await run(ctx, t, 1);
-  await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'timeUp');
-  await expect(t.getByTestId('btn-finish-now')).toBeVisible();
-  await expect(t.getByTestId('btn-after-activity')).toBeVisible();
-  await oneBigButton(t, '무역 시간 끝');
-  await checkTerms(t, '무역 시간 끝');
-  await shot(t, '137-08-time-up.png');
+  // (작업 162) 옛 기대: 'timeUp' 카드([지금 마무리로]·[이 활동 끝나고]). 새 규칙: 판은 계속 — 카드는 지금 활동 그대로, 시계·늦음 줄만 '지남'
+  const clock = t.getByTestId('trade-clock');
+  for (let i = 0; i < 90 && (await clock.getAttribute('data-over')) !== '1'; i++) await run(ctx, t, 1);
+  // 처음 넘은 순간 한 번 알림(토스트 6초)
+  await expect(t.getByTestId('toasts')).toContainText('추천 시간이 지났어요. 판은 계속돼요');
+  await run(ctx, t, 65); // 1분 넘게 더
+  await expect(clock).toHaveAttribute('data-over', '1');
+  await expect(clock).toContainText(/추천 시간 \+1:\d{2} 지남/);
+  await expect(t.getByTestId('now-late')).toHaveText('추천 시간이 지났어요 · 1분 더 하는 중');
+  expect(await stateOf(t)).not.toBe('timeUp');
+  expect(await stateOf(t)).not.toBe('wrapup');
+  await expect(t.getByTestId('btn-after-activity')).toHaveCount(0);
+  await expect(t.getByTestId('time-left')).toHaveAttribute('data-over', '1');
+  await expect(t.getByTestId('time-fold-hint')).toHaveText('추천 시간이 지나도 판은 계속돼요. 끝낼 때 [마무리로]');
+  await oneBigButton(t, '추천 시간 지남');
+  await checkTerms(t, '추천 시간 지남');
+  await shot(t, '162-overtime-teacher.png', SHOTS162);
+  // [지금 마무리로](시간 조절): 남은 순서(지금 하는 것 포함)가 있으면 확인 1번, 없으면 바로 → 마무리
+  // (줄인 시간에 맞춰 남은 항목이 다시 배치돼 빠졌을 수 있다 — 그때는 확인 없이)
+  await t.getByTestId('btn-finish-early').click();
+  await t.waitForTimeout(300);
+  await confirmIfAsked(t);
+  await run(ctx, t, 1);
+  await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'wrapup');
   await ctx.close();
 
   // 접힘 영역 모두 펼침(라운드 중) + 1280×720 라운드

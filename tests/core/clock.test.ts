@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import * as clock from '../../src/core/clock';
 import { hostReduce } from '../../src/core/host';
 import { normalizeSnapshot, seatKey } from '../../src/core/state';
-import { createTradeHooks, lateness, TIME_UP_GRACE_SEC, tradeRemaining } from '../../src/core/trade';
+import { createTradeHooks, lateness, OVERTIME_ROUND_MIN_SEC, TIME_UP_GRACE_SEC, tradeRemaining } from '../../src/core/trade';
 import type { HostInput, HostOutput, HostSnapshot, ScheduleItem, TeacherAction } from '../../src/core/types';
 import type { LessonId } from '../../src/data/types';
-import { makeSession } from './helpers';
+import { makeSession, planDone } from './helpers';
 
 const hooks = createTradeHooks();
 const ALL: LessonId[] = ['L1', 'L2', 'L3', 'L4'];
@@ -18,14 +18,22 @@ function run(snap: HostSnapshot, input: HostInput, now: number) {
 function teach(snap: HostSnapshot, action: TeacherAction, now: number) {
   return run(snap, { type: 'teacher', action }, now);
 }
-/** from~to(ms) 1초 틱 */
-function tickRange(snap: HostSnapshot, from: number, to: number, onTick?: (s: HostSnapshot, now: number, out: HostOutput[]) => void) {
+/**
+ * from~to(ms) 1초 틱. finish = (작업 162) 계획한 순서가 다 끝나면 교사가 [마무리로](finishNow)를 누른다 —
+ * 판은 더 이상 저절로 끝나지 않는다.
+ */
+function tickRange(snap: HostSnapshot, from: number, to: number, onTick?: (s: HostSnapshot, now: number, out: HostOutput[]) => void, finish = false) {
   let s = snap;
   const outs: HostOutput[] = [];
   for (let t = from; t <= to; t += 1000) {
     const r = run(s, { type: 'tick' }, t);
     s = r.snapshot;
     outs.push(...r.outputs);
+    if (finish && planDone(s.class)) {
+      const f = teach(s, { type: 'finishNow' }, t);
+      s = f.snapshot;
+      outs.push(...f.outputs);
+    }
     onTick?.(s, t, r.outputs);
   }
   return { snap: s, outs };
@@ -64,7 +72,7 @@ describe('clock.ts(순수)', () => {
 });
 
 describe('무역 시작과 자동 진행(통합: hostReduce 에 틱)', () => {
-  it('단원 판 25분: 배치표 시각에 맞춰 표지·사건·라운드·편지가 발동하고 끝나면 마무리', () => {
+  it('단원 판 25분: 배치표 시각에 맞춰 표지·사건·라운드·편지가 발동하고, 순서가 끝나 교사가 [마무리로]를 누르면 마무리', () => {
     const r0 = started({ scope: ALL, playUnit: 'unit', n: 5 });
     let snap = r0.snapshot;
     const plan = snap.class.schedule.items.map((it) => ({ ...it }));
@@ -75,7 +83,7 @@ describe('무역 시작과 자동 진행(통합: hostReduce 에 틱)', () => {
     const roundStarts: Record<number, number> = {};
     const res = tickRange(snap, T0 + 1000, T0 + 25 * 60_000 + 3000, (s, t) => {
       if (s.class.phase === 'round' && roundStarts[s.class.round] === undefined) roundStarts[s.class.round] = t;
-    });
+    }, true);
     snap = res.snap;
     const cs = snap.class;
     // 라운드: 계획한 수만큼, 계획 시각에(1초 틱 오차)
@@ -112,7 +120,7 @@ describe('무역 시작과 자동 진행(통합: hostReduce 에 틱)', () => {
       const cur = s.class.worksheet.current?.join(',');
       if (s.class.phase === 'worksheet' && cur && seen[seen.length - 1] !== cur) seen.push(cur);
       if (s.class.worksheet.during) during++;
-    }).snap;
+    }, true).snap;
     expect(seen).toEqual(['W01', 'W02', 'W03', 'W04']);
     expect(during).toBe(0);
     for (const w of ws) expect(item(snap, w.id).status).toBe('done');
@@ -156,53 +164,88 @@ describe('일시정지·hostGap', () => {
   });
 });
 
-describe('시간 끝', () => {
-  it('라운드 중이면 즉시 라운드 끝(항해 정산) → 마무리, 편지 만료', () => {
+describe('추천 시간(작업 162 — 시간이 지나도 판이 저절로 끝나지 않음)', () => {
+  it('라운드 중 T가 지나면: 알림 OVERTIME 1번, 라운드는 제 타이머대로, 무역은 계속 → [마무리로]로만 마무리', () => {
     let snap = started({ n: 3 }).snapshot;
     const r1 = item(snap, 'r:1');
     const e = r1.at + 30;
     snap = tickRange(snap, T0 + 1000, T0 + e * 1000).snap;
     expect(snap.class.phase).toBe('round');
+    const roundEndsAt = snap.class.roundEndsAt;
     snap = teach(snap, { type: 'shorten', sec: 1500 - (e + 5) }, T0 + e * 1000).snapshot;
     expect(snap.class.clock.durationSec).toBe(e + 5);
-    snap = tickRange(snap, T0 + (e + 1) * 1000, T0 + (e + 6) * 1000).snap;
+    const r = tickRange(snap, T0 + (e + 1) * 1000, T0 + (e + 60) * 1000);
+    snap = r.snap;
+    // 옛 동작: 즉시 무역 끝 → 마무리. 새 동작: 알림만, 라운드는 그대로
+    expect(snap.class.tradeEnded).toBe(false);
+    expect(snap.class.phase).toBe('round');
+    expect(snap.class.roundEndsAt).toBe(roundEndsAt);
+    expect(notices(r.outs, 'OVERTIME')).toHaveLength(1);
+    expect(notices(r.outs, 'TRADE_ENDED')).toHaveLength(0);
+    expect(snap.class.schedule.timeUp).toBeTruthy();
+    const f = teach(snap, { type: 'finishNow' }, T0 + (e + 61) * 1000);
+    snap = f.snapshot;
     expect(snap.class.tradeEnded).toBe(true);
     expect(snap.class.phase).toBe('wrapup');
+    expect(notices(f.outputs, 'TRADE_ENDED')).toHaveLength(1);
     for (const p of Object.values(snap.players)) expect(p.game.resolvedRound).toBe(snap.class.round);
   });
 
-  it('차단형 활동 중이면 TIME_UP 알림 → 2분 뒤(또는 활동이 끝나면) 마무리', () => {
+  it('차단형 활동 중 T가 지나도: 2분 유예 뒤에도 끝나지 않고 활동이 그대로, 활동을 닫아도 끝나지 않음', () => {
     let snap = started({ manual: true }).snapshot;
     expect(snap.class.schedule.mode).toBe('manual');
     snap = teach(snap, { type: 'fireNow', id: 'cover:L1' }, T0 + 1000).snapshot;
     snap = teach(snap, { type: 'fireNow', id: 'ev:L1-E2' }, T0 + 2000).snapshot;
     expect(snap.class.phase).toBe('event');
     snap = teach(snap, { type: 'shorten', sec: 1500 - 5 }, T0 + 2000).snapshot;
-    const r = tickRange(snap, T0 + 3000, T0 + 8000);
+    const r = tickRange(snap, T0 + 3000, T0 + (TIME_UP_GRACE_SEC + 30) * 1000);
     snap = r.snap;
-    expect(notices(r.outs, 'TIME_UP')).toHaveLength(1);
+    expect(notices(r.outs, 'OVERTIME')).toHaveLength(1);
+    expect(notices(r.outs, 'TIME_UP')).toHaveLength(0);
     expect(snap.class.tradeEnded).toBe(false);
     expect(snap.class.phase).toBe('event');
-    const at = snap.class.schedule.timeUp!.at;
-    snap = tickRange(snap, T0 + 9000, at + (TIME_UP_GRACE_SEC - 1) * 1000).snap;
-    expect(snap.class.tradeEnded).toBe(false);
-    snap = tickRange(snap, at + TIME_UP_GRACE_SEC * 1000, at + (TIME_UP_GRACE_SEC + 1) * 1000).snap;
-    expect(snap.class.tradeEnded).toBe(true);
-    expect(snap.class.phase).toBe('wrapup');
 
-    // 활동이 먼저 끝나면 바로 마무리
+    // 활동을 닫아도 마무리로 가지 않는다(옛 동작: 바로 마무리)
     let s2 = started({ manual: true }).snapshot;
     s2 = teach(s2, { type: 'fireNow', id: 'cover:L1' }, T0 + 1000).snapshot;
     s2 = teach(s2, { type: 'shorten', sec: 1500 - 3 }, T0 + 1000).snapshot;
     s2 = tickRange(s2, T0 + 2000, T0 + 5000).snap;
     expect(s2.class.schedule.timeUp).toBeTruthy();
     s2 = teach(s2, { type: 'closeEvent' }, T0 + 6000).snapshot;
-    s2 = run(s2, { type: 'tick' }, T0 + 7000).snapshot;
-    expect(s2.class.tradeEnded).toBe(true);
-    // [지금 결산]
+    s2 = tickRange(s2, T0 + 7000, T0 + 200_000).snap;
+    expect(s2.class.tradeEnded).toBe(false);
+    expect(s2.class.phase).toBe('between');
+    // [마무리로]
     let s3 = started({ manual: true }).snapshot;
     s3 = teach(s3, { type: 'finishNow' }, T0 + 1000).snapshot;
     expect(s3.class.phase).toBe('wrapup');
+  });
+
+  it('T 뒤에도 밀린 항목이 차례로 발동하고, 늦게 여는 라운드는 최소 90초', () => {
+    // 선생님이 하나씩 넘기기로 두고 아무것도 열지 않은 채 T(25분)를 넘긴 뒤 자동 진행으로 돌린다 → 모든 항목이 T 뒤에 늦게 발동
+    let snap = started({ n: 2, manual: true }).snapshot;
+    const plan = snap.class.schedule.items.map((it) => ({ ...it }));
+    const over = tickRange(snap, T0 + 1000, T0 + 1510 * 1000);
+    snap = over.snap;
+    expect(notices(over.outs, 'OVERTIME')).toHaveLength(1);
+    expect(snap.class.firedEvents).toHaveLength(0);
+    snap = teach(snap, { type: 'setProgressMode', mode: 'auto' }, T0 + 1510 * 1000).snapshot;
+    const lens: number[] = [];
+    let prevRound = 0;
+    const r = tickRange(snap, T0 + 1511 * 1000, T0 + 4000 * 1000, (s, t) => {
+      if (s.class.phase === 'round' && s.class.round !== prevRound && s.class.roundEndsAt !== null) {
+        prevRound = s.class.round;
+        lens.push(Math.round((s.class.roundEndsAt - t) / 1000));
+      }
+    }, true);
+    snap = r.snap;
+    // 계획한 라운드가 모두 열렸고 모두 90초 이상
+    expect(lens).toHaveLength(plan.filter((it) => it.kind === 'round').length);
+    for (const l of lens) expect(l).toBeGreaterThanOrEqual(OVERTIME_ROUND_MIN_SEC - 1);
+    // 빠지지 않은 사건·학습지가 모두 발동(T 뒤에도 fireDue 가 돈다) → 순서가 끝나 [마무리로]
+    for (const it of plan.filter((x) => x.kind === 'event' && x.form !== 'dropped')) expect(snap.class.firedEvents, it.refId).toContain(it.refId);
+    expect(notices(r.outs, 'OVERTIME')).toHaveLength(0); // 한 번만
+    expect(snap.class.phase).toBe('wrapup');
   });
 });
 

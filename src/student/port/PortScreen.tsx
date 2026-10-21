@@ -205,6 +205,17 @@ function SellCardView({
               </p>
               <div class="pt-card__act">
                 <Stepper value={rq} max={c.resell.max} disabled={!trading} onChange={setResellQty} testId={`resell-${c.good}`} unit="상자" />
+                {/* (작업 161b) 한 번에 가진 상자 전부로 맞추기 — 처음 수량은 그대로 1 */}
+                <button
+                  type="button"
+                  class="pt-all-btn"
+                  aria-label={`가진 ${c.resell.max}상자 모두`}
+                  disabled={!trading || rq >= c.resell.max}
+                  data-testid={`resell-${c.good}-all`}
+                  onClick={() => setResellQty(c.resell!.max)}
+                >
+                  모두
+                </button>
                 <button type="button" class="btn btn--secondary pt-card__btn" disabled={!trading} data-testid={`resell-${c.good}`} onClick={onResell}>
                   되팔기
                 </button>

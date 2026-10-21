@@ -10,7 +10,7 @@ import { tradeWorksheets } from '../../src/core/schedule';
 import { createTradeHooks, firstRoundPreview, nextRoundWait, roundNowPlan } from '../../src/core/trade';
 import type { HostSnapshot, PlayUnit, ScheduleItem } from '../../src/core/types';
 import type { LessonId } from '../../src/data/types';
-import { makeSession } from './helpers';
+import { makeSession, planDone } from './helpers';
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -40,9 +40,15 @@ function start(c: Cfg, n = 2): HostSnapshot {
 const tick = (s: HostSnapshot, e: number) => hostReduce(s, { type: 'tick' }, T0 + e * 1000, hooks).snapshot;
 const end = (items: readonly ScheduleItem[]) => Math.max(...items.filter((it) => it.form !== 'dropped').map((it) => it.at + it.durSec));
 
-/** 끝나기까지 틱을 돌린다(무역이 끝나면 멈춤) */
+/**
+ * 끝나기까지 틱을 돌린다(무역이 끝나면 멈춤). (작업 162) 판은 저절로 끝나지 않으므로 계획한 순서가 다 끝나면
+ * 교사가 [마무리로](finishNow)를 누른다 — 순서가 끝나지 않으면(막힘) 결산되지 않은 채로 돌려준다.
+ */
 function runToEnd(s: HostSnapshot, fromE: number, T: number): HostSnapshot {
-  for (let e = fromE; e <= T + 200 && !s.class.tradeEnded; e++) s = tick(s, e);
+  for (let e = fromE; e <= T + 200 && !s.class.tradeEnded; e++) {
+    s = tick(s, e);
+    if (planDone(s.class)) s = teach(s, { type: 'finishNow' }, T0 + e * 1000).snapshot;
+  }
   return s;
 }
 
@@ -263,7 +269,12 @@ describe('수동 진행: [발동]만으로 처음부터 끝까지(리허설 d �
     expect(fails.slice(0, 5)).toEqual([]);
     expect(fires).toBeGreaterThan(2);
     expect(rounds).toBeGreaterThanOrEqual(2);
+    // (작업 162) 옛 기대: T가 지나면 저절로 결산. 새 규칙: T + 200초가 지나도 판은 계속 → 선생님 [마무리로]로 결산
+    expect(s.class.tradeEnded).toBe(false);
+    expect(s.class.schedule.timeUp).toBeTruthy();
+    s = teach(s, { type: 'finishNow' }, T0 + (T + 201) * 1000).snapshot;
     expect(s.class.tradeEnded).toBe(true);
+    expect(s.class.phase).toBe('wrapup');
   });
 
   it('표지가 떠 있을 때 [발동](벽란도 시장)을 누르면 표지를 닫고 벽란도 시장이 열린다', () => {

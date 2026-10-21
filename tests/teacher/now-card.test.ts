@@ -286,7 +286,8 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.sub.some((x) => x.testId === 'now-all-responded')).toBe(false);
   });
 
-  it('(수정 1회차) [라운드 끝내기] 확인: 마지막 라운드면 "무역을 마치고 마무리로", 결정을 안 한 학생은 응답 없음, 모두 준비·전원 응답이면 확인 없음', () => {
+  // (작업 162) 옛 기대 "무역을 마치고 마무리로"·"남은 무역 시간" → 마지막 라운드를 끝내도 판은 끝나지 않음(결산은 [마무리로])
+  it('(수정 1회차·작업 162) [라운드 끝내기] 확인: 마지막 라운드면 "거래가 멈춰요 · [마무리로]", 결정을 안 한 학생은 응답 없음, 모두 준비·전원 응답이면 확인 없음', () => {
     const p = play();
     p.to(240);
     let k = endRoundConfirm(p.h.get(), 3, p.now());
@@ -297,10 +298,17 @@ describe('자동 진행 — 차시 L1 10분', () => {
     k = endRoundConfirm(p.h.get(), 3, p.now());
     expect(k.needed).toBe(true);
     expect(k.title).toBe('마지막 라운드를 끝낼까요?');
-    expect(k.body).toBe("마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간(1:10)은 쓰지 않아요. 아직 결정하지 않은 학생은 '응답 없음'이 돼요(3명).");
-    // 실제로 그렇게 된다
+    expect(k.body).toBe("마지막 라운드예요. 끝내면 학생들의 거래가 멈춰요. [마무리로]를 누르면 결산·시상으로 넘어가요. 아직 결정하지 않은 학생은 '응답 없음'이 돼요(3명).");
+    // 자유 항해 판이면 계속 항해한다는 안내
+    const gf = p.h.get();
+    const free: TeacherGame = { ...gf, class: { ...gf.class, settings: { ...gf.class.settings, voyageMode: 'free' } } };
+    expect(endRoundConfirm(free, 3, p.now()).body).toBe("마지막 라운드예요. 끝내도 학생들은 계속 자유롭게 항해해요. 수업을 마칠 때 [마무리로]를 누르세요. 아직 결정하지 않은 학생은 '응답 없음'이 돼요(3명).");
+    // 실제로 그렇게 된다: 라운드는 끝나고(거래 멈춤) 마무리로 가지 않는다 → [마무리로]
     p.teacher({ type: 'endRound' });
-    p.to(532);
+    p.to(700);
+    expect(p.h.get().class.phase).toBe('between');
+    expect(p.h.get().class.tradeEnded).toBe(false);
+    p.teacher({ type: 'finishNow' });
     expect(p.h.get().class.phase).toBe('wrapup');
     // 모두 준비 + 결정 없음이면 확인 없음
     const q = play();
@@ -339,26 +347,61 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.showPause).toBe(false);
   });
 
-  it('5: 무역 시간이 끝났는데 활동 중 — [지금 마무리로](확인 없음) + [이 활동 끝나고] → 누르면 작은 버튼만 사라짐', () => {
+  // (작업 162) 옛 '5: 무역 시간 끝 카드([지금 마무리로]·[이 활동 끝나고])'는 없앴다 — 지금 상황 카드 그대로 + 늦음 줄
+  it('(작업 162) 추천 시간이 지나도 timeUp 카드가 아님 — 지금 활동 카드 그대로, 늦음 줄 "추천 시간이 지났어요 · n분 더 하는 중"', () => {
     const p = play();
-    p.to(30);
+    p.to(200);
     const g = p.h.get();
-    const tu: TeacherGame = { ...g, class: { ...g.class, schedule: { ...g.class.schedule, timeUp: { at: p.now() } } } };
-    let c = nowCard(tu, viewOf(tu), p.now(), UI);
-    expect(c.state).toBe('timeUp');
-    expect(c.tag).toBe('마무리 직전');
-    expect(c.line).toBe('무역 시간이 끝났어요');
-    expect(c.sub[0]!.text).toBe('지금 활동이 끝나면(최대 2분) 저절로 마무리로 넘어가요');
-    expect(c.primary).toMatchObject({ label: '지금 마무리로', kind: 'finishNow', testId: 'btn-finish-now' });
-    expect(c.secondary).toMatchObject({ label: '이 활동 끝나고', kind: 'dismissTimeUp', testId: 'btn-after-activity' });
-    c = nowCard(tu, viewOf(tu), p.now(), { ...UI, timeUpDismissed: true });
-    expect(c.state).toBe('timeUp');
-    expect(c.secondary).toBeNull();
+    const base = nowCard(g, viewOf(g), p.now(), UI);
+    const withT = (T: number): TeacherGame => ({ ...g, class: { ...g.class, clock: { ...g.class.clock, durationSec: T }, schedule: { ...g.class.schedule, timeUp: { at: p.now() } } } });
+    let c = nowCard(withT(70), viewOf(withT(70)), p.now(), UI);
+    expect(c.state).not.toBe('timeUp');
+    expect(c.state).toBe(base.state);
+    expect(c.line).toBe(base.line);
+    expect(c.primary?.kind).toBe(base.primary?.kind);
+    expect(c.late).toBe('추천 시간이 지났어요 · 2분 더 하는 중');
+    c = nowCard(withT(200), viewOf(withT(200)), p.now(), { ...UI, timeUpDismissed: true });
+    expect(c.state).not.toBe('timeUp');
+    expect(c.late).toBe('추천 시간이 지났어요');
+    expect(allText(c)).not.toMatch(/저절로 마무리|최대 2분|무역 시간이 끝났어요/);
+    // 추천 시간 전이면 159 규칙 그대로(예정대로면 늦음 줄 없음)
+    expect(nowCard(g, viewOf(g), p.now(), UI).late).toBeNull();
   });
 
-  it('4: 무역 시간이 끝나면 첫 마무리 항목(결산·시상)이 저절로 시작 → [다음으로: 되돌아보기] … 마지막 [수업 끝내기] + [결과 파일 저장]', () => {
+  it('(작업 162) 순서를 다 함 — "오늘 순서를 다 했어요" + 큰 [마무리로](now-finish), 조용한 카드 아님, 저절로 넘어간다는 말 없음', () => {
+    const p = play();
+    p.to(640);
+    const g = p.h.get();
+    expect(g.class.tradeEnded).toBe(false);
+    let c = p.card();
+    expect(c.state).toBe('waiting');
+    expect(c.line).toBe('오늘 순서를 다 했어요');
+    expect(c.sub.map((x) => x.text)).toEqual(['끝낼 때 [마무리로]를 누르세요']);
+    expect(c.primary).toMatchObject({ label: '마무리로', kind: 'finishEarly', testId: 'now-finish', tone: 'primary' });
+    expect(c.quiet).toBe(false);
+    expect(allText(c)).not.toMatch(/저절로/);
+    // 자유 항해 판
+    const free: TeacherGame = { ...g, class: { ...g.class, settings: { ...g.class.settings, voyageMode: 'free' } } };
+    c = nowCard(free, viewOf(free), p.now(), UI);
+    expect(c.sub.map((x) => x.text)).toEqual(['학생들은 계속 자유롭게 항해해요 · 끝낼 때 [마무리로]를 누르세요']);
+    // 수동 진행도 같은 카드
+    const man: TeacherGame = { ...g, class: { ...g.class, schedule: { ...g.class.schedule, mode: 'manual' } } };
+    c = nowCard(man, viewOf(man), p.now(), UI);
+    expect(c.line).toBe('오늘 순서를 다 했어요');
+    expect(c.primary!.testId).toBe('now-finish');
+    // 오래 기다려도 그대로(판은 끝나지 않음) — 시간이 지나면 늦음 줄만 '지남'
+    p.to(900);
+    expect(p.h.get().class.tradeEnded).toBe(false);
+    expect(p.card().line).toBe('오늘 순서를 다 했어요');
+    expect(p.card().late).toBe('추천 시간이 지났어요 · 5분 더 하는 중');
+  });
+
+  // (작업 162) 옛 '무역 시간이 끝나면' → 선생님이 [마무리로]를 누르면(판은 저절로 끝나지 않음)
+  it('4: [마무리로]를 누르면 첫 마무리 항목(결산·시상)이 저절로 시작 → [다음으로: 되돌아보기] … 마지막 [수업 끝내기] + [결과 파일 저장]', () => {
     const p = play();
     p.to(605);
+    expect(p.h.get().class.tradeEnded).toBe(false);
+    p.teacher({ type: 'finishNow' });
     const g = p.h.get();
     expect(g.class.tradeEnded).toBe(true);
     expect(g.wrapProgress).toEqual({ settle: 'done', awards: 'live' });
@@ -555,7 +598,14 @@ describe('단원 한 판(배치표 표본) — 문구에 L1·옛 말을 박지 �
       expect(text, `${s}초 ${c.state}`).not.toMatch(OLD_TEACHER_TERMS);
       expect(c.primary, `${s}초 ${c.state}`).not.toBeNull();
     }
-    expect([...seen].sort()).toEqual(['card', 'respond', 'result', 'round', 'worksheet', 'wrapup']);
+    // (작업 162) 판 끝까지 돌려도 저절로 마무리로 가지 않는다 — 순서를 다 한 카드('waiting') → [마무리로] → 마무리 카드
+    expect(p.h.get().class.tradeEnded).toBe(false);
+    p.teacher({ type: 'finishNow' });
+    const w = p.card();
+    seen.add(w.state);
+    expect(allText(w)).not.toMatch(/L[1-4]/);
+    expect(allText(w)).not.toMatch(OLD_TEACHER_TERMS);
+    expect([...seen].sort()).toEqual(['card', 'respond', 'result', 'round', 'waiting', 'worksheet', 'wrapup']);
     // 첫 표지는 "1차시 표지", 라운드 꼬리표는 판 전체 라운드 수
     const q = play({ unit: true, minutes: 25 });
     q.to(3);

@@ -19,6 +19,7 @@ import { assignDeliveredLetters } from './letters';
 import { publicPayload } from './aggregate';
 import { applyAction, predict, type ActionContext } from './rules';
 import { clone, createPlayer, seatKey } from './state';
+import { stepStuckHints } from './stuckHints';
 import { resolveRounds } from './voyage';
 import type { GameEvent, HostInput, HostOutput, HostSnapshot, Player, PlayerView, ReduceResult, TeacherAction } from './types';
 
@@ -305,6 +306,10 @@ export function hostReduce(snapshot: HostSnapshot, input: HostInput, now: number
         w.snap = r.snapshot;
         if (r.outputs) w.outputs.push(...r.outputs);
       }
+      // (작업 160b) 막힌 학생 갈매기 힌트 — 무역 훅 다음, 틱에서만
+      const sh = stepStuckHints(w.snap, now);
+      w.snap = sh.snapshot;
+      for (const [key, evs] of Object.entries(sh.events)) addEvents(w, key, evs);
       break;
     }
     case 'join': {

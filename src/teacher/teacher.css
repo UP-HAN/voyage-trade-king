@@ -132,6 +132,8 @@
 .t-clock--paused b { color: #bfb39a; }
 .t-clock--warn b { color: #ff9a7a; }
 .t-clock--soon b { color: #ffc98a; }
+/* (작업 162) 추천 시간이 지남 — 경고색이 아닌 차분한 하늘색(판은 계속된다) */
+.t-clock--over b { color: #9fd3ff; }
 .t-clock__state { margin-left: 8px; font-size: 18px; color: #fff; }
 .t-round, .t-ready { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; }
 .t-stagebar { display: flex; flex: 0 1 240px; min-width: 90px; gap: 3px; }

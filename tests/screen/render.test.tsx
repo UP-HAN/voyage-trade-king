@@ -245,7 +245,8 @@ describe('그 밖 장면 내용', () => {
   it('사건: 제목·본문·쪽수(111: 학생 화면과 같은 카드)', () => {
     show('event');
     expect(byTest('card-title')[0]!.textContent).toBe('무역·수입·수출');
-    expect(byTest('card-pages')[0]!.textContent).toBe('교과서 연결 p.96');
+    // 슬라이드는 눌러야 넘어간다(10-22) — 처음 장(제목 장)에 머문다: 쪽수·'개념 공부' 표시
+    expect(byTest('slide-pages')[0]!.textContent).toBe('교과서 96쪽');
     expect(byTest('card-band')[0]!.textContent).toContain('개념');
   });
   it('(작업 113) 벽란도 진행 중 마친 학생이 있으면: "다 한 친구 n명" + 맞힌 카드 수 막대 0~9장(이름 없음)', () => {

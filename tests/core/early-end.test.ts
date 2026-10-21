@@ -1,7 +1,7 @@
 /**
  * 작업 123 수정 2회차: 일찍 끝낸 라운드(PRD 4.3.7, 오케스트레이터 결정).
  * - 계획한 다음 항목이 바로 시작, 진행 중 구간의 계획 활동은 그대로(빠지지 않음), 그 구간에 새 라운드 없음,
- * - 아낀 시간은 뒤 구간으로, 90초 미만 라운드 없음, 마지막 구간이면 판이 일찍 끝남(결산).
+ * - 아낀 시간은 뒤 구간으로, 90초 미만 라운드 없음, 마지막 구간이면 계획이 일찍 끝남(작업 162: 결산은 교사 [마무리로] — 저절로 끝나지 않음).
  * 표본(검증 sweep 과 같은 방식): 단원 25·40분, L1~L2 20분, 차시 L1~L4 25분의 모든 라운드 × 12·30·60·90초 일찍.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -12,7 +12,7 @@ import { hostReduce } from '../../src/core/host';
 import { createTradeHooks } from '../../src/core/trade';
 import type { HostSnapshot, PlayUnit, ScheduleItem } from '../../src/core/types';
 import type { LessonId } from '../../src/data/types';
-import { makeSession } from './helpers';
+import { makeSession, planDone } from './helpers';
 
 const hooks = createTradeHooks();
 const T0 = 10_000;
@@ -78,7 +78,7 @@ describe('일찍 끝낸 라운드(10초 이상) — 표본 sweep', () => {
         const n = items.find((it) => it.id === next.id);
         if (!n || n.status === 'pending') problems.push(`${tag}: 다음 항목 ${next.id} 시작 안 함`);
         else if (Math.abs(n.at - e) > 1 && n.kind !== 'round') problems.push(`${tag}: ${next.id} at ${n.at}`);
-      } else if (!after.tradeEnded) problems.push(`${tag}: 남은 항목이 없는데 결산으로 가지 않음`);
+      } else if (after.tradeEnded || !planDone(after)) problems.push(`${tag}: 남은 항목이 없는데 '순서를 다 함'이 아님(또는 저절로 결산함 — 작업 162)`);
       // 2. 그 순간 계획에 있던 활동이 빠지지 않음
       for (const p of pendingActs) {
         const a = items.find((it) => it.kind === 'event' && it.refId === p.refId);
@@ -144,7 +144,7 @@ describe('일찍 끝낸 라운드(10초 이상) — 표본 sweep', () => {
   });
 
   it.each([CONFIGS[0], CONFIGS[3]].map((c) => [c.name, c] as const))(
-    '%s: 마지막 구간 마지막 라운드를 일찍 끝내면 남은 계획을 마치고 PLAN_DONE 으로 결산(판이 일찍 끝남)',
+    '%s: 마지막 구간 마지막 라운드를 일찍 끝내면 남은 계획을 마치고 순서가 일찍 끝남 — 저절로 결산하지 않고 [마무리로]를 기다림(작업 162)',
     (_, c) => {
       let snap = start(c);
       const last = snap.class.schedule.items.filter((it) => it.kind === 'round').pop()!;
@@ -153,20 +153,28 @@ describe('일찍 끝낸 라운드(10초 이상) — 표본 sweep', () => {
       const r = hostReduce(snap, { type: 'teacher', action: { type: 'endRound' } }, T0 + e * 1000, hooks);
       snap = r.snapshot;
       const notes = [...r.outputs];
-      for (let t = e + 1; t <= e + 400 && !snap.class.tradeEnded; t++) {
+      let doneAt: number | null = planDone(snap.class) ? e : null;
+      for (let t = e + 1; t <= e + 400; t++) {
         const x = hostReduce(snap, { type: 'tick' }, T0 + t * 1000, hooks);
         snap = x.snapshot;
         notes.push(...x.outputs);
+        if (doneAt === null && planDone(snap.class)) doneAt = t;
       }
+      // 순서는 계획보다 60초 일찍 끝났다
+      expect(doneAt).not.toBeNull();
+      expect(c.minutes * 60 - doneAt!).toBeGreaterThanOrEqual(59);
+      // 400초를 더 흘려도(T를 넘겨도) 저절로 결산하지 않는다
+      expect(snap.class.tradeEnded).toBe(false);
+      expect(snap.class.phase).toBe('between');
+      expect(notes.some((o) => o.kind === 'notice' && (o.code === 'PLAN_DONE' || o.code === 'TRADE_ENDED'))).toBe(false);
+      // 교사 [마무리로] 한 번으로 마무리
+      snap = hostReduce(snap, { type: 'teacher', action: { type: 'finishNow' } }, T0 + (e + 401) * 1000, hooks).snapshot;
       expect(snap.class.tradeEnded).toBe(true);
       expect(snap.class.phase).toBe('wrapup');
-      expect(notes.some((o) => o.kind === 'notice' && o.code === 'PLAN_DONE')).toBe(true);
-      // 계획보다 60초 일찍 끝났다
-      expect(snap.class.clock.durationSec - Math.round((snap.savedAt - T0) / 1000)).toBeGreaterThanOrEqual(59);
     },
   );
 
-  it('마지막 라운드를 30·90초 일찍 끝내면 남은 계획을 마치고 PLAN_DONE(단원 14~23분, L3~L4 10·11분, L1~L3 11~14분)', () => {
+  it('마지막 라운드를 30·90초 일찍 끝내면 남은 계획을 마치고 순서가 끝남, 저절로 결산하지 않음(단원 14~23분, L3~L4 10·11분, L1~L3 11~14분)', () => {
     const cfgs: (typeof CONFIGS)[number][] = [
       ...[14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map((m) => ({ name: `단원 ${m}`, playUnit: 'unit' as PlayUnit, scope: ['L1', 'L2', 'L3', 'L4'] as LessonId[], minutes: m })),
       ...[10, 11].map((m) => ({ name: `L3~L4 ${m}`, playUnit: 'custom' as PlayUnit, scope: ['L3', 'L4'] as LessonId[], minutes: m })),
@@ -182,15 +190,16 @@ describe('일찍 끝낸 라운드(10초 이상) — 표본 sweep', () => {
         for (let t = 1; t <= e; t++) snap = hostReduce(snap, { type: 'tick' }, T0 + t * 1000, hooks).snapshot;
         const r = hostReduce(snap, { type: 'teacher', action: { type: 'endRound' } }, T0 + e * 1000 + 300, hooks);
         snap = r.snapshot;
-        let done = r.outputs.some((o) => o.kind === 'notice' && o.code === 'PLAN_DONE');
-        // 마지막 라운드 뒤에 남은 계획(구간 끝 활동·학습지)이 있으면 그것을 마친 뒤 결산
+        let done = planDone(snap.class);
+        // 마지막 라운드 뒤에 남은 계획(구간 끝 활동·학습지)이 있으면 그것을 마친 뒤 '순서를 다 함'(작업 162: 결산은 교사가)
         const tailEnd = Math.max(e, ...snap.class.schedule.items.filter((it) => it.status === 'pending' || it.status === 'live').filter((it) => it.form !== 'dropped' && it.kind !== 'letter').map((it) => it.at + it.durSec));
-        for (let t = e + 1; t <= tailEnd + 2 && !snap.class.tradeEnded; t++) {
+        for (let t = e + 1; t <= tailEnd + 2; t++) {
           const x = hostReduce(snap, { type: 'tick' }, T0 + t * 1000, hooks);
           snap = x.snapshot;
-          if (x.outputs.some((o) => o.kind === 'notice' && o.code === 'PLAN_DONE')) done = true;
+          if (planDone(snap.class)) done = true;
         }
-        if (!snap.class.tradeEnded || !done) problems.push(`${c.name} -${save}: 결산 안 함`);
+        if (!done) problems.push(`${c.name} -${save}: 순서를 다 하지 못함`);
+        if (snap.class.tradeEnded) problems.push(`${c.name} -${save}: 저절로 결산함`);
         if (tailEnd > c.minutes * 60 - save + 1) problems.push(`${c.name} -${save}: 남은 계획 끝 ${tailEnd}`);
       }
     }

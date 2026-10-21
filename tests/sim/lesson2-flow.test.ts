@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicPayload } from '../../src/core';
 import { seatKey } from '../../src/sync/host-session';
-import { botAction, makeSimWorld, rng, type SimStudent } from './sim-world';
+import { botAction, finishWhenPlanDone, makeSimWorld, rng, type SimStudent } from './sim-world';
 
 async function flowL2(minutes: number, lessonPart: 'all' | 'front' | 'back' = 'all') {
   const w = makeSimWorld();
@@ -35,6 +35,8 @@ async function flowL2(minutes: number, lessonPart: 'all' | 'front' | 'back' = 'a
   let sawCustoms = false;
   for (let i = 0; i < (minutes + 8) * 60 && h.game().class.phase !== 'wrapup'; i++) {
     await step();
+    // (작업 162) 판은 저절로 끝나지 않는다 — 계획한 순서가 다 끝나면 교사가 [마무리로]
+    finishWhenPlanDone(h);
     const cs = h.game().class;
     if (!late && cs.phase === 'round') {
       late = w.student(3, '늦은배무역');

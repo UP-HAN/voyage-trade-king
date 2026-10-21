@@ -29,7 +29,7 @@ export type NowState =
   | 'paused' // 2
   | 'ended' // 3
   | 'wrapup' // 4
-  | 'timeUp' // 5
+  | 'timeUp' // 5 — (작업 162) 더 만들지 않는다(추천 시간이 지나도 판이 끝나지 않음). 타입·우선순위만 남김
   | 'result' // 6
   | 'worksheet' // 7
   | 'respond' // 8
@@ -179,12 +179,28 @@ function notDone(n: number, some: (n: number) => string, none: string): NowSub {
   return { text: n > 0 ? some(n) : none, strong: true, testId: 'now-not-done' };
 }
 
-/** (작업 159) 늦음 한 줄: 무역 중 1분 이상 늦을 때만 "예정보다 n분 느려요"(core lateSecOf — 수동 진행 순서 접힘의 '계획보다 n분 늦어요'와 같은 기준) */
+/**
+ * (작업 159) 늦음 한 줄: 무역 중 1분 이상 늦을 때만 "예정보다 n분 느려요"(core lateSecOf — 수동 진행 순서 접힘의 '계획보다 n분 늦어요'와 같은 기준).
+ * (작업 162) 추천 시간(T)을 넘으면 "추천 시간이 지났어요 · n분 더 하는 중"(n = 넘은 분 내림, 0분이면 "추천 시간이 지났어요").
+ */
 export function lateLine(c: ClassState, now: number, ended = false): string | null {
-  if (ended || c.phase === 'ended' || c.phase === 'wrapup') return null;
+  if (ended || c.phase === 'ended' || c.phase === 'wrapup' || c.tradeEnded) return null;
+  if (c.clock.startedAt !== null) {
+    const over = elapsedOf(c, now) - c.clock.durationSec;
+    if (over >= 0) {
+      const n = Math.floor(over / 60);
+      return n > 0 ? `${OVERTIME_LINE} · ${n}분 더 하는 중` : OVERTIME_LINE;
+    }
+  }
   const { lateSec } = lateSecOf(c, now);
   return lateSec >= 60 ? `예정보다 ${Math.floor(lateSec / 60)}분 느려요` : null;
 }
+
+/** (작업 162) 추천 시간이 지났을 때 늦음 줄 앞부분 */
+export const OVERTIME_LINE = '추천 시간이 지났어요';
+/** (작업 162) 순서를 다 했을 때 안내 */
+export const PLAN_DONE_FREE_HINT = '학생들은 계속 자유롭게 항해해요 · 끝낼 때 [마무리로]를 누르세요';
+export const PLAN_DONE_HINT = '끝낼 때 [마무리로]를 누르세요';
 
 /** 남은 초 → "45초" / "1:20" */
 export function leftText(sec: number): string {
@@ -259,13 +275,16 @@ export function totalRounds(c: Pick<ClassState, 'schedule' | 'round'>): number {
   return Math.max(c.round, c.schedule.items.filter((it) => it.kind === 'round' && it.form !== 'dropped' && it.status !== 'skipped').length);
 }
 
-const elapsedOf = (c: ClassState, now: number) => tradeClock.elapsedSec(c.clock, now);
+function elapsedOf(c: ClassState, now: number): number {
+  return tradeClock.elapsedSec(c.clock, now);
+}
 
 /** "1:20 뒤 저절로 다음: 무역·수입·수출" / 수동이면 안내 */
 function autoNext(c: ClassState, endSec: number | null, next: ScheduleItem | null, now: number): NowSub {
   if (c.schedule.mode === 'manual') return { text: next ? `${MANUAL_HINT} · 다음: ${itemLabel(next)}` : MANUAL_HINT, testId: next ? 'tl-waiting' : undefined };
   const e = elapsedOf(c, now);
-  if (!next) return { text: `${leftText(c.clock.durationSec - e)} 뒤 저절로 마무리로 넘어가요` };
+  // (작업 162) 판은 저절로 끝나지 않는다 — 남은 순서가 없으면 교사가 [마무리로]
+  if (!next) return { text: `남은 순서가 없어요 · ${PLAN_DONE_HINT}` };
   const at = Math.max(endSec ?? next.at, next.at);
   return { text: `${leftText(at - e)} 뒤 저절로 다음: ${itemLabel(next)}` };
 }
@@ -441,7 +460,11 @@ export function notesOf(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
 
 // ─────────────────────────── 카드 ───────────────────────────
 
-type Body = Pick<NowCard, 'state' | 'tag' | 'line' | 'sub' | 'primary' | 'secondary'> & { lineTestId?: string; eventId?: string; keyExtra?: string };
+type Body = Pick<NowCard, 'state' | 'tag' | 'line' | 'sub' | 'primary' | 'secondary'> & {
+  lineTestId?: string; eventId?: string; keyExtra?: string;
+  /** (작업 162) 자동 진행이어도 조용한 카드로 그리지 않는다(순서를 다 함 — 선생님이 [마무리로]를 눌러야 함) */
+  loud?: boolean;
+};
 
 /** [라운드 지금 시작] 버튼(134 roundNowPlan 그대로 — 막히면 비활성 + 까닭) */
 function roundNowButton(c: ClassState, now: number, label: string, testId: string, tone: NowButton['tone']): NowButton | null {
@@ -505,15 +528,9 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
     const w = wrapCard(g);
     return { state: 'wrapup', ...w, keyExtra: `${liveWrapStep(g) ?? ''}` };
   }
-  // 5. 무역 시간 끝(활동 진행 중)
-  if (started && c.schedule.timeUp) {
-    return {
-      state: 'timeUp', tag: '마무리 직전', line: '무역 시간이 끝났어요',
-      sub: [{ text: '지금 활동이 끝나면(최대 2분) 저절로 마무리로 넘어가요' }],
-      primary: { label: '지금 마무리로', kind: 'finishNow', testId: 'btn-finish-now', tone: 'primary' },
-      secondary: ui.timeUpDismissed ? null : { label: '이 활동 끝나고', kind: 'dismissTimeUp', testId: 'btn-after-activity' },
-    };
-  }
+  // 5. (작업 162) 옛 '무역 시간 끝' 카드는 없앴다 — 추천 시간이 지나도 지금 상황(결과·학습지·활동·라운드) 카드가 그대로 나오고,
+  //    늦음 줄이 "추천 시간이 지났어요 · n분 더 하는 중"으로 알린다. 판을 끝내는 것은 [마무리로]뿐
+  void ui.timeUpDismissed;
   // 6. 결과를 TV에 보여 주는 중
   // (수정 1회차, PRD 7.5.2.1 예외) 라운드 중에는 라운드 카드가 이긴다 — 라운드에 붙은 결정의 결과는 라운드 카드 보조 정보로
   if (started && ce && resultShowing(c, now) && c.phase !== 'round') {
@@ -685,11 +702,13 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         keyExtra: next.id,
       };
     }
-    // 남은 항목 없음(자동 진행: 계획이 막 끝남 — 다음 틱에 마무리로 / 수동 진행: 선생님이 마무리로 넘김, 그대로 두면 무역 시간이 끝날 때)
+    // 남은 항목 없음(작업 162): 판은 저절로 끝나지 않는다 — 자유 항해 판은 학생들이 계속 항해하고, 라운드마다 판은 거래가 멈춘 채
+    // 선생님의 [마무리로]를 기다린다(자동·수동 진행 같음). 조용한 카드가 아니다(큰 버튼 그대로)
     return {
-      state: 'waiting', tag: '라운드 사이', line: '계획한 활동을 모두 했어요',
-      sub: [{ text: manual ? `[지금 마무리로]를 누르면 마무리로 넘어가요 · 그대로 두면 ${leftText(c.clock.durationSec - e)} 뒤` : '곧 저절로 마무리로 넘어가요' }],
-      primary: { label: '지금 마무리로', kind: 'finishEarly', testId: 'now-finish', tone: 'primary' }, secondary: null,
+      state: 'waiting', tag: '라운드 사이', line: '오늘 순서를 다 했어요', lineTestId: 'now-plan-done',
+      sub: [{ text: c.settings.voyageMode === 'free' ? PLAN_DONE_FREE_HINT : PLAN_DONE_HINT, testId: 'now-plan-done-hint' }],
+      primary: { label: '마무리로', kind: 'finishEarly', testId: 'now-finish', tone: 'primary' }, secondary: null,
+      keyExtra: 'planDone', loud: true,
     };
   }
   // 12·13. 무역 시작 전
@@ -740,7 +759,7 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
   const c = g.class;
   const started = c.clock.startedAt !== null;
   const showPause = started && b.state !== 'paused' && b.state !== 'ended' && b.state !== 'disconnected' && b.state !== 'replaced';
-  const quiet = c.schedule.mode === 'auto' && QUIET_STATES.has(b.state);
+  const quiet = c.schedule.mode === 'auto' && QUIET_STATES.has(b.state) && !b.loud;
   // (작업 147) 자동 진행 대상 상태: 보조 정보 맨 끝에 안내 한 줄
   const sub = quiet ? [...b.sub, { text: AUTO_HINT_TEXT, testId: 'now-auto-hint' }] : b.sub;
   return {
@@ -768,7 +787,7 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
 /**
  * (PRD 7.5.2.6, 수정 1회차) [라운드 끝내기] 확인 창이 필요한가와 본문.
  * - 남은 시간이 있고 모두 준비가 아니면 확인. 모두 준비면 확인 없음 — 단, 라운드에 붙은 결정을 아직 안 한 학생이 있으면 확인(응답 없음이 되므로).
- * - 뒤에 시작할 순서가 없으면(마지막 라운드) 실제로 일어나는 일: 자동 진행 = 무역을 마치고 마무리로, 수동 진행 = 남은 순서 없음.
+ * - 뒤에 시작할 순서가 없으면(마지막 라운드) 실제로 일어나는 일(작업 162): 판은 끝나지 않음 — 자유 항해는 계속 항해, 라운드마다는 거래가 멈춤. 결산은 [마무리로].
  */
 export function endRoundConfirm(g: TeacherGame, joined: number, now: number): { needed: boolean; title: string; body: string } {
   const c = g.class;
@@ -782,12 +801,12 @@ export function endRoundConfirm(g: TeacherGame, joined: number, now: number): { 
   const notYet = openDecision ? players.filter((p) => respondedToCurrent(c, p) !== true).length : 0;
   const lines: string[] = [];
   const last = !c.schedule.items.some(firable);
-  const tradeLeft = Math.max(0, c.clock.durationSec - elapsedOf(c, now));
   if (last) {
+    // (작업 162) 마지막 라운드를 끝내도 판은 끝나지 않는다 — 결산·시상은 선생님 [마무리로] 뒤(자동·수동 진행 같음)
     lines.push(
-      c.schedule.mode === 'auto'
-        ? `마지막 라운드예요. 지금 끝내면 무역을 마치고 마무리(결산·시상)로 넘어가요. 남은 무역 시간(${mmss(tradeLeft)})은 쓰지 않아요.`
-        : `마지막 라운드예요. 지금 끝내면 학생들의 거래가 멈추고, 남은 순서가 없어 [지금 마무리로]를 누르면 마무리로 넘어가요.`,
+      c.settings.voyageMode === 'free'
+        ? '마지막 라운드예요. 끝내도 학생들은 계속 자유롭게 항해해요. 수업을 마칠 때 [마무리로]를 누르세요.'
+        : '마지막 라운드예요. 끝내면 학생들의 거래가 멈춰요. [마무리로]를 누르면 결산·시상으로 넘어가요.',
     );
   } else lines.push(`라운드가 ${mmss(left)} 남았어요. 지금 끝내면 학생들의 거래가 멈추고 다음 순서로 넘어가요.`);
   if (notYet > 0) {

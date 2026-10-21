@@ -279,6 +279,11 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
     await expectNoOtherSeats(s, [...others]);
 
   // ── 무역 끝 → 마무리 ──
+  // (작업 162) 순서를 다 해도 판은 저절로 끝나지 않는다 — '오늘 순서를 다 했어요' 카드의 큰 [마무리로](남은 순서가 없어 확인 없음)
+  await clock.fastForwardUntil(async () => (await t.getByTestId('now-finish').count()) > 0, { label: 'plan done' });
+  await expect(t.getByTestId('now-plan-done')).toHaveText('오늘 순서를 다 했어요');
+  expect(await s1.getByTestId('trade-over').count()).toBe(0);
+  await t.getByTestId('now-finish').click();
   await clock.fastForwardUntil(async () => (await s1.getByTestId('trade-over').count()) > 0, { label: 'trade over' });
   await noteScene();
   for (const s of [s1, s2, s3]) await expect(s.getByTestId('trade-over')).toBeVisible({ timeout: 15_000 });
@@ -979,7 +984,11 @@ test('E. 30명 판(브라우저 학생 3 + 봇 27) L1 30분: 오류 0·라운드
     await openTvMenu(t);
     await t.getByTestId('scene-select').selectOption('auto');
     await t.keyboard.press('Escape');
-    await env.clock.fastForwardUntil(async () => (await b1.getByTestId('trade-over').count()) > 0, { label: 'E trade over', speed: 15, maxFastMs: 45 * 60_000 });
+    // (작업 162) 판은 저절로 끝나지 않는다 — 순서를 다 하면 교사 카드의 [마무리로]
+    await env.clock.fastForwardUntil(async () => (await t.getByTestId('now-finish').count()) > 0, { label: 'E plan done', speed: 15, maxFastMs: 45 * 60_000 });
+    await env.clock.setSpeed(1);
+    await t.getByTestId('now-finish').click();
+    await env.clock.fastForwardUntil(async () => (await b1.getByTestId('trade-over').count()) > 0, { label: 'E trade over', speed: 15, maxFastMs: 5 * 60_000 });
     await env.clock.setSpeed(1);
     await t.waitForTimeout(3000);
     const st = await botStatus();

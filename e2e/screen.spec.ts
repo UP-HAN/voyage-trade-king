@@ -481,16 +481,12 @@ test.describe('실제 흐름: 교사 탭 + 공용 화면 탭 + 학생 탭(?sync=
     const shortConf = page.getByTestId('confirm-shorten');
     await shortConf.waitFor({ state: 'visible', timeout: 1000 }).catch(() => undefined);
     if (await shortConf.isVisible().catch(() => false)) await page.getByTestId('confirm-ok').click();
-    await expect
-      .poll(
-        async () => {
-          const fin = page.getByTestId('btn-finish-now');
-          if (await fin.isVisible().catch(() => false)) await fin.click();
-          return sceneOf(screen);
-        },
-        { timeout: 120_000, intervals: [1000] },
-      )
-      .toMatch(/^(awards|leaderboard)$/);
+    // (작업 162) 추천 시간을 줄여도 판은 저절로 끝나지 않는다 — '시간 조절'의 [지금 마무리로](남은 순서가 있으면 확인 1번)
+    await page.getByTestId('btn-finish-early').click();
+    const finConf = page.getByTestId('confirm-finish');
+    await finConf.waitFor({ state: 'visible', timeout: 1000 }).catch(() => undefined);
+    if (await finConf.isVisible().catch(() => false)) await page.getByTestId('confirm-ok').click();
+    await expect.poll(() => sceneOf(screen), { timeout: 120_000, intervals: [1000] }).toMatch(/^(awards|leaderboard)$/);
     await expect(screen.getByTestId('screen-clock')).toHaveCount(0);
     await expect(screen.getByTestId('route-screen')).toContainText('해오름무역');
     await expectNoPrivate(screen, ['500만']);

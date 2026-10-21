@@ -89,24 +89,40 @@ describe('저장 실패 띠(storageError)', () => {
   });
 });
 
-describe('(작업 137) 무역 시간 끝 — 창 대신 카드(상태 5)', () => {
-  it('[지금 마무리로](btn-finish-now)가 큰 버튼, [이 활동 끝나고]를 누르면 작은 버튼만 사라지고 카드는 그대로, 창은 없다', () => {
-    mount((d) => {
-      const g = d.view.game as TeacherGame;
-      const game: TeacherGame = {
-        ...g,
-        class: { ...g.class, tradeEnded: false, worksheet: { ...g.class.worksheet, current: null }, schedule: { ...g.class.schedule, timeUp: { at: NOW - 1000 } } },
-      };
-      d.view = { ...d.view, game };
-    });
+// (작업 162) 옛 '무역 시간 끝 카드(상태 5)' 시험을 바꿈 — 추천 시간이 지나도 카드는 지금 상황 그대로, 시계·늦음 줄만 '지남'
+describe('(작업 162) 추천 시간 — 시계 "남음"/"+지남", 늦음 줄, 옛 시간 끝 카드 없음', () => {
+  /** 데모 판(무역 6분째)의 추천 시간을 바꾼다: over > 0 이면 그만큼 지난 판 */
+  const withT = (durationSec: number, timeUp: boolean) => (d: ReturnType<typeof makeDemo>) => {
+    const g = d.view.game as TeacherGame;
+    const game: TeacherGame = {
+      ...g,
+      class: { ...g.class, tradeEnded: false, clock: { ...g.class.clock, durationSec }, schedule: { ...g.class.schedule, timeUp: timeUp ? { at: NOW - 1000 } : null } },
+    };
+    d.view = { ...d.view, game };
+  };
+  const elapsedOf = (d: ReturnType<typeof makeDemo>) => Math.round((NOW - (d.view.game as TeacherGame).class.clock.startedAt!) / 1000 - (d.view.game as TeacherGame).class.clock.pausedTotalSec);
+
+  it('추천 시간 전: "추천 시간 12:30 남음"(지남 표시 없음)', () => {
+    const e = elapsedOf(makeDemo(30, NOW));
+    mount(withT(e + 750, false));
+    const clock = byId('trade-clock')!;
+    expect(clock.textContent).toContain('추천 시간 12:30 남음');
+    expect(clock.getAttribute('data-over')).toBeFalsy();
+    expect(clock.getAttribute('class')).not.toContain('t-clock--over');
+  });
+
+  it('추천 시간이 3분 20초 지남: "추천 시간 +3:20 지남"(t-clock--over, 경고색 없음) + 늦음 줄, 카드는 timeUp 이 아님·창 없음', () => {
+    const e = elapsedOf(makeDemo(30, NOW));
+    mount(withT(e - 200, true));
+    const clock = byId('trade-clock')!;
+    expect(clock.textContent).toContain('추천 시간 +3:20 지남');
+    expect(clock.getAttribute('data-over')).toBe('1');
+    expect(clock.getAttribute('class')).toContain('t-clock--over');
+    expect(clock.getAttribute('class')).not.toContain('t-clock--warn');
+    expect(byId('now-late')!.textContent).toBe('추천 시간이 지났어요 · 3분 더 하는 중');
     expect(byId('time-up')).toBeUndefined();
-    expect(byId('now-card')!.getAttribute('data-state')).toBe('timeUp');
-    const primary = byId('now-primary')!;
-    expect(primary.getAttribute('data-kind')).toBe('finishNow');
-    expect(primary.find((el) => el.getAttribute('data-testid') === 'btn-finish-now')).toHaveLength(1);
-    act(() => void byId('btn-after-activity')!.dispatch('click'));
     expect(byId('btn-after-activity')).toBeUndefined();
-    expect(byId('now-card')!.getAttribute('data-state')).toBe('timeUp');
+    expect(byId('now-card')!.getAttribute('data-state')).not.toBe('timeUp');
   });
 });
 
