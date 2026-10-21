@@ -8,6 +8,7 @@
 import { goodsById } from '../data/goods';
 import { recipesById } from '../data/recipes';
 import { serviceRules } from '../data/goods';
+import { resellRules } from '../data/market';
 import { emergencyLoan, shipsById } from '../data/ships';
 import { worksheetById } from '../data/worksheet';
 import type { GoodId, PortId, WorksheetId } from '../data/types';
@@ -207,6 +208,49 @@ function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: Game
   return null;
 }
 
+/** (작업 161) 되팔 수 있는 묶음: 지금 항구에서 산 물자(공장 생산품 제외). 서비스 계약은 대상이 아니다 */
+export function resellableLots(p: Player, good: GoodId): CargoLot[] {
+  if (goodsById[good]?.form === 'service') return [];
+  const port = p.game.port;
+  return p.game.cargo.filter((l) => l.good === good && l.boughtAt === port && l.source !== 'factory');
+}
+
+/** (작업 161) 상자당 돌려받는 돈 = 산 값 × 되팔기 비율(내림) */
+export function resellUnit(unitCost: number): number {
+  return Math.floor(unitCost * resellRules.rate + 1e-9); // 부동소수 오차(예: 0.8 × n) 막기
+}
+
+/**
+ * (작업 161, PRD 6.5.5) 산 항구에서 되팔기 — 산 값의 80%(상자당 내림).
+ * 관세·도장·무역 지표·임무·도감 없음. visit.bought/sold 는 그대로(사기 한도를 되살리지 않음).
+ */
+function resell(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameEvent[]): string | null {
+  if (!canTrade(cs)) return 'NOT_TRADING';
+  if (!isPosInt(qty)) return 'BAD_QTY';
+  if (!goodsById[good] || goodsById[good].form === 'service') return 'CANNOT_RESELL';
+  const lots = resellableLots(p, good);
+  const have = lots.reduce((s, l) => s + l.qty, 0);
+  if (have === 0) return 'CANNOT_RESELL';
+  if (have < qty) return 'NO_CARGO';
+  let left = qty;
+  let amount = 0;
+  let cost = 0;
+  for (const lot of lots) {
+    if (left === 0) break;
+    const take = Math.min(left, lot.qty);
+    amount += take * resellUnit(lot.unitCost);
+    cost += take * lot.unitCost;
+    lot.qty -= take;
+    left -= take;
+  }
+  p.game.cargo = p.game.cargo.filter((l) => l.qty > 0);
+  const loss = cost - amount;
+  p.game.money += amount;
+  events.push({ type: 'resold', good, qty, amount, loss });
+  p.game.log.push({ round: cs.round, stage: cs.stage, kind: 'resell', good, qty, port: p.game.port, amount, profit: -loss });
+  return null;
+}
+
 function produce(cs: ClassState, p: Player, recipeId: GoodId, qty: number, events: GameEvent[]): string | null {
   if (!canTrade(cs)) return 'NOT_TRADING';
   if (!isPosInt(qty)) return 'BAD_QTY';
@@ -313,6 +357,9 @@ export function applyAction(cs: ClassState, player: Player, action: Action, ctx:
       break;
     case 'sell':
       error = sell(cs, p, action.good, action.qty, events);
+      break;
+    case 'resell':
+      error = resell(cs, p, action.good, action.qty, events);
       break;
     case 'setDestination':
       error = setDestination(cs, p, action.port, events);

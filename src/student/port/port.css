@@ -270,6 +270,48 @@
   color: var(--ink);
 }
 
+/* (작업 161, PRD 6.5.5) '사 주는 항구' 힌트·되팔기 상자·배 꽉 참 안내 */
+.pt-card__hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+.pt-resell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed var(--ink-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.pt-resell .pt-card__act {
+  flex-wrap: wrap;
+}
+
+.pt-resell .pt-card__btn {
+  min-width: 64px;
+}
+
+.pt-resell__text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.pt-card__full {
+  margin: 0;
+  color: #8a3c1e;
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .pt-card__over {
   margin: 0;
   color: #8a3c1e;

@@ -329,6 +329,11 @@ export interface LetterQuestion extends QuizQuestion {
   dexCard: string;
   /** 문항 주제(PRD 6.7.4 표) */
   topic: string;
+  /**
+   * (작업 160, PRD 6.7.6) 갈매기 힌트 편지: 어디서 싸게 사고(buy) 어디에 비싸게 파는지(sell), 공장 재료(recipe)를 알려 주는 문항.
+   * choicePorts = 보기 순서대로 그 보기가 가리키는 항구(recipe 는 없음). 시장표와 맞는지 시험이 검사한다.
+   */
+  hint?: { side: 'buy' | 'sell' | 'recipe'; good: GoodId; choicePorts?: readonly (PortId | null)[] };
 }
 
 export interface CheckQuizQuestion extends QuizQuestion {

@@ -10,6 +10,7 @@
  * - 한 판의 편지는 최대 10통(난이도 순환 easy, normal → 난이도별 최대 5통). 차시 한 판(4.1.1)은 한 구간만 쓰므로
  *   **구간마다 (구간 고유 문항 + common 문항)이 난이도별 5문항 이상**이어야 한 학생에게 같은 문제가 다시 나오지 않는다.
  * - L1 은 구간 고유 문항만으로 난이도별 5 이상·합계 10 이상(P0). L2~L4 고유 문항은 작업 115~117이 보강한다.
+ *   L2 는 갈매기 힌트 편지 8문항(작업 160)을 더해 고유 16문항(쉬움 8 · 보통 8).
  * - 구간 고유 문항이 모자라면 `common: true` 문항(구간을 가리지 않는 무역 기초)으로 채운다 → `letterBank()`.
  *   그래도 모자라면 스케줄러(작업 123)가 편지 수를 은행 크기로 줄이고 경고한다.
  * `npm run check:data`가 이 크기를 검사한다(L1 부족 = 오류, L2~L4 부족 = 경고).
@@ -161,7 +162,8 @@ const L1: readonly LetterQuestion[] = [
   }),
 ];
 
-/** L2: 주요 수입품·수출품(p.100), 원료 수입→생산→수출, 수출국 4유형, 싱가포르 위치, 선박 운송, 박람회 — 8문항(4·4) */
+/** L2: 주요 수입품·수출품(p.100), 원료 수입→생산→수출, 수출국 4유형, 싱가포르 위치, 선박 운송, 박람회,
+ *  갈매기 힌트 편지(어디서 사고 어디에 팔지, 작업 160) — 16문항(8·8) */
 const L2: readonly LetterQuestion[] = [
   L({
     id: 'L2-01', lesson: 'L2', format: 'customs', type: 'choice3', difficulty: 'easy', topic: '주요 수입품',
@@ -221,6 +223,83 @@ const L2: readonly LetterQuestion[] = [
     choices: ['상품에 관해 궁금한 것을 직접 묻고 답해요', '상품을 전혀 볼 수 없어요', '나라의 관세를 정해요'], answer: 0,
     explain: '박람회에서는 판매자와 소비자가 해당 상품에 관해 궁금한 것을 직접 묻고 답할 수 있어요. 관심 있는 상품을 현장에서 직접 구매하거나 나중에 구매할 것을 약속할 수도 있어요. (교과서 105쪽)',
     pages: [105], fake: false, dexCard: 'expo',
+  }),
+
+  // ── (작업 160, PRD 6.7.6) 갈매기 힌트 편지: 어디서 싸게 사고 어디에 비싸게 파는지 추리 — 8문항(4·4) ──
+  // 지문·해설은 교과서 94·99·100·101쪽 사실만 쓴다(2차시 앞 시간에 103~108쪽이 나오지 않게, 결정 38).
+  // 정답·틀린 보기·해설의 항구 목록은 시장표(market.ts)와 맞아야 한다 → tests/data/gull-hints.test.ts.
+  // 앞 시간·뒤 시간 모두에 낸다(lessonParts.ts dropLetters 에 넣지 않는다).
+  L({
+    id: 'L2-G1', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'easy', topic: '수입할 나라 찾기(원유)',
+    passage: '갈매기가 들은 소식: 사우디아라비아 담맘 항구에 원유를 실은 배가 가득하대요.',
+    prompt: '부산 공장에서 석유 제품을 만들 원유를 싸게 사려면 어느 항구로 가면 좋을까요?',
+    choices: ['담맘(사우디아라비아)', '요코하마(일본)', '방콕(타이)'], answer: 0,
+    explain: '우리나라는 원유를 주로 수입해요(100쪽). 게임에서는 담맘 항구에서 원유를 싸게 살 수 있어요(게임 규칙).',
+    pages: [100], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'buy', good: 'crude', choicePorts: ['DAM', 'YOK', 'BKK'] },
+  }),
+  L({
+    id: 'L2-G2', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'easy', topic: '수입할 나라 찾기(니켈)',
+    passage: '갈매기가 들은 소식: 인도네시아 자카르타 항구에 니켈이 산더미처럼 쌓여 있대요.',
+    prompt: '배터리 재료인 니켈을 싸게 사려면 어느 항구로 가면 좋을까요?',
+    choices: ['자카르타(인도네시아)', '로테르담(네덜란드)', '뭄바이(인도)'], answer: 0,
+    explain: '우리나라는 산업에 필요한 천연자원이 부족해서 다른 나라에서 수입해요(101쪽). 게임에서는 자카르타 항구에서 니켈을 싸게 살 수 있어요(게임 규칙).',
+    pages: [101], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'buy', good: 'nickel', choicePorts: ['JKT', 'ROT', 'MUM'] },
+  }),
+  L({
+    id: 'L2-G3', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'easy', topic: '배터리 재료(공장)',
+    passage: '우리나라는 수입한 흑연으로 전기차 배터리를 만들어 수출해요.',
+    prompt: '부산 공장에서 배터리를 만들 때 필요하지 않은 것은 무엇일까요?',
+    choices: ['쌀', '흑연', '니켈'], answer: 0,
+    explain: '흑연은 연필뿐만 아니라 스마트폰, 배터리의 원료로 쓰여요(99쪽). 게임에서는 흑연·니켈·정밀 화학 원료를 1상자씩 모아야 배터리 1상자를 만들어요. 한 가지만 가득 사면 다른 재료를 실을 칸이 없으니 골고루 실어요(게임 규칙).',
+    pages: [99], fake: false, dexCard: 'graphite',
+    hint: { side: 'recipe', good: 'battery' },
+  }),
+  L({
+    id: 'L2-G4', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'easy', topic: '수출할 곳 찾기(자동차)',
+    passage: '갈매기가 들은 소식: 사우디아라비아 담맘에 자동차가 모자라서, 자동차를 비싸게 사 준대요.',
+    prompt: '부산에서 산 자동차를 비싸게 팔려면 어느 항구로 가면 좋을까요?',
+    choices: ['담맘(사우디아라비아)', '요코하마(일본)', '부산(우리나라)'], answer: 0,
+    explain: '자동차는 우리나라의 주요 수출품이에요(100쪽). 게임에서는 담맘·방콕·자카르타·포트헤들랜드·뭄바이가 자동차를 비싸게 사요(게임 규칙).',
+    pages: [100], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'sell', good: 'car', choicePorts: ['DAM', 'YOK', 'BUS'] },
+  }),
+  L({
+    id: 'L2-G5', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'normal', topic: '수입할 나라 찾기(철광석)',
+    passage: '교실 의자는 오스트레일리아에서 캐낸 철로 만들기도 해요.',
+    prompt: '철강을 만들 철광석을 싸게 사려면 어느 항구로 가면 좋을까요?',
+    choices: ['포트헤들랜드(오스트레일리아)', '상하이(중국)', '로스앤젤레스(미국)'], answer: 0,
+    explain: '교실 의자는 오스트레일리아에서 캐낸 철로 만들기도 해요(94쪽). 우리나라는 철광석 같은 천연자원이 부족해서 수입해요(101쪽). 게임에서는 포트헤들랜드에서 철광석을 싸게 사고, 부산 공장에서 철광석 2상자로 철강 1상자를 만들어요(게임 규칙).',
+    pages: [94, 101], fake: false, dexCard: 'korea-trade',
+    hint: { side: 'buy', good: 'iron', choicePorts: ['PHE', 'SHA', 'LAX'] },
+  }),
+  L({
+    id: 'L2-G6', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'normal', topic: '수출할 곳 찾기(석유 제품)',
+    passage: '갈매기가 들은 소식: 타이 방콕에 자동차와 오토바이가 늘어나 석유 제품이 모자란대요. 그래서 석유 제품 값이 올랐어요.',
+    prompt: '부산 공장에서 만든 석유 제품을 비싸게 팔려면 어느 항구로 가면 좋을까요?',
+    choices: ['방콕(타이)', '담맘(사우디아라비아)', '상하이(중국)'], answer: 0,
+    explain: '석유 제품은 원유를 분리하여 만든 휘발유, 경유 같은 연료 제품이고 우리나라의 주요 수출품이에요(100쪽). 게임에서는 방콕·호찌민·자카르타·포트헤들랜드가 석유 제품을 비싸게 사요(게임 규칙).',
+    pages: [100], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'sell', good: 'oilp', choicePorts: ['BKK', 'DAM', 'SHA'] },
+  }),
+  L({
+    id: 'L2-G7', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'normal', topic: '수출할 곳 찾기(배터리)',
+    passage: '갈매기가 들은 소식: 네덜란드 로테르담에 전기차가 많아져 배터리가 모자란대요. 배터리를 비싸게 사 준대요.',
+    prompt: '부산 공장에서 만든 배터리를 비싸게 팔려면 어느 항구로 가면 좋을까요?',
+    choices: ['로테르담(네덜란드)', '방콕(타이)', '담맘(사우디아라비아)'], answer: 0,
+    explain: '우리나라는 수입한 흑연으로 전기차 배터리를 만들어 수출해요(99쪽). 게임에서는 상하이·로테르담·로스앤젤레스가 배터리를 비싸게 사요(게임 규칙).',
+    pages: [99], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'sell', good: 'battery', choicePorts: ['ROT', 'BKK', 'DAM'] },
+  }),
+  L({
+    id: 'L2-G8', lesson: 'L2', format: 'gullNews', type: 'choice3', difficulty: 'normal', topic: '수출할 곳 찾기(철강)',
+    passage: '갈매기가 들은 소식: 인도 뭄바이에서 다리와 건물을 많이 짓느라 철강이 모자란대요.',
+    prompt: '부산 공장에서 만든 철강을 비싸게 팔려면 어느 항구로 가면 좋을까요?',
+    choices: ['뭄바이(인도)', '로테르담(네덜란드)', '로스앤젤레스(미국)'], answer: 0,
+    explain: '우리나라는 수입한 자원으로 다양한 상품을 생산할 수 있는 기술이 발달했어요(101쪽). 게임에서는 요코하마·호찌민·자카르타·뭄바이가 철강을 비싸게 사요(게임 규칙).',
+    pages: [101], fake: true, dexCard: 'korea-trade',
+    hint: { side: 'sell', good: 'steel', choicePorts: ['MUM', 'ROT', 'LAX'] },
   }),
 ];
 

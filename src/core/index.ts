@@ -17,7 +17,7 @@ export {
   voyageCostFor, type PortPrice, type Quote, type QuoteTag,
 } from './market';
 export {
-  applyAction, canTakeLoan, cargoCapacity, cargoUsed, fareDueOf, isFreeVoyage, predict, sailsThisRoundOf, spendable, stampFor,
+  applyAction, canTakeLoan, cargoCapacity, cargoUsed, fareDueOf, isFreeVoyage, predict, resellableLots, resellUnit, sailsThisRoundOf, spendable, stampFor,
   type ActionContext,
 } from './rules';
 export { arrive, resolveRounds } from './voyage';

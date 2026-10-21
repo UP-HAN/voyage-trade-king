@@ -137,6 +137,18 @@ export const tradeLimits = {
   overLimitSellMultiplier: 0.7,
 } as const;
 
+/**
+ * (작업 161, PRD 6.5.5) 산 항구에서 되팔기 [게임 설정]: 산 값 × rate(상자당 내림). 관세·도장 없음, 사기 한도는 되살리지 않는다.
+ * 비율을 바꾸려면 아래 RESELL_RATE 한 줄만 고친다(예: 0.9). 화면 문구의 %도 따라간다.
+ */
+const RESELL_RATE = 0.8;
+export const resellRules = {
+  rate: RESELL_RATE,
+  gameRule: true,
+  /** '게임 규칙: 산 항구에서는 산 값의 80%로 되팔 수 있어요'(비율을 따라감) */
+  note: `게임 규칙: 산 항구에서는 산 값의 ${Math.round(RESELL_RATE * 100)}%로 되팔 수 있어요`,
+} as const;
+
 /** 라운드마다 가격 흔들림(±비율). 방 시드 + 라운드 번호로 정해 모두 같은 값을 본다 */
 export const PRICE_JITTER = 0.05;
 

@@ -405,7 +405,8 @@ export interface Metrics {
 export interface LogEntry {
   round: number;
   stage: LessonId;
-  kind: 'buy' | 'sell' | 'produce' | 'voyage' | 'loan' | 'letter' | 'event';
+  /** (작업 161) 'resell' = 산 항구에서 산 값의 80%로 되팔기(PRD 6.5.5) — 학습지 도우미·'사고판 학생' 집계에 넣지 않는다 */
+  kind: 'buy' | 'sell' | 'resell' | 'produce' | 'voyage' | 'loan' | 'letter' | 'event';
   good?: GoodId;
   qty?: number;
   port?: PortId;
@@ -567,6 +568,8 @@ export type Answer = number | 'O' | 'X';
 export type Action =
   | { type: 'buy'; good: GoodId; qty: number }
   | { type: 'sell'; good: GoodId; qty: number }
+  /** (작업 161, PRD 6.5.5) 지금 항구에서 산 묶음을 산 값의 80%로 되팔기(관세·도장 없음) */
+  | { type: 'resell'; good: GoodId; qty: number }
   | { type: 'setDestination'; port: PortId | null }
   | { type: 'setReady' }
   /** (작업 151) 자유 항해: 라운드 중 바로 그 항구로 출발·도착(운항비는 라운드 끝에 정산) */
@@ -662,6 +665,8 @@ export type GameEvent =
   | { type: 'profit'; amount: number }
   | { type: 'overLimit'; good: GoodId; qty: number }
   | { type: 'bought'; good: GoodId; qty: number; amount: number }
+  /** (작업 161) 되팔기: amount = 돌려받은 돈, loss = 산 돈 − 돌려받은 돈(늘 0 이상) */
+  | { type: 'resold'; good: GoodId; qty: number; amount: number; loss: number }
   | { type: 'produced'; good: GoodId; qty: number; fee: number }
   | { type: 'factoryCycleCard' }
   | { type: 'voyagePreview'; to: PortId; cost: number; free: boolean }

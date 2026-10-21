@@ -29,12 +29,19 @@ import type { StudentState, StudentStore } from '../store';
 import { formatMoney } from '../text';
 import {
   buyCards,
+  buyFullNote,
   firstStampConcept,
   limitSentence,
   NOT_TRADING_TEXT,
   overLimitNote,
   profitText,
+  resellBoxText,
+  resoldOf,
+  resoldText,
   saleSummary,
+  SELL_REASON,
+  sellPortsHint,
+  sellPortsLine,
   saleTariffLine,
   sellCards,
   tariffSubject,
@@ -44,6 +51,7 @@ import {
   type BuyCard,
   type SaleSummary,
   type SellCard,
+  type SellPortsHint,
 } from './market';
 import { helperLine } from '../../core/worksheet-helpers';
 import { factoryCards, factoryOpen, type FactoryCard } from './factory';
@@ -123,6 +131,10 @@ function SellCardView({
   trading,
   onSell,
   onFocus,
+  hint,
+  resellQty,
+  setResellQty,
+  onResell,
 }: {
   c: SellCard;
   qty: number;
@@ -130,9 +142,15 @@ function SellCardView({
   trading: boolean;
   onSell: (el: HTMLElement | null) => void;
   onFocus: () => void;
+  /** (작업 161) 여기서 못 파는 카드에만: '사 주는 항구' 힌트 */
+  hint: SellPortsHint | null;
+  resellQty: number;
+  setResellQty: (n: number) => void;
+  onResell: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const q = Math.min(Math.max(1, qty), Math.max(1, c.max));
+  const rq = c.resell ? Math.min(Math.max(1, resellQty), c.resell.max) : 1;
   const used = c.fullLimit > 0 ? Math.min(1, (c.fullLimit - c.fullLeft) / c.fullLimit) : 1;
   const preview = c.fullLimit > 0 ? Math.min(1, (c.fullLimit - c.fullLeft + q) / c.fullLimit) : 1;
   const over = c.reason ? null : overLimitNote(q, c.fullLeft);
@@ -162,9 +180,38 @@ function SellCardView({
         </div>
       </div>
       {c.reason ? (
-        <p class="pt-card__reason" data-testid="sell-reason">
-          {c.reason}
-        </p>
+        <>
+          <p class="pt-card__reason" data-testid="sell-reason">
+            {c.reason}
+          </p>
+          {hint && (
+            <p class="pt-card__hint" data-testid="sell-hint">
+              <span data-testid="sell-hint-ports">{sellPortsLine(hint)}</span>
+              {hint.factory && (
+                <span class="pt-card__hint-fac" data-testid="sell-hint-factory">
+                  {hint.factory}
+                </span>
+              )}
+            </p>
+          )}
+          {/* (작업 161, PRD 6.5.5) 산 항구에서 되팔기 */}
+          {c.resell && (
+            <div class="pt-resell" data-testid="resell-box">
+              <p class="pt-resell__text">
+                {resellBoxText(c.resell.perBox)}{' '}
+                <span class="st-tag pt-rule-tag" data-testid="resell-rule-tag" title="되팔기 비율은 게임 설정이에요">
+                  게임 규칙
+                </span>
+              </p>
+              <div class="pt-card__act">
+                <Stepper value={rq} max={c.resell.max} disabled={!trading} onChange={setResellQty} testId={`resell-${c.good}`} unit="상자" />
+                <button type="button" class="btn btn--secondary pt-card__btn" disabled={!trading} data-testid={`resell-${c.good}`} onClick={onResell}>
+                  되팔기
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <p class="pt-card__price" data-testid="sell-price">
@@ -210,9 +257,25 @@ function SellCardView({
 
 const TAG_CLASS: Record<string, string> = { S: 'green', R: 'blue', domestic: 'gray' };
 
-function BuyCardView({ c, qty, setQty, trading, onBuy }: { c: BuyCard; qty: number; setQty: (n: number) => void; trading: boolean; onBuy: (el: HTMLElement | null) => void }) {
+function BuyCardView({
+  c,
+  qty,
+  setQty,
+  trading,
+  onBuy,
+  free,
+}: {
+  c: BuyCard;
+  qty: number;
+  setQty: (n: number) => void;
+  trading: boolean;
+  onBuy: (el: HTMLElement | null) => void;
+  /** 배 빈칸(작업 161 '배가 꽉 차요' 안내) */
+  free: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const q = Math.min(Math.max(1, qty), Math.max(1, c.max));
+  const fullNote = c.max > 0 ? buyFullNote(c.service, free, q) : null;
   return (
     <div ref={ref} class={`pt-card pt-card--buy${c.service ? ' pt-card--service' : ''}${c.max === 0 ? ' is-off' : ''}`} data-testid={`buy-card-${c.good}`} data-good={c.good}>
       <div class="pt-card__top">
@@ -233,6 +296,11 @@ function BuyCardView({ c, qty, setQty, trading, onBuy }: { c: BuyCard; qty: numb
       {c.reason && (
         <p class="pt-card__reason" data-testid="buy-reason">
           {c.reason}
+        </p>
+      )}
+      {fullNote && (
+        <p class="pt-card__full" data-testid="buy-full-note">
+          {fullNote}
         </p>
       )}
       <div class="pt-card__act">
@@ -439,6 +507,17 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
     void el;
   };
 
+  /** (작업 161) 산 항구에서 되팔기 */
+  const doResell = (c: SellCard) => {
+    if (!c.resell) return;
+    const n = Math.min(Math.max(1, qOf(`r:${c.good}`)), c.resell.max);
+    const events = send({ type: 'resell', good: c.good, qty: n });
+    if (!events) return;
+    setQ(`r:${c.good}`, 1);
+    const r = resoldOf(events);
+    if (r) store.toast(resoldText(c.name, r.qty, r.amount, r.loss), 'warn');
+  };
+
   const doBuy = (c: BuyCard, el: HTMLElement | null) => {
     const n = Math.min(Math.max(1, qOf(`b:${c.good}`)), c.max);
     const events = send({ type: 'buy', good: c.good, qty: n });
@@ -564,6 +643,10 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
                     trading={trading}
                     onSell={(el) => doSell(c, el)}
                     onFocus={() => setFocus(c.good)}
+                    hint={c.reason && c.reason !== SELL_REASON.contractLimit ? sellPortsHint(cs, player, c.good) : null}
+                    resellQty={qOf(`r:${c.good}`)}
+                    setResellQty={(n) => setQ(`r:${c.good}`, n)}
+                    onResell={() => doResell(c)}
                   />
                 ))}
               </div>
@@ -600,7 +683,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
             ) : (
               <div class="pt-grid" data-testid="buy-list">
                 {buys.map((c) => (
-                  <BuyCardView key={c.good} c={c} qty={qOf(`b:${c.good}`)} setQty={(n) => setQ(`b:${c.good}`, n)} trading={trading} onBuy={(el) => doBuy(c, el)} />
+                  <BuyCardView key={c.good} c={c} qty={qOf(`b:${c.good}`)} setQty={(n) => setQ(`b:${c.good}`, n)} trading={trading} onBuy={(el) => doBuy(c, el)} free={free} />
                 ))}
               </div>
             )}

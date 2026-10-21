@@ -3,12 +3,17 @@
  * 가격·관세·도장 계산은 103 규칙 엔진(`quote`, `tariffForLot`, `applyAction`)이 한다. 여기서는 그 결과를
  * 카드 한 장에 보일 값(값 1개 + 수량 + 작은 '산 값')과 문구로만 바꾼다. 평균 원가·관세 계산식·미끄러짐은 만들지 않는다.
  */
-import { cargoCapacity, cargoUsed, quote, tariffForLot, type ClassState, type GameEvent, type Player, type Quote, type StampKind } from '../../core';
+import {
+  cargoCapacity, cargoUsed, isPortClosed, portPrice, quote, resellableLots, resellUnit, tariffForLot, type ClassState, type GameEvent, type Player, type Quote,
+  type StampKind,
+} from '../../core';
+import { LESSON_ORDER } from '../../core/state';
 import { goodsById, serviceRules } from '../../data/goods';
-import { marketTagLabels, tariffs } from '../../data/market';
-import { portsById } from '../../data/ports';
+import { marketTagLabels, resellRules, tariffs } from '../../data/market';
+import { ports, portsById } from '../../data/ports';
+import { recipes } from '../../data/recipes';
 import type { GoodId, PortId } from '../../data/types';
-import { withEul } from '../text';
+import { formatMoney, withEul } from '../text';
 
 /** 팔 수 없는 까닭 */
 export const SELL_REASON = {
@@ -51,6 +56,11 @@ export interface SellCard {
   reason: string | null;
   /** 이 상품을 팔면 찍힐 도장(먼저 팔리는 묶음 기준) */
   stamp: StampKind | null;
+  /**
+   * (작업 161, PRD 6.5.5) 산 항구에서 되팔기: 여기서 산 묶음(공장 생산품·서비스 제외)이 있을 때만.
+   * max = 되팔 수 있는 상자 수, perBox = 먼저 꺼낼 묶음의 상자당 돌려받는 값, cost = 그 묶음 산 값
+   */
+  resell: { max: number; perBox: number; cost: number } | null;
 }
 
 export interface BuyCard {
@@ -122,8 +132,90 @@ export function sellCards(cs: ClassState, p: Player): SellCard[] {
       fullLimit: q.sellLimit,
       reason,
       stamp: canSell ? stampOf(first.origin, port) : null,
+      resell: resellOf(p, good),
     };
   });
+}
+
+/** (작업 161) 되팔기 정보(rules.ts resell 과 같은 묶음·같은 값) */
+function resellOf(p: Player, good: GoodId): SellCard['resell'] {
+  const lots = resellableLots(p, good);
+  const max = lots.reduce((s, l) => s + l.qty, 0);
+  if (max === 0) return null;
+  const first = lots[0]!;
+  return { max, perBox: resellUnit(first.unitCost), cost: first.unitCost };
+}
+
+/** 되팔기 비율 % (80) */
+export const RESELL_PERCENT = Math.round(resellRules.rate * 100);
+
+/** 되팔기 상자 안내 "실수로 많이 샀나요? 산 항구에서는 산 값의 80%로 되팔 수 있어요 · 1상자 19만 원" */
+export function resellBoxText(perBox: number): string {
+  return `실수로 많이 샀나요? 산 항구에서는 산 값의 ${RESELL_PERCENT}%로 되팔 수 있어요 · 1상자 ${formatMoney(perBox)}`;
+}
+
+/** 되팔기 결과 토스트 "흑연 20상자를 380만 원에 되팔았어요 · 100만 원 손해" */
+export function resoldText(name: string, qty: number, amount: number, loss: number): string {
+  return `${name} ${qty}상자를 ${formatMoney(amount)}에 되팔았어요 · ${formatMoney(loss)} 손해`;
+}
+
+/** 되팔기 이벤트 하나(없으면 null) */
+export function resoldOf(events: readonly GameEvent[]): Extract<GameEvent, { type: 'resold' }> | null {
+  for (const e of events) if (e.type === 'resold') return e;
+  return null;
+}
+
+// ─── (작업 161, PRD 6.5.5) '사 주는 항구' 힌트 ───
+
+export interface SellPortsHint {
+  /** 지금 열린 항구 중 이 상품을 사 주는 곳(지금 항구·막힌 항구 제외). 인기(H) 먼저, 그다음 항구 데이터 순서 */
+  ports: { id: PortId; name: string; hot: boolean }[];
+  /** 공장 재료면 "부산 공장에서 배터리 재료로 써요(흑연·니켈·정밀 화학 원료 1상자씩)" */
+  factory: string | null;
+}
+
+/** 팔기 카드 힌트 계산(학급 공통 값만 — 개인 효과 무시) */
+export function sellPortsHint(cs: ClassState, p: Player, good: GoodId): SellPortsHint {
+  const here = p.game.port;
+  const found: { id: PortId; name: string; hot: boolean; i: number }[] = [];
+  ports.forEach((pt, i) => {
+    if (pt.id === here || !cs.openPorts.includes(pt.id) || isPortClosed(cs, pt.id)) return;
+    const pp = portPrice(cs, pt.id, good);
+    if (pp.sell === null) return;
+    found.push({ id: pt.id, name: pt.name, hot: pp.tag === 'H', i });
+  });
+  found.sort((a, b) => Number(b.hot) - Number(a.hot) || a.i - b.i);
+  return { ports: found.map(({ id, name, hot }) => ({ id, name, hot })), factory: factoryHint(cs, good) };
+}
+
+function factoryHint(cs: ClassState, good: GoodId): string | null {
+  if (!cs.features.includes('factory')) return null;
+  const r = recipes.find(
+    (x) => !x.requires && LESSON_ORDER[x.unlockLesson] <= LESSON_ORDER[cs.stage] && Object.prototype.hasOwnProperty.call(x.inputs, good),
+  );
+  if (!r) return null;
+  const inputs = Object.entries(r.inputs) as [GoodId, number][];
+  const nameOf = (g: GoodId) => goodsById[g]?.name ?? g;
+  const same = inputs.every(([, n]) => n === inputs[0]![1]);
+  const list =
+    inputs.length > 1 && same
+      ? `${inputs.map(([g]) => nameOf(g)).join('·')} ${inputs[0]![1]}상자씩`
+      : inputs.map(([g, n]) => `${nameOf(g)} ${n}상자`).join('·');
+  return `부산 공장에서 ${r.name} 재료로 써요(${list})`;
+}
+
+/** 힌트 첫 줄 "사 주는 항구: 싱가포르" / "사 주는 항구: 상하이(비싸게), 로테르담(비싸게), 로스앤젤레스(비싸게) 등" */
+export function sellPortsLine(h: SellPortsHint): string {
+  if (!h.ports.length) return '지금 열린 항구 중에는 사 주는 곳이 없어요';
+  const shown = h.ports.slice(0, 3).map((x) => `${x.name}${x.hot ? '(비싸게)' : ''}`);
+  return `사 주는 항구: ${shown.join(', ')}${h.ports.length > 3 ? ' 등' : ''}`;
+}
+
+/** (작업 161) 사기 카드 '배가 꽉 차요' 안내: 물자이고 남은 칸 5 이상이고 고른 수량이 남은 칸을 다 채울 때 */
+export const BUY_FULL_NOTE = '이만큼 사면 배가 꽉 차요. 다른 상품을 실을 칸을 남길까요?';
+export const BUY_FULL_MIN_FREE = 5;
+export function buyFullNote(service: boolean, free: number, q: number): string | null {
+  return !service && free >= BUY_FULL_MIN_FREE && q === free ? BUY_FULL_NOTE : null;
 }
 
 /** 사기 영역: 이 항구에서 싸게 살 수 있는 상품(특산 S·중계 R·국내산) */
@@ -264,6 +356,9 @@ export function tradeErrorText(code: string): string {
       return '이 항구에서는 살 수 없어요';
     case 'NO_CARGO':
       return '팔 상품이 없어요';
+    // (작업 161) 되팔기
+    case 'CANNOT_RESELL':
+      return '여기서 산 상품만 되팔 수 있어요';
     // (작업 115) 부산 공장
     case 'NO_INPUT':
       return '재료가 모자라요';
