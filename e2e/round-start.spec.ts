@@ -5,9 +5,9 @@ import { pickProgressMode, pickVoyageMode } from './support/voyage-ui';
 
 /**
  * 작업 134 "라운드가 안 시작돼요" 혼란 해결 e2e(`?sync=local`, 가짜 시계): 실제 교사 화면 + 학생 탭.
- * A. 차시 L1 10분 자동: [무역 시작] 확인 창 안내(먼저 할 활동·약 3분 50초) → 학생 상태 카드 "라운드 1까지 m:ss"(거래·출항 버튼 없음)
+ * A. 차시 L1 10분 자동: [무역 시작] 확인 창 안내(먼저 할 활동·약 2분 20초 — v0.3.8 배치) → 학생 상태 카드 "지금 활동이 끝나면 라운드 1이 열려요"(작업 159: 시간 숫자 없음, 거래·출항 버튼 없음)
  *    → 교사 "라운드 1까지 m:ss" + [지금 라운드 시작](1등급 무역·수입·수출 → 확인 창) → 학생이 즉시 거래·출항 준비.
- * B. 차시 L1 10분 자동: 아무것도 누르지 않으면 3:50에 라운드 1이 열린다.
+ * B. 차시 L1 10분 자동: 아무것도 누르지 않으면 2:20에 라운드 1이 열린다.
  * C. 차시 L1 10분 수동: [발동](상단 진행 바, 첫 화면 안)만 눌러 표지 → 활동 → 라운드 1까지 간다(표지에서 막히지 않음).
  *
  * 실행: tests/e2e-preview.playwright.config.ts(ROUNDSTART_E2E=1). SHOT_DIR 이 있으면 스크린숏을 남긴다.
@@ -93,7 +93,8 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   // 교사 결정 3: [무역 시작] 확인 창에 먼저 할 활동과 라운드 1까지 시간
   await t.getByTestId('btn-start-trade').click();
   const confirm = t.getByTestId('confirm-start');
-  await expect(confirm).toContainText('먼저 벽란도 시장·무역·수입·수출 활동을 하고 약 3분 50초 뒤 라운드 1이 시작돼요');
+  // (작업 159 정리) v0.3.8 배치(작업 153): 10분 '알아서' 판은 벽란도 없이 무역·수입·수출 → 2:20에 라운드 1
+  await expect(confirm).toContainText('먼저 무역·수입·수출 활동을 하고 약 2분 20초 뒤 라운드 1이 시작돼요');
   await expect(confirm).toContainText("사전 활동 중에도 '지금 할 일' 카드의 [라운드 바로 시작]으로 당길 수 있어요");
   await shot(t, '134-A1-teacher-start-confirm.png');
   await t.getByTestId('confirm-ok').click();
@@ -101,12 +102,12 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
 
   // 표지가 떠 있는 동안(5초 뒤): 학생 화면에 상태 카드 — 거래·출항 버튼 대신
   await advanceUntil(ctx, t, async () => (await elapsed(t, 600)) >= 5, 10);
-  await expect(s.getByTestId('round-wait-line')).toHaveText(/^라운드 1까지 3:\d{2}$/);
+  await expect(s.getByTestId('round-wait-line')).toHaveText('지금 활동이 끝나면 라운드 1이 열려요'); // (작업 159) 학생 화면에 시간 숫자 없음
   await shot(s, '134-A3a-student-wait-card-cover.png');
-  // 20초 뒤(표지 → 벽란도 시장 시작 무렵)
-  await advanceUntil(ctx, t, async () => (await elapsed(t, 600)) >= 20, 40);
+  // (작업 159 정리) v0.3.8 배치에서는 라운드 1 앞 활동이 무역·수입·수출 하나뿐이라, 작은 글자 [라운드 바로 시작]은
+  // 표지가 떠 있는 동안(다음 항목이 라운드가 아닐 때)만 있다(now-card preRoundNow) — 그래서 표지 동안 확인한다
   // 교사: 진행 줄(카드 바로 아래, 첫 화면) "라운드 1까지 m:ss" + (작업 137 수정 1회차) 사전 활동 카드의 작은 글자 [라운드 바로 시작]
-  await expect(t.getByTestId('next-round')).toHaveText(/^라운드 1까지 3:\d{2}$/);
+  await expect(t.getByTestId('next-round')).toHaveText(/^라운드 1까지 [12]:\d{2}$/); // 교사 화면에는 시계가 그대로 보인다
   const roundNow = t.getByTestId('now-round-now');
   await expect(roundNow).toBeEnabled();
   const box = await roundNow.boundingBox();
@@ -114,7 +115,7 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await shot(t, '134-A2-teacher-next-round.png');
   // 학생: 상태 카드(활동 화면이 떠 있으면 그 화면이 위) — 거래·출항 버튼 없음
   await expect(s.getByTestId('round-wait-card')).toBeAttached();
-  await expect(s.getByTestId('round-wait-line')).toHaveText(/^라운드 1까지 3:\d{2}$/);
+  await expect(s.getByTestId('round-wait-line')).toHaveText('지금 활동이 끝나면 라운드 1이 열려요'); // (작업 159)
   await expect(s.getByTestId('bottom-status')).toContainText('라운드가 열리면 거래할 수 있어요');
   await expect(s.getByTestId('enter-port')).toHaveCount(0);
   await expect(s.getByTestId('set-ready')).toHaveCount(0);
@@ -124,7 +125,6 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await roundNow.click();
   const conf = t.getByTestId('confirm-round-now');
   await expect(conf).toContainText('「무역·수입·수출」');
-  await expect(conf).toContainText('벽란도 시장');
   await shot(t, '134-A4-teacher-round-now-confirm.png');
   await t.getByTestId('confirm-ok').click();
   await expect(t.getByTestId('round-info')).toContainText('라운드 1');
@@ -148,7 +148,7 @@ test('A. 차시 L1 10분: [무역 시작] 안내 → 학생 상태 카드·남�
   await ctx.close();
 });
 
-test('B. 차시 L1 10분 자동: 누르지 않으면 3:50에 라운드 1이 열린다', async ({ browser, baseURL }) => {
+test('B. 차시 L1 10분 자동: 누르지 않으면 2:20에 라운드 1이 열린다', async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
   test.setTimeout(300_000);
   const ctx = await browser.newContext({ baseURL, viewport: { width: 1366, height: 768 } });
@@ -159,8 +159,8 @@ test('B. 차시 L1 10분 자동: 누르지 않으면 3:50에 라운드 1이 열�
   await t.getByTestId('confirm-ok').click();
   await advanceUntil(ctx, t, async () => (await t.getByTestId('round-info').count()) > 0, 300);
   const e = await elapsed(t, 600);
-  expect(e).toBeGreaterThanOrEqual(229);
-  expect(e).toBeLessThanOrEqual(234);
+  expect(e).toBeGreaterThanOrEqual(139); // v0.3.8 배치(작업 153): 라운드 1 = 140초
+  expect(e).toBeLessThanOrEqual(144);
   await expect(s.getByTestId('round-wait-card')).toHaveCount(0);
   await ctx.close();
 });
@@ -194,6 +194,6 @@ test('C. 차시 L1 10분 수동: 카드 [다음으로](옛 [발동])만으로 �
     await t.waitForTimeout(40);
   }
   await expect(t.getByTestId('round-info')).toContainText('라운드 1');
-  expect(fired.length).toBeGreaterThanOrEqual(3); // 표지·벽란도 시장·무역·수입·수출 … 라운드 1
+  expect(fired.length).toBeGreaterThanOrEqual(2); // 표지·무역·수입·수출 … 라운드 1(v0.3.8 배치 — 벽란도 없음)
   await ctx.close();
 });

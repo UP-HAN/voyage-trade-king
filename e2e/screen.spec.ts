@@ -207,8 +207,10 @@ test.describe('장면(가짜 호스트 = 실제 교사 리듀서 상태)', () =>
         want: 'map',
         file: '04-map.png',
         check: async () => {
-          await expect(page.getByTestId('map-round-left')).toHaveText(/^2:\d\d$/);
-          const px = await page.getByTestId('map-round-left').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+          // (작업 159) TV에는 라운드 남은 시간 숫자가 없다 — 라운드 번호만 큰 글씨
+          await expect(page.getByTestId('map-round-left')).toHaveCount(0);
+          await expect(page.getByTestId('map-round-now')).toHaveText(/^라운드 \d+$/);
+          const px = await page.getByTestId('map-round-now').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
           expect(px).toBeGreaterThanOrEqual(72);
           await expect(page.getByTestId('map-ready')).toHaveText(/^출항 준비 \d+\/27$/);
         },

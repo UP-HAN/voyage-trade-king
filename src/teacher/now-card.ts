@@ -677,7 +677,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       const laterRound = !isRound && c.schedule.items.some((it) => it.kind === 'round' && firable(it));
       return {
         state: 'waiting', tag: focus, line,
-        sub: [...news, { text: '학생 화면에는 남은 시간이 보여요' }],
+        sub: [...news, { text: '학생 화면·TV에는 남은 시간이 보이지 않아요' }], // (작업 159)
         primary: isRound
           ? roundNowButton(c, now, '라운드 지금 시작', 'btn-round-now', 'primary')
           : { label: '지금 시작', kind: 'startItem', testId: 'now-start', itemId: next.id, tone: 'primary' },

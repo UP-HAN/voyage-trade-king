@@ -179,7 +179,7 @@ test('항구 시장: 부산 반도체 → 상하이 [수출] + 이익, 포트헤
   await expect(s.getByTestId('world-map')).toBeVisible();
   expect(await roundNo(t)).toBe(0);
   await expect(s.getByTestId('round-wait-card')).toBeVisible();
-  await expect(s.getByTestId('round-wait-line')).toHaveText(/^라운드 1까지 \d:\d{2}$/);
+  await expect(s.getByTestId('round-wait-line')).toHaveText('지금 활동이 끝나면 라운드 1이 열려요'); // (작업 159) 시간 숫자 없음
   await expect(s.getByTestId('enter-port')).toHaveCount(0);
   await expect(s.getByTestId('set-ready')).toHaveCount(0);
   await ensureRound(t);

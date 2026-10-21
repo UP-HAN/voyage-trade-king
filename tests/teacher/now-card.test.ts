@@ -149,7 +149,7 @@ describe('자동 진행 — 차시 L1 10분', () => {
     expect(c.state).toBe('waiting');
     expect(c.tag).toBe('사전 활동 2/2');
     expect(c.line).toBe('다음: 무역·수입·수출 · 2:20 뒤');
-    expect(subText(c)).toBe('학생 화면에는 남은 시간이 보여요 | 누르지 않아도 저절로 넘어가요 · 기다려 줄 학생이 있으면 [잠깐 멈춤]');
+    expect(subText(c)).toBe('학생 화면·TV에는 남은 시간이 보이지 않아요 | 누르지 않아도 저절로 넘어가요 · 기다려 줄 학생이 있으면 [잠깐 멈춤]');
     expect(c.primary).toMatchObject({ label: '지금 시작', kind: 'startItem', itemId: 'ev:L1-E2' });
     expect(c.secondary).toMatchObject({ label: '라운드 바로 시작', kind: 'roundNow' });
   });
@@ -776,5 +776,23 @@ describe('(작업 147, PRD 7.5.2.1 v0.3.8) 자동 진행 카드 단순화 — �
   it("⑥ OLD_TEACHER_TERMS: '항해 준비'는 옛 말, '출항 준비'는 새 말", () => {
     expect('항해 준비 끝낸 학생').toMatch(OLD_TEACHER_TERMS);
     expect('출항 준비 끝낸 학생 1/3').not.toMatch(OLD_TEACHER_TERMS);
+  });
+});
+
+describe('(작업 159) 예정보다 늦음 한 줄(card.late)', () => {
+  it('1분 이상 늦을 때만 "예정보다 n분 느려요", 아니면 null — 끝난 판에서는 안 보임', () => {
+    const p = play({ manual: true });
+    p.to(30);
+    expect(p.card().late).toBeNull();
+    p.to(60);
+    expect(p.card().late).toBe('예정보다 1분 느려요');
+    p.to(185);
+    expect(p.card().late).toBe('예정보다 3분 느려요');
+    expect(p.card(UI, { ended: true }).late).toBeNull();
+  });
+  it('자동 진행에서 예정대로면 null', () => {
+    const p = play();
+    p.to(5);
+    expect(p.card().late).toBeNull();
   });
 });

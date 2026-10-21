@@ -151,18 +151,24 @@ describe('자유 항해 — 바로 이동(sailTo)', () => {
     expect(z.player.game.fareDue).toBe(cost);
     // 쓸 수 있는 돈이 음수면 사기는 막힌다(기존 판정 그대로)
     expect(applyAction(s.class, z.player, { type: 'buy', good: 'rice' as never, qty: 1 }).error).toBeTruthy();
-    // 라운드 끝 정산: 모자란 만큼 대출, 자금 음수 없음
-    const res = resolveRounds({ ...s.class, phase: 'between' }, r.player);
+    // 라운드 끝 정산(팔 물건이 있는 배): 모자란 만큼만 대출, 자금 음수 없음
+    const withCargo = { ...r.player, game: { ...r.player.game, cargo: [{ good: 'rice' as never, qty: 1, unitCost: 10, origin: 'foreign' as const, source: 'specialty' as const, boughtAt: 'BUS' as never }] } };
+    const res = resolveRounds({ ...s.class, phase: 'between' }, withCargo);
     expect(res.player.game.money).toBe(0);
     expect(res.player.game.loan).toBe(1);
     expect(res.player.game.fareDue).toBe(0);
     expect(res.events).toContainEqual({ type: 'loan', amount: 1 });
-    // 무역 끝 정산도 같은 길(호스트 endTrade)
-    let t = { ...zero, players: { ...zero.players, s01: z.player } };
+    // 빈손(자금 0·화물 0)이면 정산 대출 뒤 기존 긴급 대출(PRD 6.8, 200만 원)도 그대로 붙는다
+    const empty = resolveRounds({ ...s.class, phase: 'between' }, r.player);
+    expect(empty.player.game.money).toBe(200);
+    expect(empty.player.game.loan).toBe(1 + 200);
+    expect(empty.player.game.fareDue).toBe(0);
+    // 무역 끝 정산도 같은 길(호스트 endTrade) — 빈손이라 운항비 대출 + 긴급 대출
+    let t: HostSnapshot = { ...zero, players: { ...zero.players, s01: z.player } };
     t = teach(t, { type: 'endTrade' });
     expect(player(t, 1).game.fareDue).toBe(0);
-    expect(player(t, 1).game.money).toBe(0);
-    expect(player(t, 1).game.loan).toBe(cost);
+    expect(player(t, 1).game.money).toBeGreaterThanOrEqual(0);
+    expect(player(t, 1).game.loan).toBeGreaterThanOrEqual(cost);
   });
 
   it('(작업 159) 라운드마다 판은 그대로 — 자금이 운항비보다 적으면 목적지 NO_MONEY', () => {

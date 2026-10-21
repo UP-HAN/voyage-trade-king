@@ -214,11 +214,22 @@ describe('시상: 수상 회사 없는 상은 카드가 없다', () => {
 });
 
 describe('그 밖 장면 내용', () => {
-  it('해도: 라운드 타이머 + 출항 준비, 시계 띠에 구간 이름', () => {
+  it('해도: 라운드 번호 + 출항 준비, 시계 띠에 구간 이름 — (작업 159) 남은 시간 숫자 없음', () => {
     show('map');
-    expect(byTest('map-round-left')[0]!.textContent).toMatch(/^2:\d\d$/);
+    expect(byTest('map-round-left')).toHaveLength(0);
+    expect(byTest('map-round-now')[0]!.textContent).toMatch(/^라운드 \d+$/);
+    expect(byTest('screen-clock')[0]!.textContent).not.toMatch(/\d+:\d{2}/);
+    expect(byTest('route-screen')[0]!.textContent).not.toMatch(/\d+:\d{2}|\d+\s*(분|초)\s*남/);
     expect(byTest('map-ready')[0]!.textContent).toMatch(/^출항 준비 \d+\/27$/);
     expect(byTest('screen-clock-stage')[0]!.textContent).toBe('1차시 · 물건은 어디에서 왔을까? 왜 무역을 할까?');
+  });
+  it('(작업 159) 어느 장면에서도 TV 글자에 남은 시간 숫자(m:ss·n분 남음)가 없다', () => {
+    const scenes: FixtureScene[] = ['prep', 'cover', 'summary', 'event', 'vote', 'bars', 'barsVote', 'map', 'between', 'worksheet', 'worksheetBundle', 'pause', 'awards', 'unitL2Cover'];
+    for (const sc of scenes) {
+      show(sc);
+      expect(dom.root.textContent, sc).not.toMatch(/\d+:\d{2}|\d+\s*(분|초)\s*(남|뒤)/);
+      act(() => render(null, dom.root as unknown as Element));
+    }
   });
   it('일시정지: "선생님을 보세요" + 시계 옆 "멈춤"', () => {
     show('pause');

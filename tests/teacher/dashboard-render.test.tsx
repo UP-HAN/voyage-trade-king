@@ -255,6 +255,13 @@ describe('(작업 137) 큰 버튼 빠른 두 번 누름 — 두 단계가 넘어
     expect(n).toBe(1);
     expect(byId('now-next')!.hasAttribute('disabled')).toBe(false);
   });
+
+  it('(작업 159) card.late 가 있으면 꼬리표 옆 "예정보다 n분 느려요", 없으면 안 그림', () => {
+    act(() => render(<NowCard card={{ ...cardOf('L'), late: '예정보다 3분 느려요' }} onAction={() => undefined} />, dom.root as unknown as Element));
+    expect(byId('now-late')!.textContent).toBe('예정보다 3분 느려요');
+    act(() => render(<NowCard card={{ ...cardOf('M'), late: null }} onAction={() => undefined} />, dom.root as unknown as Element));
+    expect(byId('now-late')).toBeFalsy();
+  });
 });
 
 describe('(작업 137) 용어 — 대시보드 전체(접힘 영역 모두 펼침)·설정 창에 옛 말이 없다', () => {
