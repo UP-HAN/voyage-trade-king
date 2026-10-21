@@ -8,9 +8,11 @@ import { playScopeTag, playUnitTag, worksheetStage } from '../../core/worksheet-
 import type { WorksheetId } from '../../data/types';
 import { afterWorksheets, hasAwardWinners, leaderboardOn, worksheetRows, type ScreenData, type WorksheetRow } from '../model';
 import { ArtImg } from '../parts';
+import { CustomsScene } from './CustomsScene';
 import type { SceneProps } from './types';
 
-export function WorksheetScene({ d }: SceneProps) {
+export function WorksheetScene(props: SceneProps) {
+  const { d } = props;
   const ids = d.cls.worksheet.current ?? [];
   // (작업 132) '지금 쓰기' ★ 칸 팝업이면 "잠깐! ③★ 지금 써요"
   const during = d.cls.worksheet.during === true;
@@ -21,6 +23,26 @@ export function WorksheetScene({ d }: SceneProps) {
   const total = d.pub.joinedCount;
   const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
   const tag = playUnitTag(d.playUnit, worksheetStage(ids as WorksheetId[], d.cls.stage));
+  // (10-22 교사 피드백) ⑤는 세관 게시판을 보면서 써야 하므로, 쓰는 동안 TV는 게시판을 그대로 두고 아래에 '잠깐! ⑤' 띠만 얹는다
+  if (!during && ids.includes('W05')) {
+    return (
+      <div class="scr-scene scr-ws scr-ws--board" data-testid="scene-worksheet" data-ids={ids.join(',')} data-during="0" data-with-board="1">
+        <CustomsScene {...props} />
+        <div class="scr-ws__strip">
+          <h1 class="scr-ws__strip-title" data-testid="ws-title">
+            <span class="scr-ws__wait">잠깐!</span> {labels} 학습지를 써요
+          </h1>
+          <span class="scr-ws__strip-hint">위 게시판을 보며 표를 채워요</span>
+          <span class="scr-ws__strip-done" data-testid="ws-done">
+            <span class="scr-ws__done-k">다 쓴 회사</span>{' '}
+            <span class="scr-big" data-testid="ws-done-count">
+              {done}/{total}
+            </span>
+          </span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div class="scr-scene scr-ws" data-testid="scene-worksheet" data-ids={ids.join(',')} data-during={during ? '1' : '0'}>
       <ArtImg path="letters/letter-paper.png" alt="" class="scr-ws__paper" />

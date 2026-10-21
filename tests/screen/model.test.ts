@@ -42,6 +42,7 @@ describe('장면 고르기(자동)', () => {
     ['between', 'leaderboard'],
     ['worksheet', 'worksheet'],
     ['worksheetBundle', 'worksheet'],
+    ['worksheetCustoms', 'worksheet'],
     ['pause', 'pause'],
     ['awards', 'awards'],
     ['unitL2Cover', 'cover'],

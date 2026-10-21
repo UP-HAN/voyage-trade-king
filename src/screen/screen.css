@@ -396,3 +396,11 @@
 .scr-slides__foot .scr-event__count { margin-left: auto; }
 .scr-slides__nav { font: inherit; font-size: var(--scr-small); min-width: calc(var(--u) * 3.2); min-height: calc(var(--u) * 3.2); padding: 0 calc(var(--u) * 0.8); border-radius: 999px; border: 2px solid var(--brass); background: transparent; color: var(--ink); cursor: pointer; }
 .scr-slides__nav:disabled { opacity: 0.3; cursor: default; }
+
+/* (10-22) 학습지 ⑤: 세관 게시판을 그대로 보이고 아래에 '잠깐!' 띠 */
+.scr-ws--board { display: flex; flex-direction: column; padding: 0; gap: 0; }
+.scr-ws--board > .scr-customs { flex: 1 1 auto; min-height: 0; }
+.scr-ws__strip { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 2.4); flex-wrap: wrap; padding: calc(var(--u) * 1) calc(var(--u) * 2); background: rgba(8, 20, 32, 0.88); border-top: calc(var(--u) * 0.25) solid var(--brass); color: var(--parchment-light); }
+.scr-ws__strip-title { margin: 0; font-family: var(--font-title); font-size: calc(var(--u) * 3.2); }
+.scr-ws__strip-hint { font-size: calc(var(--u) * 2); }
+.scr-ws__strip-done { display: inline-flex; align-items: center; gap: calc(var(--u) * 0.8); }

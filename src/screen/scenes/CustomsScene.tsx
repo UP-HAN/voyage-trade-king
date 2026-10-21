@@ -81,7 +81,7 @@ export function CustomsScene({ d }: SceneProps) {
         <Column title="부산에 들여온 상품(수입)" list={m.imports} book={TEXTBOOK_P100.imports} testId="customs-imports" />
         <Column title="다른 나라에 내보낸 상품(수출)" list={m.exports} book={TEXTBOOK_P100.exports} testId="customs-exports" />
       </div>
-      <p class="scr-lead scr-customs__ask">★ = 교과서에도 나오는 상품 · 우리 반 게시판과 교과서 그림은 무엇이 닮았나요?</p>
+      <p class="scr-lead scr-customs__ask">★ = 교과서에도 나오는 상품 · 우리 반 게시판과 교과서 100쪽의 수입품·수출품은 무엇이 닮았나요?</p>
     </div>
   );
 }

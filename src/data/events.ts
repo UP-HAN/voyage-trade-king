@@ -230,7 +230,7 @@ const L2_EVENTS: readonly GameEvent[] = [
     id: 'L2-E6', lesson: 'L2', kind: 'screen', required: false, title: '세관 게시판', pages: [100], worksheetAfter: 'W05',
     body: '우리 반이 부산에 들여온 상품과 다른 나라에 내보낸 상품 순위예요. 교과서 100쪽의 우리나라 주요 수입품·수출품과 비교해 봐요.',
     textbook: [{ pages: [100], note: '우리나라는 원유, 정밀 화학 원료, 천연가스, 석탄 등을 주로 수입하고, 반도체, 자동차, 무선 통신 기기, 석유 제품 등을 주로 수출해요.' }],
-    teacherPrompts: ['우리 반 세관 게시판과 교과서 그림은 무엇이 닮았나?'],
+    teacherPrompts: ['우리 반 세관 게시판과 교과서 100쪽의 수입품·수출품은 무엇이 닮았나?'],
     tier: 2, priority: 3, blocking: true, minutes: { full: 3, short: 1 }, shortForm: { blocking: true, note: '공용 화면 비교 막대만' }, needsRounds: 0, anchor: 'stageEnd',
   }),
   skeleton({

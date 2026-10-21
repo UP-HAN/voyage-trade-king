@@ -116,6 +116,7 @@ describe('장면 렌더 + 금지 정보 없음', () => {
     ['between', 'leaderboard'],
     ['worksheet', 'worksheet'],
     ['worksheetBundle', 'worksheet'],
+    ['worksheetCustoms', 'worksheet'],
     ['pause', 'pause'],
     ['awards', 'awards'],
     ['unitL2Cover', 'cover'],
@@ -235,6 +236,17 @@ describe('그 밖 장면 내용', () => {
     show('pause');
     expect(byTest('scene-pause')[0]!.textContent).toContain('선생님을 보세요');
     expect(byTest('screen-clock-paused')).toHaveLength(1);
+  });
+  it('(10-22) 학습지 ⑤: TV는 세관 게시판을 그대로 보이고 아래에 잠깐! ⑤ 띠(완료 수)만 얹는다', () => {
+    show('worksheetCustoms');
+    const w = byTest('scene-worksheet')[0]!;
+    expect(w.getAttribute('data-with-board')).toBe('1');
+    expect(w.getAttribute('data-ids')).toBe('W05');
+    expect(byTest('scene-customs')).toHaveLength(1); // 세관 게시판이 그대로 보인다
+    expect(byTest('customs-imports')).toHaveLength(1);
+    expect(byTest('customs-exports')).toHaveLength(1);
+    expect(byTest('ws-title')[0]!.textContent).toBe('잠깐! ⑤ 학습지를 써요');
+    expect(byTest('ws-done-count')[0]!.textContent).toBe('18/27');
   });
   it('학습지 시간: 묶음 번호 + 완료 18/27(이름 없음)', () => {
     show('worksheetBundle');

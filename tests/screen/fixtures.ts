@@ -26,6 +26,7 @@ export type FixtureScene =
   | 'between'
   | 'worksheet'
   | 'worksheetBundle'
+  | 'worksheetCustoms'
   | 'pause'
   | 'awards'
   | 'unitL2Cover';
@@ -161,8 +162,9 @@ export function buildGame(scene: FixtureScene, o: FixtureOptions = {}): TeacherG
       g = { ...g, class: { ...cls, phase: 'between', round: 1 } };
       break;
     case 'worksheet':
-    case 'worksheetBundle': {
-      const ids: WorksheetId[] = scene === 'worksheet' ? ['W03'] : ['W01', 'W02', 'W03', 'W04'];
+    case 'worksheetBundle':
+    case 'worksheetCustoms': {
+      const ids: WorksheetId[] = scene === 'worksheet' ? ['W03'] : scene === 'worksheetCustoms' ? ['W05'] : ['W01', 'W02', 'W03', 'W04'];
       g = { ...g, class: { ...cls, phase: 'worksheet', worksheet: { ...cls.worksheet, current: ids, openedAt: at } } };
       const players = { ...g.players };
       for (let s = 1; s <= n; s++) {
