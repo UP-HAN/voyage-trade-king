@@ -29,6 +29,11 @@ export interface PeerRecord {
   /** 항해 기록장 값(호스트가 state.me의 `logbook`에 담아 보냄) */
   logbook: unknown;
   endedAt: number | null;
+  /**
+   * (작업 145 추가 요구) 같은 코드 재시도를 시작한 시각(첫 NO_ROOM·HOST_OFFLINE, 기기 시각).
+   * 새로 고침해도 9분(NO_ROOM_GIVE_UP_MS) 판정·[새 방 코드로 들어가기] 판정을 이어서 센다. 정상 입장(admitted)하면 null.
+   */
+  waitSince: number | null;
   savedAt: number;
 }
 
@@ -80,6 +85,7 @@ const EMPTY: Omit<PeerRecord, 'savedAt'> = {
   lastMe: null,
   logbook: null,
   endedAt: null,
+  waitSince: null,
 };
 
 export function createPeerStore(o: PeerStoreOptions = {}): PeerStore {

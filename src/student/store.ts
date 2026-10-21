@@ -44,6 +44,10 @@ export interface StudentState {
   nameRequest: { pending: boolean; error: string | null; suggestions: string[] };
   /** 호스트 부재로 입장이 막혀 자동으로 다시 해 보는 중 */
   retryingJoin: boolean;
+  /** (작업 145) 자동 재입장을 시작한 시각(기기 시각, store의 `now`) — `booting`이 끝나면 null */
+  bootingSince: number | null;
+  /** (작업 145) [새 방 코드로 들어가기]로 입장 화면에 옴 → 맨 위 안내. 입장 성공·코드 바뀜·다른 입장 시도 때 꺼짐 */
+  newCodeHint: boolean;
 }
 
 export type StudentActResult = ActResult | 'blocked';
@@ -63,6 +67,11 @@ export interface StudentStore {
   cancelJoin(): void;
   /** [게임 나가기]: 연결을 끊고 이 기기의 방 기록(voyage.peer)을 지운다(기기 토큰은 남김) */
   leaveGame(): void;
+  /**
+   * (작업 145) [새 방 코드로 들어가기]: 재시도를 멈추고 연결을 끊고 방 기록(voyage.peer)을 지운다(기기 토큰은 남김).
+   * 번호·회사 이름은 남기고 방 코드만 비운 채 입장 화면으로(`newCodeHint`).
+   */
+  leaveForNewCode(): void;
   dismissToast(id: number): void;
   toast(text: string, kind?: Toast['kind']): void;
   serverNow(): number;
@@ -95,9 +104,29 @@ export interface StudentStoreOptions {
 const TOAST_MS = 3500;
 const MAX_TOASTS = 3;
 export const JOIN_RETRY_MS = 3000;
+/** (작업 145) 대기 화면(Booting)에 [새 방 코드로 들어가기]가 나오기까지(자동 재입장 시작부터) */
+export const REJOIN_ESCAPE_BOOT_MS = 10_000;
+/** (작업 145) 게임 화면 기다림 띠에 [새 방 코드로]가 나오기까지(호스트가 끊긴 때부터) */
+export const REJOIN_ESCAPE_GAME_MS = 60_000;
 
 /** 이 상태들에서는 화면(게임)이 보인다 */
 export const IN_GAME: readonly StudentPeerState['status'][] = ['in', 'hostOffline', 'reconnecting'];
+
+/**
+ * (작업 145) [새 방 코드로 들어가기]를 보일까(순수). `now`는 기기 시각(store의 `now`·`hostOfflineSince`와 같은 시계).
+ * - 대기 화면: `booting`이 10초 넘게 이어짐(세부 상태는 따지지 않음). 새로 고침 전부터 같은 코드를 기다리던 중이면
+ *   기기 방 기록에 남은 시작 시각(`peer.waitSince`)부터 센다(교사 추가 요구 2026-10-21)
+ * - 게임 화면: 'hostOffline'이 60초 넘게 이어짐
+ */
+export function showRejoinEscape(st: StudentState, now: number): boolean {
+  if (st.booting) {
+    if (st.bootingSince === null) return false;
+    const since = st.peer.waitSince !== null ? Math.min(st.bootingSince, st.peer.waitSince) : st.bootingSince;
+    return now - since >= REJOIN_ESCAPE_BOOT_MS;
+  }
+  const p = st.peer;
+  return p.status === 'hostOffline' && p.hostOfflineSince !== null && now - p.hostOfflineSince >= REJOIN_ESCAPE_GAME_MS;
+}
 
 function emptyName(): StudentState['nameRequest'] {
   return { pending: false, error: null, suggestions: [] };
@@ -106,6 +135,7 @@ function emptyName(): StudentState['nameRequest'] {
 export function createStudentStore(o: StudentStoreOptions): StudentStore {
   const href = o.href ?? (typeof location !== 'undefined' ? location.href : 'http://localhost/');
   const timers = o.timers === undefined ? realTimers : o.timers;
+  const now = o.now ?? (() => Date.now());
   const peerStore =
     o.peerStore ?? createPeerStore({ storage: o.storage === undefined ? peerStorageForHref(href) : o.storage, ...(o.now ? { now: o.now } : {}) });
   let as: string | null = null;
@@ -132,6 +162,8 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
   let toastSeq = 0;
   let disposed = false;
   let joinRetryTimer: unknown = null;
+  /** (작업 145) 나가기·새 코드로 갈 때마다 1 증가 — 그 전에 보낸 join의 늦은 결과로 재시도 타이머를 걸지 않게 */
+  let epoch = 0;
 
   const savedRec = (r: PeerRecord | null): StudentState['saved'] =>
     r ? { code: r.code, seat: r.seat, companyName: r.companyName } : null;
@@ -144,6 +176,8 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
     saved: savedRec(peerStore.load()),
     nameRequest: emptyName(),
     retryingJoin: false,
+    bootingSince: null,
+    newCodeHint: false,
   };
 
   const emit = () => {
@@ -180,6 +214,8 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
     if (p.status === 'waitingApproval' || p.status === 'in' || p.status === 'joining') patch.approvalLost = false;
     if (st.booting && p.status !== 'joining' && (p.status !== 'hostOffline' || p.me !== null) && p.status !== 'reconnecting')
       patch.booting = false;
+    if (patch.booting === false) patch.bootingSince = null;
+    if (st.newCodeHint && (p.status === 'in' || p.status === 'codeChanged')) patch.newCodeHint = false;
     if (st.retryingJoin && p.status !== 'idle') {
       patch.retryingJoin = false;
       clearJoinRetry();
@@ -248,6 +284,16 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
   };
   unsubs.push(o.transport.onMessage((m) => scan(m)));
 
+  /** [게임 나가기]·[새 방 코드로 들어가기] 공통: 재시도 멈춤 → 연결 끊기 → 방 기록 삭제(기기 토큰은 남김) */
+  const leaveRoom = () => {
+    epoch++;
+    clearJoinRetry();
+    session.leave();
+    peerStore.clearRoom();
+    lastResolved = null;
+    lastPid = null;
+  };
+
   const api: StudentStore = {
     session,
     transport: o.transport,
@@ -261,9 +307,10 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
     },
     async join(code, seat, companyName) {
       clearJoinRetry();
-      set({ retryingJoin: false, approvalLost: false });
+      set({ retryingJoin: false, approvalLost: false, newCodeHint: false });
+      const e = epoch;
       const r = await session.join(code, seat, companyName);
-      if (r === 'HOST_OFFLINE' && !disposed && timers) {
+      if (r === 'HOST_OFFLINE' && !disposed && timers && e === epoch) {
         // 선생님 화면이 켜질 때까지 자동으로 다시 해 봄
         set({ retryingJoin: true });
         joinRetryTimer = timers.setTimeout(() => {
@@ -277,7 +324,7 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
     },
     autoRejoin() {
       const ok = session.autoRejoin();
-      if (ok) set({ booting: true });
+      if (ok) set({ booting: true, bootingSince: now() });
       return ok;
     },
     isBlocked() {
@@ -301,17 +348,29 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
       session.requestRejoin();
     },
     cancelJoin() {
+      epoch++;
       clearJoinRetry();
       session.leave();
       set({ retryingJoin: false, approvalLost: false });
     },
     leaveGame() {
-      clearJoinRetry();
-      session.leave();
-      peerStore.clearRoom();
-      lastResolved = null;
-      lastPid = null;
-      set({ saved: null, booting: false, retryingJoin: false, approvalLost: false });
+      leaveRoom();
+      set({ saved: null, booting: false, bootingSince: null, retryingJoin: false, approvalLost: false, newCodeHint: false });
+    },
+    leaveForNewCode() {
+      // 번호·이름은 지금 회사 값(이름이 바뀌었을 수 있음) → 없으면 기기에 남은 값
+      const p = st.peer;
+      const seat = p.seat ?? st.saved?.seat ?? null;
+      const companyName = p.companyName ?? st.saved?.companyName ?? null;
+      leaveRoom();
+      set({
+        saved: { code: null, seat, companyName },
+        booting: false,
+        bootingSince: null,
+        retryingJoin: false,
+        approvalLost: false,
+        newCodeHint: true,
+      });
     },
     dismissToast,
     toast,

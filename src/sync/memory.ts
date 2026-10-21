@@ -30,7 +30,7 @@ interface Link {
   client: MemoryClient;
   connId: string | null;
   ip: string;
-  /** leave()로 영구히 닫힘 */
+  /** leave()로 영구히 닫힘(테스트 도구 `reopenAfterLeave`로만 다시 엶 — 작업 145) */
   closed: boolean;
   /** 연결할 때마다 1 증가 — 이전 연결로 보낸 메시지가 새 연결에 도착하지 않게 */
   gen: number;
@@ -125,6 +125,18 @@ export class MemoryNetwork {
   reconnectIfServerClosed(client: MemoryClient): boolean {
     const link = this.links.get(client);
     if (!link || !link.droppedByServer || link.closed || link.connId !== null) return false;
+    this.connect(link);
+    return true;
+  }
+
+  /**
+   * (작업 145) 테스트 도구: leave()로 닫은 연결을 다시 연다 — RelayPeer(ready)·LocalPeer(restart)가 leave 뒤 다음 join에서
+   * 다시 연결하는 것을 흉내 낼 때(tests/student/helpers.ts). MemoryPeer.join 자체는 leave 뒤 다시 붙지 않는다(기존 계약). 다시 열었으면 true
+   */
+  reopenAfterLeave(client: MemoryClient): boolean {
+    const link = this.links.get(client);
+    if (!link || !link.closed || link.connId !== null) return false;
+    link.closed = false;
     this.connect(link);
     return true;
   }

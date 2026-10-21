@@ -46,6 +46,8 @@ export interface HarnessApi {
   phase(): string | null;
   /** 저장을 바로(탭을 닫기 전에 — 실제 교사 화면은 1초 묶음 저장) */
   flush(): void;
+  /** (작업 145) 판 끝내기(방 닫기) */
+  close(): Promise<void>;
 }
 
 const out = document.getElementById('out')!;
@@ -109,6 +111,7 @@ async function main() {
     player: (s) => session.getView().game?.players[seatKey(s)] ?? null,
     phase: () => session.getView().game?.class.phase ?? null,
     flush: () => session.flushSave(),
+    close: () => session.close(),
   };
   window.__ready = true;
 }

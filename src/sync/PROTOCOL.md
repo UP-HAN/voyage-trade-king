@@ -204,7 +204,7 @@ resultTable(game) → { playUnit, scope, metrics[{key,label}], rows[{seat, value
 | 교사 localStorage | `voyage.host.last` | 마지막 판 코드 | 그 판 기록과 함께 |
 | 교사 localStorage | `voyage.hosttick.<code>` | 마지막 틱 시각(숫자 하나, 1초마다). 출력 없는 틱에는 판 전체를 저장하지 않으므로, 새로 고침 복구 때 끊긴 시간 = 지금 − max(savedAt, 이 값) | 그 판 기록과 함께, 기록 없는 틱 키는 `purgeExpired` 때 |
 | 학생 localStorage | `voyage.device` | 기기 토큰(32자 16진) | 아래 기록이 만료될 때 함께 |
-| 학생 localStorage | `voyage.peer` | `{code, seat, companyName, pid, nameStatus, lastMe(보기용), logbook(항해 기록장 = state.me의 logbook), endedAt, savedAt}` | `endedAt + 24시간` 또는 `savedAt + 24시간`. `moved`·`kicked`면 방 정보 즉시 삭제(토큰은 남김) |
+| 학생 localStorage | `voyage.peer` | `{code, seat, companyName, pid, nameStatus, lastMe(보기용), logbook(항해 기록장 = state.me의 logbook), endedAt, savedAt, waitSince}` — (145) `waitSince` = 같은 코드 재시도를 시작한 첫 `NO_ROOM`/`HOST_OFFLINE` 시각. 새로 고침 뒤에도 9분(`NO_ROOM_GIVE_UP_MS`) `codeChanged` 판정과 대기 화면 [새 방 코드로 들어가기](10초) 시점을 이어서 센다. `admitted` 때 지움 | `endedAt + 24시간` 또는 `savedAt + 24시간`. `moved`·`kicked`면 방 정보 즉시 삭제(토큰은 남김) |
 | 로컬 모드 `?as=` 탭 | sessionStorage 같은 키 | 탭마다 다른 학생 | 탭 닫으면 |
 | 판 옮기기 파일 | (파일) | `{kind:'voyage-move', v:3, warning, exportedAt, record: StoredHost}` — hostToken 포함 경고 | 교사 |
 | 결과 파일 | (파일) | JSON + CSV(UTF-8 BOM, CRLF). 열 = **출석번호, 회사 이름, 판 단위, 차시(범위), 지표들, 상**(실명 열 없음). `=+-@`로 시작하는 값은 앞에 `'` | 교사 |

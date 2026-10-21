@@ -1,7 +1,7 @@
 /**
  * 게임 화면 틀: 상태 띠 → HUD → (준비 단계 / 해도 S07 / 항구 자리 / 무역 끝) → 하단 바, 그 위에 끼워 넣기 층(slots.tsx).
  */
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { nextRoundWait, voyageCostFor, type PublicClass } from '../core';
 import { missionsById } from '../data/missions';
 import { portLabel } from '../data/ports';
@@ -9,14 +9,15 @@ import type { PortId } from '../data/types';
 import { flagHex } from '../ui/common/FlagIcon';
 import { WorldMap, type OtherShip } from '../ui/map/WorldMap';
 import { Dex } from './Dex';
-import { useServerNow, useSessionValue } from './hooks';
+import { StoreContext, useDeviceNow, useServerNow, useSessionValue } from './hooks';
 import { Hud } from './Hud';
 import { PortCardModal } from './port/PortCard';
 import { PortScreen } from './port/PortScreen';
 import { classForPredict, playerForPredict, type MeView } from './predict';
 import { FoundCompany, PrepWait } from './Prep';
 import { SlotLayers, topLayer } from './slots';
-import type { StudentState, StudentStore } from './store';
+import { RejoinEscapeButton } from './RejoinEscape';
+import { showRejoinEscape, type StudentState, type StudentStore } from './store';
 import { toggleAllowed } from './guard';
 import { formatClock, formatMoney } from './text';
 import { WrapupView } from './wrapup/WrapupView';
@@ -44,13 +45,20 @@ const BAND_TEXT: Record<BandKind, string> = {
 
 export function StatusBands({ st, now }: { st: StudentState; now: number }) {
   const bands = statusBands(st, now);
+  const store = useContext(StoreContext);
+  const deviceNow = useDeviceNow();
   if (!bands.length) return null;
+  // (작업 145) 게임 화면 기다림 띠의 [새 방 코드로] — 대기 화면(booting)은 자기 버튼을 쓴다
+  const escape = store !== null && !st.booting && showRejoinEscape(st, deviceNow);
   return (
     <div class="st-bands">
       {bands.map((b) => (
         <div key={b} class={`st-band st-band--${b}`} role="status" data-testid={`band-${b}`}>
           {BAND_TEXT[b]}
           {b === 'hostWait' && st.peer.queuedCount > 0 && <span class="st-band__sub"> · 보낼 행동 {st.peer.queuedCount}개가 기다리고 있어요</span>}
+          {b === 'hostWait' && escape && store && (
+            <RejoinEscapeButton store={store} label="새 방 코드로" testId="band-rejoin-escape" className="st-band__btn" />
+          )}
           {b === 'version' && (
             <button type="button" class="btn btn--secondary st-band__btn" onClick={() => location.reload()}>
               새로 고침

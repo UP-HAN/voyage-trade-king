@@ -10,6 +10,9 @@ import { goodsById } from '../../src/data/goods';
 import { classForPredict, HOST_ONLY_ACTIONS, playerForPredict, studentPredict, tryPredict } from '../../src/student/predict';
 import { topLayer } from '../../src/student/slots';
 import { PEER_DEVICE_KEY, PEER_RECORD_KEY } from '../../src/sync/peer-store';
+import { REJOIN_ESCAPE_BOOT_MS, REJOIN_ESCAPE_GAME_MS, showRejoinEscape, type StudentState } from '../../src/student/store';
+import type { JoinResult } from '../../src/sync/adapter';
+import { NO_ROOM_GIVE_UP_MS } from '../../src/sync/peer-session';
 import { makeStudentWorld, MemStorage } from './helpers';
 
 describe('입장·재입장', () => {
@@ -346,5 +349,260 @@ describe('수정 1회차', () => {
     expect(toggleAllowed(1000, 1000 + 120)).toBe(false);
     expect(toggleAllowed(1000, 1000 + READY_TOGGLE_GUARD_MS - 1)).toBe(false);
     expect(toggleAllowed(1000, 1000 + READY_TOGGLE_GUARD_MS)).toBe(true);
+  });
+});
+
+describe('옛 방 코드로 갇힘 — 새 방 코드로 들어가기 (145)', () => {
+  const base = (patch: Partial<StudentState>, peer: Partial<StudentState['peer']> = {}): StudentState =>
+    ({
+      peer: { status: 'idle', hostOfflineSince: null, waitSince: null, ...peer },
+      toasts: [],
+      booting: false,
+      bootingSince: null,
+      approvalLost: false,
+      saved: null,
+      nameRequest: { pending: false, error: null, suggestions: [] },
+      retryingJoin: false,
+      newCodeHint: false,
+      ...patch,
+    }) as StudentState;
+
+  it('순수 판정: 대기 화면 10초(교사 추가 요구) / 게임 hostOffline 60초', () => {
+    expect(REJOIN_ESCAPE_BOOT_MS).toBe(10_000);
+    expect(REJOIN_ESCAPE_GAME_MS).toBe(60_000);
+    const t0 = 1_000_000;
+    // 대기 화면: 세부 상태는 따지지 않음
+    for (const status of ['joining', 'reconnecting', 'hostOffline'] as const) {
+      const st = base({ booting: true, bootingSince: t0 }, { status });
+      expect(showRejoinEscape(st, t0 + 9_900)).toBe(false);
+      expect(showRejoinEscape(st, t0 + 10_000)).toBe(true);
+    }
+    // 새로 고침 전부터 기다리던 시각(peer.waitSince)이 더 이르면 그것부터 센다
+    const resumed = base({ booting: true, bootingSince: t0 }, { status: 'joining', waitSince: t0 - 30_000 });
+    expect(showRejoinEscape(resumed, t0)).toBe(true);
+    const recent = base({ booting: true, bootingSince: t0 }, { status: 'joining', waitSince: t0 - 5_000 });
+    expect(showRejoinEscape(recent, t0 + 4_900)).toBe(false);
+    expect(showRejoinEscape(recent, t0 + 5_000)).toBe(true);
+    // 게임 화면 기준(60초)은 waitSince와 관계없음
+    expect(showRejoinEscape(base({}, { status: 'hostOffline', hostOfflineSince: t0, waitSince: t0 - 600_000 }), t0 + 59_900)).toBe(false);
+    expect(showRejoinEscape(base({ booting: false, bootingSince: t0 }, { status: 'joining' }), t0 + 30_000)).toBe(false);
+    // 게임 화면 기다림 띠
+    const g = base({}, { status: 'hostOffline', hostOfflineSince: t0 });
+    expect(showRejoinEscape(g, t0 + 59_900)).toBe(false);
+    expect(showRejoinEscape(g, t0 + 60_000)).toBe(true);
+    expect(showRejoinEscape(base({}, { status: 'in', hostOfflineSince: t0 }), t0 + 90_000)).toBe(false);
+    expect(showRejoinEscape(base({}, { status: 'reconnecting', hostOfflineSince: t0 }), t0 + 90_000)).toBe(false);
+  });
+
+  it('갇힘 재현 → [새 방 코드로 들어가기] → 새 코드로 입장, 새로 고침해도 옛 코드로 다시 가지 않음', async () => {
+    const w = makeStudentWorld();
+    const A = await w.openRoom();
+    const storage = new MemStorage();
+    const token = 'aaaaaaaabbbbbbbbccccccccdddddddd';
+    const a = await w.joinFounded(A.code, 4, '별빛상회', w.student({ storage, token }));
+    // 학생 기기가 꺼짐(알림 못 받음) → 교사가 방 A를 닫고 방 B를 엶
+    a.store.dispose();
+    w.net.disconnect(a.transport);
+    await w.advance(200);
+    await A.h.session.close();
+    await w.advance(500);
+    const B = await w.openRoom();
+    expect(B.code).not.toBe(A.code);
+    // 학생 기기가 다시 켜짐: 옛 코드로 자동 재입장 → NO_ROOM 재시도에 머묾
+    const b = w.student({ storage, token });
+    expect(b.store.autoRejoin()).toBe(true);
+    await w.advance(5000);
+    let st = b.store.getState();
+    expect(st.booting).toBe(true);
+    expect(st.peer.status).toBe('hostOffline');
+    expect(showRejoinEscape(st, w.now())).toBe(false);
+    await w.advance(REJOIN_ESCAPE_BOOT_MS - 5000);
+    st = b.store.getState();
+    expect(st.booting).toBe(true);
+    expect(showRejoinEscape(st, w.now())).toBe(true);
+    const deviceToken = storage.getItem(PEER_DEVICE_KEY);
+    expect(deviceToken).not.toBeNull();
+
+    b.store.leaveForNewCode();
+    st = b.store.getState();
+    expect(storage.getItem(PEER_RECORD_KEY)).toBeNull();
+    expect(storage.getItem(PEER_DEVICE_KEY)).toBe(deviceToken);
+    expect(st.saved).toEqual({ code: null, seat: 4, companyName: '별빛상회' });
+    expect(st.booting).toBe(false);
+    expect(st.bootingSince).toBeNull();
+    expect(st.newCodeHint).toBe(true);
+    expect(st.peer.status).toBe('idle');
+    expect(st.peer.errorCode).toBeNull();
+    // 남은 재시도가 상태를 바꾸지 않음
+    await w.advance(20_000);
+    st = b.store.getState();
+    expect(st.peer.status).toBe('idle');
+    expect(st.peer.errorCode).toBeNull();
+    expect(st.booting).toBe(false);
+
+    // 새로 고침(새 store)해도 옛 코드로 자동 재입장하지 않음
+    const probe = w.student({ storage, token });
+    expect(probe.store.autoRejoin()).toBe(false);
+    probe.store.dispose();
+    probe.transport.leave();
+
+    // 같은 store·같은 전송 어댑터로 방 B 입장
+    await b.store.join(B.code, 4, '별빛상회');
+    await w.advance(1000);
+    st = b.store.getState();
+    expect(st.peer.status).toBe('in');
+    expect(st.peer.code).toBe(B.code);
+    expect(st.newCodeHint).toBe(false);
+    expect(B.h.player(4)).toBeDefined();
+    expect(JSON.parse(storage.getItem(PEER_RECORD_KEY) ?? '{}').code).toBe(B.code);
+    B.h.session.dispose();
+  });
+
+  it('늦게 도착한 옛 입장 결과(NO_ROOM)는 무시한다', async () => {
+    const w = makeStudentWorld();
+    const A = await w.openRoom();
+    const storage = new MemStorage();
+    const a = await w.joinFounded(A.code, 6, '파도무역', w.student({ storage }));
+    a.store.dispose();
+    a.transport.leave();
+    await w.advance(200);
+    const b = w.student({ storage });
+    // 옛 코드 입장 요청이 날아가 있는 채로(응답 대기) 버튼
+    let resolveOld: (r: JoinResult) => void = () => {};
+    const realJoin = b.transport.join.bind(b.transport);
+    b.transport.join = () => new Promise<JoinResult>((r) => (resolveOld = r));
+    expect(b.store.autoRejoin()).toBe(true);
+    expect(b.store.getState().peer.status).toBe('joining');
+    b.store.leaveForNewCode();
+    b.transport.join = realJoin;
+    resolveOld('NO_ROOM');
+    await w.advance(5000);
+    const st = b.store.getState();
+    expect(st.peer.status).toBe('idle');
+    expect(st.peer.errorCode).toBeNull();
+    expect(st.booting).toBe(false);
+    expect(st.newCodeHint).toBe(true);
+    // 새 입장은 정상
+    await b.store.join(A.code, 6, '파도무역');
+    await w.advance(1000);
+    expect(b.store.getState().peer).toMatchObject({ status: 'in', admitMode: 'same-device' });
+    A.h.session.dispose();
+  });
+
+  it('같은 방으로 돌아오기: 교사 화면만 꺼짐(띠 60초) → 버튼 → 같은 코드 → 원래 회사(same-device)', async () => {
+    const w = makeStudentWorld();
+    const { h, code } = await w.openRoom();
+    const storage = new MemStorage();
+    const s = await w.joinFounded(code, 8, '해오름무역', w.student({ storage }));
+    const pid = s.store.getState().peer.pid;
+    const playersBefore = Object.keys(h.session.getView().game?.players ?? {}).length;
+    w.net.disconnect(h.transport);
+    await w.advance(300);
+    let st = s.store.getState();
+    expect(st.peer.status).toBe('hostOffline');
+    expect(st.booting).toBe(false);
+    await w.advance(REJOIN_ESCAPE_GAME_MS - 1000);
+    expect(showRejoinEscape(s.store.getState(), w.now())).toBe(false);
+    await w.advance(1000);
+    expect(showRejoinEscape(s.store.getState(), w.now())).toBe(true);
+
+    s.store.leaveForNewCode();
+    st = s.store.getState();
+    expect(st.saved).toEqual({ code: null, seat: 8, companyName: '해오름무역' });
+    expect(st.peer.status).toBe('idle');
+    // 같은 코드·채워진 번호·이름으로 다시 입장 → 교사 화면이 돌아오면 원래 회사
+    const r = await s.store.join(code, 8, '해오름무역');
+    expect(r).toBe('HOST_OFFLINE');
+    w.net.reconnect(h.transport);
+    await w.advance(6000);
+    st = s.store.getState();
+    expect(st.peer).toMatchObject({ status: 'in', admitMode: 'same-device', companyName: '해오름무역', pid });
+    expect(st.peer.me?.company.founded).toBe(true);
+    expect(Object.keys(h.session.getView().game?.players ?? {}).length).toBe(playersBefore);
+    h.session.dispose();
+  });
+});
+
+describe('새로 고침해도 기다린 시간이 이어짐 (145 추가 요구, 교사 2026-10-21)', () => {
+  async function trapped() {
+    const w = makeStudentWorld();
+    const A = await w.openRoom();
+    const storage = new MemStorage();
+    const token = 'eeeeeeeeffffffff0000000011111111';
+    const a = await w.joinFounded(A.code, 2, '바다상사', w.student({ storage, token }));
+    a.store.dispose();
+    w.net.disconnect(a.transport);
+    await w.advance(200);
+    await A.h.session.close();
+    await w.advance(500);
+    return { w, A, storage, token };
+  }
+  const rec = (storage: MemStorage) => JSON.parse(storage.getItem(PEER_RECORD_KEY) ?? 'null') as { waitSince: number | null; code: string } | null;
+
+  it('첫 NO_ROOM 시각을 voyage.peer에 남기고, 새로 고침(새 store) 뒤에도 그 시각부터 이어서 센다 → 버튼 바로', async () => {
+    const { w, storage, token } = await trapped();
+    const b = w.student({ storage, token });
+    expect(b.store.autoRejoin()).toBe(true);
+    await w.advance(3000);
+    expect(b.store.getState().peer.status).toBe('hostOffline');
+    const since = rec(storage)?.waitSince;
+    expect(typeof since).toBe('number');
+    expect(b.store.getState().peer.waitSince).toBe(since);
+    await w.advance(9000);
+    // 새로 고침
+    b.store.dispose();
+    b.transport.leave();
+    const c = w.student({ storage, token });
+    expect(c.store.autoRejoin()).toBe(true);
+    let st = c.store.getState();
+    expect(st.peer.waitSince).toBe(since); // 처음부터 다시 세지 않음
+    expect(st.booting).toBe(true);
+    expect(showRejoinEscape(st, w.now())).toBe(true); // 이미 10초 넘게 기다림 → 새로 고침 직후에도 바로
+    await w.advance(3000);
+    st = c.store.getState();
+    expect(st.peer.status).toBe('hostOffline');
+    expect(rec(storage)?.waitSince).toBe(since);
+  });
+
+  it('9분(NO_ROOM_GIVE_UP_MS) 뒤 codeChanged는 중간에 새로 고침해도 첫 NO_ROOM부터 센다', async () => {
+    const { w, storage, token } = await trapped();
+    const b = w.student({ storage, token });
+    b.store.autoRejoin();
+    await w.advance(3000);
+    const since = rec(storage)!.waitSince as number;
+    await w.advance(NO_ROOM_GIVE_UP_MS - 120_000, 1000);
+    b.store.dispose();
+    b.transport.leave();
+    const c = w.student({ storage, token });
+    c.store.autoRejoin();
+    await w.advance(60_000, 1000);
+    expect(c.store.getState().peer.status).toBe('hostOffline'); // 아직 9분 전
+    await w.advance(90_000, 1000);
+    expect(w.now() - since).toBeGreaterThanOrEqual(NO_ROOM_GIVE_UP_MS);
+    expect(c.store.getState().peer.status).toBe('codeChanged');
+    expect(c.store.getState().booting).toBe(false);
+  });
+
+  it('같은 방에 정상 입장(admitted)하면 저장된 waitSince를 지운다', async () => {
+    const w = makeStudentWorld();
+    const { h, code } = await w.openRoom();
+    const storage = new MemStorage();
+    const token = '22222222333333334444444455555555';
+    const a = await w.joinFounded(code, 3, '노을무역', w.student({ storage, token }));
+    a.store.dispose();
+    a.transport.leave();
+    // 교사 화면이 꺼진 채 학생이 새로 고침 → HOST_OFFLINE 재시도(waitSince 저장)
+    w.net.disconnect(h.transport);
+    await w.advance(300);
+    const b = w.student({ storage, token });
+    b.store.autoRejoin();
+    await w.advance(3000);
+    expect(b.store.getState().peer.status).toBe('hostOffline');
+    expect(typeof rec(storage)?.waitSince).toBe('number');
+    w.net.reconnect(h.transport);
+    await w.advance(20_000);
+    expect(b.store.getState().peer).toMatchObject({ status: 'in', admitMode: 'same-device', waitSince: null });
+    expect(rec(storage)?.waitSince).toBeNull();
+    h.session.dispose();
   });
 });

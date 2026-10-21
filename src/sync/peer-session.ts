@@ -77,6 +77,8 @@ export interface PeerState<M, P> {
   queuedCount: number;
   /** 호스트가 끊긴 시각(15초 넘으면 "선생님 화면을 기다리고 있어요" 띠 — 화면이 판단) */
   hostOfflineSince: number | null;
+  /** (작업 145) 같은 코드 재시도를 시작한 시각(기기 시각, 새로 고침 전 것도 이어짐). 재시도 중이 아니면 null */
+  waitSince: number | null;
   /** 앱 버전이 호스트와 다름 → "새로 고침해 주세요" */
   versionMismatch: boolean;
   /** 판이 끝남(보기 전용) */
@@ -166,6 +168,8 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
   private attempt = 0;
   /** 같은 코드 재시도를 시작한 시각(NO_ROOM·HOST_OFFLINE 첫 응답) */
   private waitSince: number | null = null;
+  /** (작업 145) leave()마다 1 증가 — 끊기 전에 보낸 입장 요청의 늦은 결과가 상태·오류를 바꾸지 않게 */
+  private gen = 0;
 
   private readonly stateL = new Listeners<[PeerState<M, P>]>();
   private readonly rollbackL = new Listeners<[string, string | null]>();
@@ -206,11 +210,12 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
     const r = this.o.store.load();
     if (!r || !r.code || r.seat === null || !r.companyName || r.endedAt !== null) return false;
     this.auto = true;
-    void this.start({ code: r.code, seat: r.seat, company: r.companyName });
+    // (작업 145) 새로 고침 전에 이미 기다리던 시각을 이어받는다(9분 판정이 처음부터 다시 시작되지 않게)
+    void this.start({ code: r.code, seat: r.seat, company: r.companyName }, typeof r.waitSince === 'number' ? r.waitSince : null);
     return true;
   }
 
-  private start(target: { code: string; seat: number; company: string }): Promise<JoinResult | 'LOCAL_CHECK'> {
+  private start(target: { code: string; seat: number; company: string }, waitSince: number | null = null): Promise<JoinResult | 'LOCAL_CHECK'> {
     this.clearRetry();
     if (this.code !== target.code) {
       // 다른 방이면 이전 판 상태를 버린다
@@ -222,7 +227,7 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
     }
     this.target = target;
     this.code = target.code;
-    this.waitSince = null;
+    this.waitSince = waitSince;
     this.attempt = 0;
     this.errorCode = null;
     this.suggestions = [];
@@ -241,13 +246,16 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
       return 'pending';
     }
     if (this.joinInFlight) return 'pending';
+    const gen = this.gen;
     this.joinInFlight = true;
     let r: JoinResult;
     try {
       r = await this.t.join(tg.code, hello);
     } finally {
-      this.joinInFlight = false;
+      if (this.gen === gen) this.joinInFlight = false;
     }
+    // (작업 145) 기다리는 동안 leave()로 끊었으면 옛 시도의 결과는 무시(새 코드 입장 화면에 옛 오류가 뜨지 않게)
+    if (this.gen !== gen) return r;
     if (r !== 'pending') this.joinFailed(r);
     return r;
   }
@@ -259,8 +267,8 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
       // 서버 재시작 뒤 호스트가 같은 코드로 다시 열 때까지 기다리며 계속 시도(코드를 다시 입력하지 않게).
       // 기다리는 동안 서버가 방 밖 연결을 정리(UNJOINED_TIMEOUT)해 OFFLINE이 되어도 계속 — RelayAdapter는 다음 join 때 다시 연결함
       const t = this.now();
-      this.waitSince ??= t;
-      if (t - this.waitSince >= NO_ROOM_GIVE_UP_MS) {
+      this.markWaiting(t);
+      if (t - (this.waitSince ?? t) >= NO_ROOM_GIVE_UP_MS) {
         this.status = 'codeChanged';
         this.setError('CODE_CHANGED');
         this.emit();
@@ -287,6 +295,13 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
     this.status = 'idle';
     this.setError(code);
     this.emit();
+  }
+
+  /** (작업 145) 같은 코드 재시도 시작 시각을 정하고 기기 방 기록에도 남긴다(새로 고침 뒤 이어서 셈) */
+  private markWaiting(t: number) {
+    if (this.waitSince !== null) return;
+    this.waitSince = t;
+    if (this.o.store.load()?.code === this.code) this.o.store.save({ waitSince: t });
   }
 
   private scheduleRetry(ms: number) {
@@ -396,6 +411,7 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
           pid: this.pid,
           nameStatus: this.nameStatus,
           endedAt: null,
+          waitSince: null,
         });
         this.synced();
         this.emit();
@@ -608,7 +624,7 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
           // (서버가 학생 연결을 닫아도 RelayAdapter는 다음 join 때 다시 연결)
           this.status = 'hostOffline';
           this.hostOfflineSince ??= this.now();
-          this.waitSince ??= this.now();
+          this.markWaiting(this.now());
           this.scheduleRetry(WAIT_HOST_BACKOFF_MS[0] as number);
         }
         this.emit();
@@ -655,6 +671,8 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
 
   leave(): void {
     this.clearRetry();
+    this.gen++;
+    this.joinInFlight = false;
     this.auto = false;
     this.t.leave();
     this.status = 'idle';
@@ -704,6 +722,7 @@ class PeerSessionImpl<M, P, A> implements PeerSession<M, P, A> {
       pendingCount: this.pending.length,
       queuedCount: this.pending.filter((p) => !p.sent).length,
       hostOfflineSince: this.hostOfflineSince,
+      waitSince: this.waitSince,
       versionMismatch: this.versionMismatch,
       ended: this.ended,
     };

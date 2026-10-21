@@ -57,6 +57,7 @@ export function ConfirmDialog({
   onOk,
   onCancel,
   testId,
+  focusCancel,
 }: {
   title: string;
   body: string;
@@ -65,12 +66,18 @@ export function ConfirmDialog({
   onOk: () => void;
   onCancel: () => void;
   testId?: string;
+  /** (작업 145) 취소 버튼에 기본 포커스(Enter·두 번 탭으로 실수로 확인하지 않게) */
+  focusCancel?: boolean;
 }) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (focusCancel) cancelRef.current?.focus();
+  }, []);
   return (
     <Modal title={title} onClose={onCancel} testId={testId}>
       <p>{body}</p>
       <div class="st-row-btns">
-        <button type="button" class="btn btn--secondary" onClick={onCancel} data-testid="confirm-cancel">
+        <button type="button" ref={cancelRef} class="btn btn--secondary" onClick={onCancel} data-testid="confirm-cancel">
           {cancelLabel}
         </button>
         <button type="button" class="btn btn--primary" onClick={onOk} data-testid="confirm-ok">

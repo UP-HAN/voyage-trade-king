@@ -361,6 +361,19 @@
   font-size: 40px;
 }
 
+/* (작업 145) 대기 화면 [새 방 코드로 들어가기] */
+.st-full__escape {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.st-full__escape p {
+  margin: 0;
+}
+
 /* ---------- 게임 틀 ---------- */
 .st-game {
   position: relative;

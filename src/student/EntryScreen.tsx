@@ -31,7 +31,7 @@ export function roomFromUrl(href: string): string | null {
 }
 
 /** (작업 110) 입장을 보낸 뒤 주소창에 남은 `room` 지우기(다른 값·해시는 그대로) */
-function clearRoomFromUrl(): void {
+export function clearRoomFromUrl(): void {
   try {
     const u = new URL(location.href);
     if (!u.searchParams.has('room')) return;
@@ -95,7 +95,8 @@ function CodeBoxes({ value, onChange, autoFocus }: { value: string; onChange: (v
 export function EntryScreen({ store, st }: { store: StudentStore; st: StudentState }) {
   const p = st.peer;
   const saved = st.saved;
-  const [code, setCode] = useState(() => (p.status === 'codeChanged' ? '' : (typeof location !== 'undefined' ? roomFromUrl(location.href) : null) ?? saved?.code ?? ''));
+  // (작업 145) [새 방 코드로 들어가기]로 왔으면 옛 코드를 채우지 않는다
+  const [code, setCode] = useState(() => (p.status === 'codeChanged' || st.newCodeHint ? '' : (typeof location !== 'undefined' ? roomFromUrl(location.href) : null) ?? saved?.code ?? ''));
   const [seat, setSeat] = useState<number | null>(() => saved?.seat ?? null);
   const [name, setName] = useState(() => saved?.companyName ?? '');
   const [touchedName, setTouchedName] = useState(false);
@@ -144,6 +145,11 @@ export function EntryScreen({ store, st }: { store: StudentStore; st: StudentSta
           {p.status === 'codeChanged' && (
             <p class="st-entry__alert" role="alert" data-testid="entry-code-changed">
               선생님 화면의 새 방 코드를 입력해요. 출석번호와 회사 이름은 그대로 두면 돼요.
+            </p>
+          )}
+          {st.newCodeHint && p.status !== 'codeChanged' && (
+            <p class="st-entry__alert" role="alert" data-testid="entry-new-code">
+              선생님 화면의 새 방 코드를 넣어요. 출석번호와 회사 이름은 그대로 두면 돼요.
             </p>
           )}
 

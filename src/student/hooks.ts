@@ -26,6 +26,16 @@ export function useServerNow(store: StudentStore, everyMs = 1000): number {
   return now;
 }
 
+/** (작업 145) 1초마다 다시 그리기용 기기 시각 — `hostOfflineSince`·`bootingSince`와 같은 시계 */
+export function useDeviceNow(everyMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(id);
+  }, [everyMs]);
+  return now;
+}
+
 /** sessionStorage에 기억하는 작은 화면 상태(새로 고침 후 같은 화면) */
 export function useSessionValue<T extends string>(key: string, initial: T): [T, (v: T) => void] {
   const [v, setV] = useState<T>(() => {

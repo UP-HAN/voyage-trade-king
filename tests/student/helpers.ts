@@ -106,10 +106,13 @@ export function makeStudentWorld() {
     const storage = opts.storage ?? new MemStorage();
     const token = opts.token ?? `tok${String(++tokenSeq).padStart(8, '0')}abcdef0123456789`;
     const peerStore = createPeerStore({ storage, now, randomToken: () => token });
-    // RelayAdapter(105)처럼: 서버가 끊은 뒤에는 다음 join 때 다시 연결
+    // RelayAdapter(105)처럼: 서버가 끊은 뒤에도, leave() 뒤에도(145 [새 방 코드로 들어가기]) 다음 join 때 다시 연결
     const origJoin = transport.join.bind(transport);
     transport.join = (code: string, hello: Parameters<MemoryPeer['join']>[1]) => {
-      if (transport.getStatus() === 'offline') net.reconnect(transport);
+      if (transport.getStatus() === 'offline') {
+        net.reconnect(transport);
+        net.reopenAfterLeave(transport);
+      }
       return origJoin(code, hello);
     };
     const store = createStudentStore({

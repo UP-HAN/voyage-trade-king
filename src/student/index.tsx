@@ -8,9 +8,10 @@ import { useEffect, useState } from 'preact/hooks';
 import { RotateNotice } from '../ui/common/RotateNotice';
 import { EntryScreen } from './EntryScreen';
 import { GameScreen, StatusBands } from './GameScreen';
-import { StoreContext, useServerNow, useStudentState } from './hooks';
+import { StoreContext, useDeviceNow, useServerNow, useStudentState } from './hooks';
 import { FullMessage, Toasts } from './overlays';
-import { IN_GAME, openStudentStore, type StudentStore } from './store';
+import { RejoinEscapeButton } from './RejoinEscape';
+import { IN_GAME, openStudentStore, showRejoinEscape, type StudentStore } from './store';
 import './student.css';
 
 /** 개발 서버 전용 해도 데모(작업 106): `#/play?demo=map` */
@@ -25,12 +26,19 @@ function demoParam(): string | null {
 function Booting({ store }: { store: StudentStore }) {
   const st = useStudentState(store);
   const now = useServerNow(store);
+  const deviceNow = useDeviceNow();
   return (
     <main class="st-full st-full--soft" data-testid="student-booting">
       <StatusBands st={st} now={now} />
       <div class="st-full__box">
         <h1 class="title-font">{st.saved?.companyName ? `${st.saved.companyName} 회사로 돌아가는 중이에요` : '들어가는 중이에요'}</h1>
         <p>{st.peer.status === 'hostOffline' ? '선생님 화면이 켜지면 바로 이어서 해요.' : '잠시만 기다려요.'}</p>
+        {showRejoinEscape(st, deviceNow) && (
+          <div class="st-full__escape">
+            <p>선생님이 새 방을 열었나요?</p>
+            <RejoinEscapeButton store={store} label="새 방 코드로 들어가기" testId="rejoin-escape" />
+          </div>
+        )}
       </div>
     </main>
   );

@@ -214,6 +214,13 @@ class LocalLink {
     return this.discover();
   }
 
+  /** (작업 145) leave()로 닫은 학생 연결을 다시 연다(새 채널로 서버 탭 찾기). 닫혀 있지 않으면 reopen과 같음 */
+  restart(): Promise<void> {
+    if (!this.closed) return this.reopen();
+    this.closed = false;
+    return this.start();
+  }
+
   private isConnected() {
     return this.server !== null || this.serverId !== null;
   }
@@ -357,7 +364,8 @@ export class LocalPeer extends PeerBase {
   }
   /** (105) 서버가 끊은 뒤(방 밖 30초 정리 등) 다시 [입장]하면 서버 탭을 다시 찾아 보낸다 — RelayPeer와 같은 의미 */
   override async join(code: string, hello: PeerHello): Promise<JoinResult> {
-    if (this.getStatus() === 'offline') await this.link.reopen();
+    // (작업 145) leave() 뒤 [새 방 코드로 들어가기]로 다시 입장할 때도 다시 연결 — RelayPeer(ready)와 같은 의미
+    if (this.getStatus() === 'offline') await this.link.restart();
     return super.join(code, hello);
   }
 }
