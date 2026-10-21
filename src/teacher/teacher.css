@@ -72,6 +72,8 @@
 .t-lesson[aria-pressed='true'] { border-color: var(--sea); background: #e3ecef; box-shadow: 0 0 0 2px var(--brass) inset; }
 .t-lesson:disabled { background: #e2ddd1; color: #7d7563; border-color: #b8b0a0; cursor: not-allowed; }
 .t-lesson__pages { color: var(--ink-soft); }
+/* (작업 154) 2차시 나눠 고르기 — 설명 글이 길어 한 줄에 하나씩 */
+.t-parts { grid-template-columns: 1fr; }
 .t-adv { margin: 10px 0 0; }
 .t-adv summary { min-height: 40px; cursor: pointer; }
 .t-dim { opacity: 0.45; filter: grayscale(0.4); }
@@ -94,6 +96,7 @@
 .t-band__name { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-band__meta { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-preview__facts { margin: 0 0 8px; }
+.t-preview__part { margin: 0 0 8px; font-weight: 700; color: var(--sea); }
 .t-warn { margin: 0 0 8px; padding-left: 1.2em; color: #8a3a1a; }
 .t-acts { width: 100%; border-collapse: collapse; font-size: 16px; }
 .t-acts th, .t-acts td { padding: 3px 6px; border-bottom: 1px solid #cdbb8f; text-align: left; vertical-align: middle; }
@@ -283,6 +286,7 @@
 .t-now__head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
 .t-now__title { color: var(--ink-soft); font-size: 16px; font-weight: 700; }
 .t-now__tag { padding: 0 8px; border-radius: 6px; background: var(--sea); color: var(--parchment-light); font-size: 16px; line-height: 1.5; }
+.t-now__late { padding: 0 8px; border: 1px solid #C78A1E; border-radius: 6px; background: #FCE9C8; color: #6b3f05; font-size: 16px; font-weight: 700; line-height: 1.5; }
 .t-now__tv { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 999px; background: #DCE7EC; font-size: 16px; line-height: 1.6; }
 .t-now__tv--off { background: #e2ddd1; color: #5f5646; }
 .t-now__tv--fixed { background: #FCE9C8; border: 1px solid #C78A1E; color: #6b3f05; }

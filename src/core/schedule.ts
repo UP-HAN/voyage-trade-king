@@ -41,6 +41,7 @@ import {
   type FillStepId,
 } from '../data/schedule';
 import { duringWorksheetIds, worksheetById, worksheetFor } from '../data/worksheet';
+import { isLessonPart, lessonPartRules, type LessonPart, type LessonPartRule } from '../data/lessonParts';
 import type { Difficulty, GameEvent as EventDef, LessonId, WorksheetId, WrapStep } from '../data/types';
 import { LESSON_IDS } from '../data/types';
 import { elapsedSec } from './clock';
@@ -96,6 +97,8 @@ export interface ScheduleInput {
   overrides?: Readonly<Record<string, ItemForm>>;
   /** 편지 배달 켜기(기본 켬) */
   letters?: boolean;
+  /** (작업 154) 차시 한 판 2차시 나눠 고르기(기본 'all'). 차시 한 판 + ['L2']일 때만 효과 */
+  lessonPart?: LessonPart;
   seed?: number;
   /** (P1) 돌발 사건 빈도 — 개수만 계산, 배치는 extraPlacers */
   incidentFreq?: IncidentFreq;
@@ -118,6 +121,7 @@ export interface NormalizedInput {
   worksheetMode: 'auto' | WorksheetPlacement;
   overrides: Record<string, ItemForm>;
   letters: boolean;
+  lessonPart: LessonPart;
   seed: number;
   incidentFreq: IncidentFreq;
   comeback: boolean;
@@ -231,6 +235,17 @@ function defaultBankSize(stage: LessonId, d: Difficulty): number {
   return letterBank(stage, d).length;
 }
 
+/** (작업 154) 나눠 고르기로 거른 은행 크기 — 실제 배달(`core/letters.ts`)과 같은 은행 */
+function bankSizeFor(rule: LessonPartRule | null): BankSize {
+  if (!rule || !rule.dropLetters.length) return defaultBankSize;
+  return (stage, d) => letterBank(stage, d, rule.dropLetters).length;
+}
+
+/** (작업 154) 이 입력의 2차시 나눠 고르기 규칙(차시 한 판 + ['L2']만, 그 밖 null) */
+export function lessonPartRuleOf(input: Pick<ScheduleInput, 'playUnit' | 'scope' | 'lessonPart'>): LessonPartRule | null {
+  return lessonPartRules(input.playUnit, input.scope, input.lessonPart);
+}
+
 /** 지금 형태가 차단형인가 */
 export function blockingIn(def: EventDef, form: ItemForm): boolean {
   if (form === 'dropped') return false;
@@ -254,14 +269,17 @@ export function autoRoundSec(stageSec: number): number {
   return stageSec >= roundLength.longStageMinMinutes * 60 ? roundLength.longSec : roundLength.shortSec;
 }
 
-/** 그 구간의 배치 대상 활동(1~3등급, 표지 제외, 데이터 순서) */
-export function stageActivities(stage: LessonId): EventDef[] {
-  return allEvents.filter((e) => e.lesson === stage && isTier(e.tier) && !e.isCover);
+/** 그 구간의 배치 대상 활동(1~3등급, 표지 제외, 데이터 순서). `excluded` = 후보에서 아예 뺄 사건(작업 154 나눠 고르기) */
+export function stageActivities(stage: LessonId, excluded?: readonly string[]): EventDef[] {
+  const ex = Array.isArray(excluded) ? excluded : [];
+  return allEvents.filter((e) => e.lesson === stage && isTier(e.tier) && !e.isCover && !ex.includes(e.id));
 }
 
-/** 무역 시간 안에 쓰는 학습지 번호(⑯⑰⑱ 제외) */
-export function tradeWorksheets(stage: LessonId): WorksheetId[] {
-  return worksheetFor(stage).filter((w) => w.phase === 'trade').map((w) => w.id);
+/** 무역 시간 안에 쓰는 학습지 번호(⑯⑰⑱ 제외). `excluded` = 뺄 번호(작업 154 나눠 고르기) */
+export function tradeWorksheets(stage: LessonId, excluded?: readonly string[] | number): WorksheetId[] {
+  // flatMap(tradeWorksheets)처럼 두 번째 인자로 순번이 들어와도 무시한다
+  const ex: readonly string[] = Array.isArray(excluded) ? excluded : [];
+  return worksheetFor(stage).filter((w) => w.phase === 'trade' && !ex.includes(w.id)).map((w) => w.id);
 }
 
 function wsSecEach(ids: readonly WorksheetId[]): number {
@@ -325,6 +343,7 @@ function looseInput(input: ScheduleInput, scope: LessonId[], tradeMinutes: numbe
     worksheetMode: input.worksheetMode ?? 'auto',
     overrides,
     letters: input.letters ?? true,
+    lessonPart: isLessonPart(input.lessonPart) ? input.lessonPart : 'all',
     seed: input.seed ?? 0,
     incidentFreq: input.incidentFreq ?? incidentCountRule.default,
     comeback: input.comeback ?? true,
@@ -1156,7 +1175,8 @@ function activitiesOf(cands: readonly Cand[]): ActivityStatus[] {
 /** 배치표 만들기. 잘못된 입력이면 `ScheduleError`(SCOPE_TOO_LONG / BAD_SCOPE / BAD_MINUTES) */
 export function buildSchedule(raw: ScheduleInput): Schedule {
   const input = normalizeInput(raw);
-  const bank = raw.letterBankSize ?? defaultBankSize;
+  const part = lessonPartRuleOf(input);
+  const bank = raw.letterBankSize ?? bankSizeFor(part);
   const T = input.tradeMinutes * 60;
   const n = input.scope.length;
   const Ts = T / n;
@@ -1164,8 +1184,8 @@ export function buildSchedule(raw: ScheduleInput): Schedule {
     stage,
     targetEnd: Math.round(Ts * (i + 1)),
     nominalSec: Ts,
-    pending: stageActivities(stage).map((e) => ({ id: e.id, pin: input.overrides[LINKED_EVENTS[e.id] ?? e.id] ?? null })),
-    pendingWs: input.worksheetMode === 'off' ? [] : tradeWorksheets(stage),
+    pending: stageActivities(stage, part?.dropEvents).map((e) => ({ id: e.id, pin: input.overrides[LINKED_EVENTS[e.id] ?? e.id] ?? null })),
+    pendingWs: input.worksheetMode === 'off' ? [] : tradeWorksheets(stage, part?.dropWorksheets),
     needCover: true,
     summaryIds: i === 0 && stageStartByLesson[stage].summaryCardIds.length ? stageStartByLesson[stage].summaryCardIds : null,
     playedRounds: 0,
@@ -1232,6 +1252,7 @@ export function inputFromClass(cs: ClassState, playUnit: PlayUnit, scope: readon
     worksheetMode: s.worksheetMode,
     overrides: cs.schedule.overrides ?? {},
     letters: cs.letters.enabled,
+    lessonPart: s.lessonPart ?? 'all',
     seed: cs.seed,
     incidentFreq: s.incidentFreq,
     comeback: s.comeback,
@@ -1290,7 +1311,8 @@ export function reschedule(
 ): RescheduleResult {
   const playUnit = opts.playUnit ?? cs.settings.playUnit;
   const scope = [...(opts.scope ?? cs.settings.scope)];
-  const bank = opts.letterBankSize ?? defaultBankSize;
+  const part = lessonPartRules(playUnit, scope, cs.settings.lessonPart);
+  const bank = opts.letterBankSize ?? bankSizeFor(part);
   let items = schedule.items.map((it) => ({ ...it }));
   let delay = 0;
   const fail = (error: string): RescheduleResult => ({ schedule, stages: [], activities: [], totalRounds: 0, letterCount: 0, warnings: [], error });
@@ -1402,7 +1424,7 @@ export function reschedule(
     acc += shares[i];
     const started = curStarted && i === 0;
     const stageItems = items.filter((it) => it.stage === stage);
-    const pendingEvents = stageActivities(stage)
+    const pendingEvents = stageActivities(stage, part?.dropEvents)
       .map((def) => def.id)
       .filter((id) => {
         const it = stageItems.find((x) => x.kind === 'event' && x.refId === id);
@@ -1416,7 +1438,7 @@ export function reschedule(
       targetEnd: i === planScope.length - 1 ? Math.max(e0, T) : Math.round(acc),
       nominalSec: nominal,
       pending: pendingEvents,
-      pendingWs: input.worksheetMode === 'off' ? [] : tradeWorksheets(stage).filter((w) => !shown.has(w)),
+      pendingWs: input.worksheetMode === 'off' ? [] : tradeWorksheets(stage, part?.dropWorksheets).filter((w) => !shown.has(w)),
       needCover: !started && (!coverIt || coverIt.status === 'pending'),
       summaryIds: !started && sumIt && sumIt.status === 'pending' ? (sumIt.refIds ?? []) : null,
       playedRounds: items.filter((it) => it.kind === 'round' && it.stage === stage && isStarted(it) && it.status !== 'skipped').length,
@@ -1444,7 +1466,7 @@ export function reschedule(
   // 끝나고 쓰기 = 범위 안 무역 학습지 중 어디에도 놓이지 않은 번호
   const placedWs = new Set<string>();
   for (const it of out) if (it.kind === 'worksheet' && it.status !== 'skipped' && it.placement !== 'during') (it.refIds ?? [it.refId]).forEach((w) => placedWs.add(w));
-  const afterWs = input.worksheetMode === 'off' ? [] : scope.flatMap(tradeWorksheets).filter((w) => !placedWs.has(w) && !shownSkipped(items, w));
+  const afterWs = input.worksheetMode === 'off' ? [] : scope.flatMap((st) => tradeWorksheets(st, part?.dropWorksheets)).filter((w) => !placedWs.has(w) && !shownSkipped(items, w));
   const wrapup = buildWrapup(playUnit, scope, afterWs);
   const stageModes = { ...(schedule.stageModes ?? {}), ...plan.stageModes };
   return {

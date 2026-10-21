@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Action, Answer, PublicClass } from '../../core';
 import { checkQuizFor } from '../../data/checkQuiz';
 import { eventsById } from '../../data/events';
+import { lessonPartRulesOf, type LessonPartRule } from '../../data/lessonParts';
 import { MinigameLayer } from '../../minigames/MinigameLayer';
 import { CheckQuizCard, DecisionCard, EventCard, decisionModel, eventCardModel, linkPages, splitSentences } from '../../ui/cards';
 import { Dex } from '../Dex';
@@ -173,7 +174,7 @@ function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentS
       }
     } else if (isMissionIntro(live.def) && !live.blocking) {
       if (!dismissed.has(`missions:${live.def.lesson}`)) {
-        panel = <MissionPanel me={me} lesson={live.def.lesson} folded={folded} setFolded={setFolded} onClose={() => dismiss(`missions:${live.def.lesson}`)} />;
+        panel = <MissionPanel me={me} lesson={live.def.lesson} part={lessonPartRulesOf(cls.settings)} folded={folded} setFolded={setFolded} onClose={() => dismiss(`missions:${live.def.lesson}`)} />;
       }
     } else if (live.blocking) {
       modal = <LiveBlocking live={live} me={me} cls={cls} scope={scope} board={board} picked={picked} setPicked={setPicked} send={send} respond={respond} onDex={() => setDexOpen(true)} />;
@@ -363,7 +364,7 @@ function LiveBlocking({
   return (
     <LayerFrame name="event">
       <div class="ev-center ev-center--scroll">
-        <EventCard model={eventCardModel(def, { short: live.short, scope })} onConfirm={() => respond(live.id, { seen: true })} />
+        <EventCard model={eventCardModel(def, { short: live.short, scope, settings: cls.settings })} onConfirm={() => respond(live.id, { seen: true })} />
       </div>
     </LayerFrame>
   );
@@ -492,14 +493,29 @@ function LivePanel({
   return (
     <aside class="ev-panel" aria-label={def.title} data-testid="event-panel" data-event={live.id} style={{ zIndex: 55 }}>
       {fold}
-      <EventCard panel model={eventCardModel(def, { short: live.short, scope })} onConfirm={() => respond(live.id, { seen: true })} />
+      <EventCard panel model={eventCardModel(def, { short: live.short, scope, settings: cls.settings })} onConfirm={() => respond(live.id, { seen: true })} />
     </aside>
   );
 }
 
 // ─── (작업 115) 이번 차시 임무 패널 ─────────────────────────
 
-function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; lesson: string; folded: boolean; setFolded: (b: boolean) => void; onClose: () => void }) {
+function MissionPanel({
+  me,
+  lesson,
+  part,
+  folded,
+  setFolded,
+  onClose,
+}: {
+  me: MeView;
+  lesson: string;
+  /** (작업 154) 2차시 나눠 고르기 규칙(없으면 153 그대로) */
+  part?: LessonPartRule | null;
+  folded: boolean;
+  setFolded: (b: boolean) => void;
+  onClose: () => void;
+}) {
   const list = Object.entries(me.game.missions).filter(([id]) => missionsById[id]?.lesson === lesson);
   if (!list.length) return null;
   const no = lesson.replace(/^L/, '');
@@ -525,7 +541,9 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
         <h2 class="vc__title">{no}차시 임무 {list.length}가지</h2>
         {/* (작업 153) 처음 해도 헷갈리지 않게 '먼저 할 일' 한 상자 — 목록보다 위 */}
         <div class="ev-first" data-testid="mission-first">
-          {startCargo ? (
+          {part?.missionFirst ? (
+            <b class="ev-first__main">{part.missionFirst}</b>
+          ) : startCargo ? (
             <>
               <b class="ev-first__main">먼저 할 일: 부산 [항구 들어가기] → [공장]에서 원유로 석유 제품 만들기</b>
               <span class="ev-first__sub" data-testid="mission-start-cargo">
@@ -539,7 +557,8 @@ function MissionPanel({ me, lesson, folded, setFolded, onClose }: { me: MeView; 
         <ol class="ev-missions">
           {list.map(([id, m]) => {
             const def = missionsById[id]!;
-            const optional = eventsById[def.eventId]?.required === false;
+            // (작업 154) 뒤 시간 판은 4유형·중계 임무가 이 시간의 주 활동이라 '시간 나면'을 붙이지 않는다
+            const optional = eventsById[def.eventId]?.required === false && (part?.optionalTag ?? true);
             return (
               <li key={id} data-testid={`mission-intro-${id}`} data-status={m.status} data-optional={optional ? 'true' : undefined}>
                 <b>{def.title}</b>
@@ -678,7 +697,7 @@ function CatchUp({
         <section class="ev-catchup" data-testid="catchup" data-mode={item.mode} data-event={id}>
           {kicker}
           <EventCard
-            model={eventCardModel(def, { short: cls.shortEvents.includes(id), scope })}
+            model={eventCardModel(def, { short: cls.shortEvents.includes(id), scope, settings: cls.settings })}
             onConfirm={() => {
               if (!done) respond(id, { seen: true, catchUp: true });
               onNext();

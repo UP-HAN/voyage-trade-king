@@ -9,6 +9,7 @@
  * - 만료: 다음 편지가 도착했고 그리고 도착 뒤 최소 2라운드가 지나면, 무역 시간이 끝나면 전부(PRD 6.7.2).
  */
 import { letterAnswerRules, letterExpiry, letterRewards, slotAt } from '../data/letterSchedule';
+import { lessonPartRulesOf } from '../data/lessonParts';
 import { letterBank, lettersById } from '../data/letters';
 import type { LetterQuestion } from '../data/types';
 import { grantDex } from './progress';
@@ -65,7 +66,13 @@ export function deliveredSlots(cs: ClassState): LetterSlotInfo[] {
  * - 없으면 출석번호 기반 회전 순서에서, 이미 답했거나 다른 슬롯에 배정·출제된 문항을 건너뛴다.
  * 은행이 모자라면 null.
  */
-export function letterForSlot(player: Player, slot: LetterSlotInfo, history: readonly LetterSlotInfo[] = [slot]): LetterQuestion | null {
+export function letterForSlot(
+  player: Player,
+  slot: LetterSlotInfo,
+  history: readonly LetterSlotInfo[] = [slot],
+  /** (작업 154) 은행에서 뺄 문항(2차시 나눠 고르기 — `letterDropOf(cs)`) */
+  dropIds?: readonly string[],
+): LetterQuestion | null {
   const assigned = player.game.letters.assigned ?? {};
   const fixed = assigned[slot.slotId];
   if (fixed && lettersById[fixed]) return lettersById[fixed];
@@ -74,7 +81,7 @@ export function letterForSlot(player: Player, slot: LetterSlotInfo, history: rea
   for (const s of seq) {
     const pre = assigned[s.slotId];
     if (s.slotId !== slot.slotId && pre) continue; // 이미 used 에 들어 있음
-    const bank = letterBank(s.stage, s.difficulty);
+    const bank = letterBank(s.stage, s.difficulty, dropIds);
     let q: LetterQuestion | null = null;
     if (bank.length) {
       const offset = (((player.seat - 1) % bank.length) + bank.length) % bank.length;
@@ -87,6 +94,12 @@ export function letterForSlot(player: Player, slot: LetterSlotInfo, history: rea
   return null;
 }
 
+/** (작업 154) 이 판에서 은행에서 뺄 편지 문항(차시 한 판 2차시 나눠 고르기, 그 밖은 없음) */
+export function letterDropOf(cs: Pick<ClassState, 'settings'>): readonly string[] | undefined {
+  const d = lessonPartRulesOf(cs.settings)?.dropLetters;
+  return d && d.length ? d : undefined;
+}
+
 /**
  * 편지가 도착한 순간 이 학생의 문항을 배정해 기록한다(player 는 복사본, 직접 고침).
  * 호스트가 라운드 시작(편지 도착) 때 모든 학생에게, 늦게 온 학생에게는 입장 때 부른다. 바뀌었으면 true.
@@ -96,7 +109,7 @@ export function assignDeliveredLetters(cs: ClassState, p: Player): boolean {
   let changed = false;
   for (const slot of list) {
     if (p.game.letters.assigned[slot.slotId]) continue;
-    const q = letterForSlot(p, slot, list);
+    const q = letterForSlot(p, slot, list, letterDropOf(cs));
     if (!q) continue;
     p.game.letters.assigned[slot.slotId] = q.id;
     changed = true;
@@ -126,7 +139,7 @@ export function mailbox(cs: ClassState, player: Player): LetterView[] {
   const list = deliveredSlots(cs);
   return list.map((slot) => ({
     slot,
-    question: letterForSlot(player, slot, list),
+    question: letterForSlot(player, slot, list, letterDropOf(cs)),
     expired: isSlotExpired(cs, slot),
     result: player.game.letters.slots[slot.slotId] ?? null,
   }));
@@ -146,7 +159,7 @@ export function applyLetterAnswer(cs: ClassState, p: Player, slotId: string, ans
   if (!slot) return 'NO_SLOT';
   if (p.game.letters.slots[slotId]) return 'ANSWERED';
   if (isSlotExpired(cs, slot)) return 'EXPIRED';
-  const q = letterForSlot(p, slot, list);
+  const q = letterForSlot(p, slot, list, letterDropOf(cs));
   if (!q) return 'NO_QUESTION';
   const right = isRightAnswer(q, answer);
   p.game.letters.slots[slotId] = right ? 'right' : 'wrong';

@@ -8,7 +8,7 @@
  * 카드·진행 줄 문구에 차시(L1)를 박지 않는다 — 배치표·마무리 목록에서 읽으므로 단원 한 판에서도 그대로 쓴다.
  */
 import {
-  firstRoundPreview, hasResultView, inputFromClass, resultShowing, roundNowPlan, tradeClock, tryBuildSchedule,
+  firstRoundPreview, hasResultView, inputFromClass, lateSecOf, resultShowing, roundNowPlan, tradeClock, tryBuildSchedule,
   type ClassState, type RoundNowBlock, type ScheduleItem, type WrapItem,
 } from '../core';
 import { eventsById } from '../data/events';
@@ -144,6 +144,11 @@ export interface NowCard {
    * nowCard()는 늘 true/false로 채운다(선택 필드인 것은 카드를 손으로 만드는 다른 시험과 맞추려고 — 없으면 false).
    */
   quiet?: boolean;
+  /**
+   * (작업 159) 예정 대비 늦음 한 줄 — "예정보다 3분 느려요"(1분 이상 늦을 때만, 아니면 null).
+   * 학생 화면·TV에는 시간을 보이지 않으므로 교사가 이 줄을 보고 진행 속도를 조절한다. 선택 필드(없으면 안 그림).
+   */
+  late?: string | null;
   /** 같은 상태 안에서도 내용이 바뀌면 달라지는 열쇠(두 번 누름 막기·강조 효과) */
   key: string;
 }
@@ -172,6 +177,13 @@ export const AUTO_HINT_TEXT = '누르지 않아도 저절로 넘어가요 · 기
 /** (작업 147) "아직 못 한 학생" 한 줄 — 보조 정보 맨 앞(굵게) */
 function notDone(n: number, some: (n: number) => string, none: string): NowSub {
   return { text: n > 0 ? some(n) : none, strong: true, testId: 'now-not-done' };
+}
+
+/** (작업 159) 늦음 한 줄: 무역 중 1분 이상 늦을 때만 "예정보다 n분 느려요"(core lateSecOf — 수동 진행 순서 접힘의 '계획보다 n분 늦어요'와 같은 기준) */
+export function lateLine(c: ClassState, now: number, ended = false): string | null {
+  if (ended || c.phase === 'ended' || c.phase === 'wrapup') return null;
+  const { lateSec } = lateSecOf(c, now);
+  return lateSec >= 60 ? `예정보다 ${Math.floor(lateSec / 60)}분 느려요` : null;
 }
 
 /** 남은 초 → "45초" / "1:20" */
@@ -746,6 +758,7 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
     showPause,
     manual: c.schedule.mode === 'manual',
     quiet,
+    late: lateLine(c, now, view.ended || view.status === 'closed'),
     key: `${b.state}:${b.keyExtra ?? ''}:${b.primary?.kind ?? ''}:${b.primary?.itemId ?? ''}`,
   };
 }

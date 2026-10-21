@@ -8,6 +8,7 @@
 import { conceptCards } from '../../data/dex';
 import { goodsById } from '../../data/goods';
 import { missionsById } from '../../data/missions';
+import { coverTextFor, type LessonPart } from '../../data/lessonParts';
 import { portsById } from '../../data/ports';
 import { banners, pageLabel } from '../../data/text';
 import type { GameEvent, LessonId } from '../../data/types';
@@ -131,6 +132,8 @@ export interface CardModelOptions {
   /** 판 범위(단원 한 판 문구 판단) */
   scope?: readonly LessonId[];
   variant?: 'incident';
+  /** (작업 154) 판 설정(차시 한 판 2차시 나눠 고르기 — 표지 제목·글 덮어쓰기). 없으면 데이터 그대로 */
+  settings?: { playUnit: string; scope: readonly LessonId[]; lessonPart?: LessonPart | null } | null;
 }
 
 /** 사건 → 카드 모델 */
@@ -138,7 +141,8 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
   const short = Boolean(opts.short && def.shortForm);
   const scope = opts.scope ?? [def.lesson];
   const band = bandOf(def, opts.variant);
-  const body = def.body && def.body !== 'TODO' ? def.body : '';
+  const cover = coverTextFor(def, opts.settings);
+  const body = cover.body && cover.body !== 'TODO' ? cover.body : '';
   const quotesAll: CardQuote[] = def.textbook.map((t) => ({ text: t.note, pages: t.pages }));
   let paragraphs = splitSentences(body);
   let situations: CardSituation[] = [];
@@ -169,7 +173,7 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
     band,
     bandText: BAND_TEXT[band],
     kindLabel: sit ? '상황 카드' : (KIND_LABEL[def.kind] ?? null),
-    title: def.title,
+    title: cover.title,
     paragraphs,
     situations,
     quotes,

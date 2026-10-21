@@ -31,7 +31,8 @@ import {
 } from '../../core/worksheet-helpers';
 import { DURING_AFTER_NEWS_TEXT } from '../../data/schedule';
 import { bundleTitle, duringLabel, worksheetById, worksheetFor } from '../../data/worksheet';
-import type { WorksheetId } from '../../data/types';
+import type { LessonId, WorksheetId } from '../../data/types';
+import { lessonPartRulesOf, type LessonPart } from '../../data/lessonParts';
 import { resentWorksheets } from '../../core/host';
 import { fx } from '../../ui/common/fx';
 import { Dex } from '../Dex';
@@ -77,12 +78,18 @@ export function allDone(me: MeView, ids: readonly WorksheetId[], during = false)
  * (작업 153) 팝업 머리 아래 '오늘 학습지 순서' 한 줄의 조각: 팝업 첫 번호와 같은 차시의 무역 학습지(번호 순).
  * 다 쓴 번호 `⑤✓`, 지금 팝업 번호 `⑥ 지금`(now: true → 굵게), 아직 `⑦`.
  */
-export function worksheetOrderParts(me: MeView, ids: readonly WorksheetId[]): { id: WorksheetId; text: string; now: boolean }[] {
+export function worksheetOrderParts(
+  me: MeView,
+  ids: readonly WorksheetId[],
+  /** (작업 154) 판 설정(공개 settings) — 2차시 나눠 고르기로 빠진 번호는 보이지 않는다 */
+  settings?: { playUnit: string; scope: readonly LessonId[]; lessonPart?: LessonPart | null } | null,
+): { id: WorksheetId; text: string; now: boolean }[] {
   const first = worksheetById[ids[0]];
   if (!first || first.lesson === 'optional') return [];
   const done = me.game.worksheetDone;
+  const drop = lessonPartRulesOf(settings)?.dropWorksheets ?? [];
   return worksheetFor(first.lesson as Exclude<typeof first.lesson, 'optional'>)
-    .filter((w) => w.phase === 'trade')
+    .filter((w) => w.phase === 'trade' && !drop.includes(w.id))
     .sort((a, b) => a.no - b.no)
     .map((w) => {
       const now = ids.includes(w.id);
@@ -264,7 +271,7 @@ function WorksheetPopup({
     lastAt.current = t;
     act({ type: 'markWorksheetDone', ids, ...(during ? { during: true } : {}) });
   };
-  const order = worksheetOrderParts(me, ids);
+  const order = worksheetOrderParts(me, ids, cls.settings);
   const stageMode = cls.schedule.stageModes?.[stage as keyof NonNullable<typeof cls.schedule.stageModes>] ?? cls.worksheet.mode;
   return (
     <div

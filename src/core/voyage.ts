@@ -9,6 +9,7 @@
  * 호스트가 라운드가 끝날 때 접속 여부와 상관없이 **모든 학생**에게 부른다.
  */
 import { eventsById } from '../data/events';
+import { lessonPartRulesOf } from '../data/lessonParts';
 import { portsById } from '../data/ports';
 import type { PortId } from '../data/types';
 import { applyFiredEventToPlayer } from './activities';
@@ -34,10 +35,13 @@ export function arrive(cs: ClassState, p: Player, port: PortId, round: number, e
   if (portsById[port].isWorldPort) grantDex(p, 'world-ports', events);
   if (p.game.metrics.visited.filter((x) => x !== 'BUS').length >= TRADE_REASONS_PORTS) grantDex(p, 'trade-reasons', events);
   // 첫 입항 사건(L2-E5 싱가포르 등): 그 구간이 열렸고 범위 안이면
+  const drop = lessonPartRulesOf(cs.settings)?.dropEvents;
   for (const def of Object.values(eventsById)) {
     if (def.trigger.type !== 'firstArrival' || def.trigger.port !== port) continue;
     if (LESSON_ORDER[def.lesson] > LESSON_ORDER[cs.stage] || !cs.settings.scope.includes(def.lesson)) continue;
     if (p.game.responses[def.id] !== undefined) continue;
+    // (작업 154) 2차시 앞 시간 판은 싱가포르의 비밀(L2-E5)을 띄우지 않고 효과(도감 relay·임무 M-RELAY)도 주지 않는다
+    if (drop?.includes(def.id)) continue;
     events.push({ type: 'eventTriggered', id: def.id });
     applyFiredEventToPlayer(cs, p, def, events);
     for (const e of def.effects) if (e.type === 'dexCard') grantDex(p, e.card, events);

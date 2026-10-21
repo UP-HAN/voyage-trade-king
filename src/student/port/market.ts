@@ -213,7 +213,12 @@ export function saleSummary(events: readonly GameEvent[]): SaleSummary {
 /** 첫 [수출]/[수입]/[중계] 도장 때 띄울 개념 카드 ID(dex.ts) — 그 도장의 판매액 지표가 0이었으면 처음 */
 export const STAMP_CONCEPT: Partial<Record<StampKind, string>> = { export: 'trade-def', import: 'trade-def', relay: 'relay' };
 
-export function firstStampConcept(before: Player, stamps: readonly StampKind[]): { stamp: StampKind; cardId: string } | null {
+export function firstStampConcept(
+  before: Player,
+  stamps: readonly StampKind[],
+  /** (작업 154) 2차시 앞 시간 판: '싱가포르의 무역' 개념 카드(중계)를 띄우지 않는다. 수출·수입 카드는 그대로 */
+  opts: { hideRelay?: boolean } = {},
+): { stamp: StampKind; cardId: string } | null {
   const m = before.game.metrics;
   // '무역·수입·수출' 카드는 수출·수입 중 처음 한 번만, '싱가포르의 무역' 카드는 첫 중계 때
   const first: Record<StampKind, boolean> = {
@@ -222,6 +227,7 @@ export function firstStampConcept(before: Player, stamps: readonly StampKind[]):
     relay: m.resale === 0,
     domestic: false,
   };
+  if (opts.hideRelay) first.relay = false;
   for (const s of stamps) {
     const card = STAMP_CONCEPT[s];
     if (card && first[s]) return { stamp: s, cardId: card };

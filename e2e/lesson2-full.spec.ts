@@ -10,7 +10,9 @@ import { openTvMenu } from './support/voyage-ui';
  *  - s1 공장: 포트헤들랜드 철광석 → 부산에 1상자 팔기[수입] → [공장] 철강 만들기(첫 생산 순환 카드) (25분 판 — 라운드 3개)
  *  - s2 중계: 싱가포르 첫 입항 개념 카드 → 쌀 사기 → 담맘에 팔기[중계] (15분 판은 사기까지)
  *  - s3 수출: 부산 자동차 사기 → 상하이에 팔기[수출]
- * 공용 화면: 세관 게시판 장면(학급 수입·수출 순위 + 교과서 100쪽). 학습지 ⑤~⑧ 팝업, 2차시 확인 퀴즈, 마무리 → 수업 끝.
+ * 공용 화면: 세관 게시판 장면(학급 수입·수출 순위 + 교과서 100쪽). 학습지 ⑤~⑧ 팝업, 마무리 → 수업 끝.
+ * (작업 154, v0.3.9) 2차시는 [앞 시간(기본)/뒤 시간/두 시간 모두]를 고른다. 15·25분은 앞 시간(기본) — 학습지 ⑤ → ⑥만, 확인 퀴즈·싱가포르 카드·중계 임무 없음.
+ *  싱가포르 첫 입항 카드·중계 임무·⑦⑧은 30분 '두 시간 모두' 판에서 본다. 차시 한 판 2차시에는 확인 퀴즈가 없다.
  * 실행: tests/e2e-preview.playwright.config.ts(LESSON2_E2E=1). 스크린숏은 .orch/tasks/115-lesson2-factory-relay/shots/(SHOT_DIR 있으면 그쪽).
  */
 const RUN = process.env.LESSON2_E2E === '1';
@@ -40,7 +42,12 @@ async function checkTerms(t: Page, where: string) {
   expect(text, `${where}: 교사 화면에 'L2' 개발 용어`).not.toMatch(/\bL2\b/);
 }
 
-async function setup(browser: import('@playwright/test').Browser, baseURL: string | undefined, minutes: number) {
+type Part = 'front' | 'back' | 'all';
+
+/** (작업 154) 자원 수입→생산→수출 임무 — 임무가 여럿이면 칩(mission-M-IPE), 하나면 한 줄 막대(mission[data-mission=M-IPE]) */
+const ipeMission = (s: Page) => s.locator('[data-testid="mission-M-IPE"], [data-testid="mission"][data-mission="M-IPE"]');
+
+async function setup(browser: import('@playwright/test').Browser, baseURL: string | undefined, minutes: number, part: Part = 'front') {
   const ctx = await browser.newContext({ baseURL, viewport: { width: 1366, height: 768 } });
   await ctx.clock.install();
   const t = await ctx.newPage();
@@ -63,11 +70,20 @@ async function setup(browser: import('@playwright/test').Browser, baseURL: strin
   await expect(t.getByTestId('lesson-L4')).toBeDisabled();
   await expect(t.getByTestId('unit-unit')).toBeDisabled();
   await t.getByTestId('lesson-L2').click();
+  // (작업 154) 어느 시간 내용을 할까요? — 기본 '앞 시간'이 눌려 있다
+  await expect(t.getByTestId('lesson-part-front')).toHaveAttribute('aria-pressed', 'true');
+  await expect(t.getByTestId('preview-part')).toHaveText('2차시 앞 시간: 우리나라 무역의 특징 (교과서 100~102쪽)');
+  if (part !== 'front') {
+    await t.getByTestId(`lesson-part-${part}`).click();
+    await expect(t.getByTestId(`lesson-part-${part}`)).toHaveAttribute('aria-pressed', 'true');
+  }
   const custom = t.getByTestId('trade-minutes-custom');
   await custom.fill(String(minutes));
   await custom.blur();
   await expect(custom).toHaveValue(String(minutes));
   if (minutes === 25) await shot(t, `L2-01-setup-lesson2.png`);
+  if (part === 'front') await expect(t.getByTestId('preview-ws-order')).toHaveText('학습지: 활동마다 바로 ⑤ → ⑥');
+  if (part === 'all') await expect(t.getByTestId('preview-ws-order')).toHaveText('학습지: 활동마다 바로 ⑤ → ⑥ → ⑦ → ⑧');
   await t.getByTestId('btn-open').click();
   const codeEl = t.getByTestId('room-code');
   await expect(codeEl).toHaveText(/^\d{6}$/);
@@ -247,12 +263,14 @@ async function trade(ctx: BrowserContext, t: Page, s: Page, kind: 'buy' | 'sell'
   await tick(ctx, t, 600);
 }
 
-for (const minutes of [15, 25, 30] as const) {
-  test(`2차시 ${minutes}분 — 카드 큰 버튼만으로 끝까지(공장·수출·중계·세관 게시판·학습지 ⑤~⑧)`, async ({ browser, baseURL }) => {
+// (작업 154) 15·25분 = 앞 시간(기본), 30분 = 두 시간 모두(싱가포르·중계·⑦⑧ 확인)
+for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as const) {
+  const front = part === 'front';
+  test(`2차시 ${minutes}분 ${front ? '앞 시간' : '두 시간 모두'} — 카드 큰 버튼만으로 끝까지(공장·수출·${front ? '' : '중계·'}세관 게시판·학습지 ${front ? '⑤⑥' : '⑤~⑧'}, 확인 퀴즈 없음)(v0.3.9)`, async ({ browser, baseURL }) => {
     test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
     test.setTimeout(900_000);
     const P = minutes === 25 ? 'L2' : `L2-${minutes}`;
-    const { ctx, t, code } = await setup(browser, baseURL, minutes);
+    const { ctx, t, code } = await setup(browser, baseURL, minutes, part);
     await openTvMenu(t);
     const [scr] = await Promise.all([ctx.waitForEvent('page'), t.getByTestId('btn-open-screen').click()]);
     await scr.setViewportSize({ width: 1920, height: 1080 });
@@ -310,8 +328,9 @@ for (const minutes of [15, 25, 30] as const) {
           for (const [i, s] of students.entries()) await tidy(s, seen, `s${i + 1}`);
           if (r === 1) {
             // 임무 3종: 아래 줄 칩
-            for (const s of students) await expect(s.getByTestId('missions')).toBeVisible();
-            await expect(s1.getByTestId('mission-M-IPE')).toBeVisible();
+            // (작업 154) 두 시간 모두 = 임무 3종 칩 줄. 앞 시간은 임무가 하나(자원 수입→생산→수출)라 한 줄 막대(data-testid=mission)
+            for (const s of students) await expect(s.getByTestId(front ? 'mission' : 'missions')).toBeVisible();
+            await expect(ipeMission(s1)).toBeVisible();
             await shot(s1, `${P}-04-student-missions.png`);
             // s1: 처음 화물(담맘 원유 2상자) → 부산 [공장]에서 석유 제품 → 호찌민으로
             await enterPort(s1);
@@ -339,24 +358,37 @@ for (const minutes of [15, 25, 30] as const) {
             await expect(s1.getByTestId('result-stamp-export')).toBeVisible();
             await tidy(s1, seen, 's1');
             await s1.getByTestId('port-back').click();
-            await expect(s1.getByTestId('mission-M-IPE')).toHaveAttribute('data-status', 'done');
+            await expect(ipeMission(s1)).toHaveAttribute('data-status', 'done');
             ipeDone = true;
             await shot(s1, `${P}-10b-student-ipe-done.png`);
             // s2: 싱가포르 첫 입항 개념 카드(p.104) → 쌀 사기 → 도감 4유형에 '내가 사고판 상품: 쌀'
             await tidy(s2, seen, 's2');
-            expect([...seen.cards]).toContain('arrival:s2');
             // (작업 151) 자유 항해는 도착하면 항구 화면이 열린 채로 다음 라운드가 될 수 있다 — 임무 칩(하단 바)은 해도에서 본다
             if (await s2.getByTestId('port-screen').count()) await s2.getByTestId('port-back').click();
-            await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
-            await enterPort(s2);
-            await trade(ctx, t, s2, 'buy', 'rice', 2);
-            await s2.getByTestId('port-back').click();
-            await s2.getByTestId('hud-dex').click();
-            await s2.getByTestId('dex-tab-exportTypes').click();
-            await expect(s2.locator('[data-testid="dex-mine"][data-card="export-agri"]')).toHaveText('내가 사고판 상품: 쌀');
-            await shot(s2, `${P}-12-student-dex-mine.png`);
-            await s2.keyboard.press('Escape');
-            await expect(s2.getByTestId('dex')).toHaveCount(0);
+            if (front) {
+              // (작업 154) 앞 시간: 싱가포르의 비밀 카드·중계 임무·싱가포르 중계 안내 줄이 없다
+              expect([...seen.cards]).not.toContain('arrival:s2');
+              await expect(s2.getByTestId('mission-M-RELAY')).toHaveCount(0);
+              await expect(s2.getByTestId('mission-M-EXPORT4')).toHaveCount(0);
+              await enterPort(s2);
+              await expect(s2.getByTestId('singapore-note')).toHaveCount(0);
+              await shot(s2, `${P}-06f-student-singapore-front.png`);
+              await trade(ctx, t, s2, 'buy', 'rice', 2);
+              await s2.getByTestId('port-back').click();
+            } else {
+              expect([...seen.cards]).toContain('arrival:s2');
+              await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
+              await enterPort(s2);
+              await expect(s2.getByTestId('singapore-note')).toBeVisible();
+              await trade(ctx, t, s2, 'buy', 'rice', 2);
+              await s2.getByTestId('port-back').click();
+              await s2.getByTestId('hud-dex').click();
+              await s2.getByTestId('dex-tab-exportTypes').click();
+              await expect(s2.locator('[data-testid="dex-mine"][data-card="export-agri"]')).toHaveText('내가 사고판 상품: 쌀');
+              await shot(s2, `${P}-12-student-dex-mine.png`);
+              await s2.keyboard.press('Escape');
+              await expect(s2.getByTestId('dex')).toHaveCount(0);
+            }
             await sailTo(s2, 'DAM');
             await enterPort(s3);
             await trade(ctx, t, s3, 'sell', 'car', 2);
@@ -368,8 +400,14 @@ for (const minutes of [15, 25, 30] as const) {
             await enterPort(s2);
             await trade(ctx, t, s2, 'sell', 'rice', 2);
             await expect(s2.getByTestId('result-stamp-relay')).toBeVisible();
-            await s2.getByTestId('port-back').click();
-            await expect(s2.getByTestId('mission-M-RELAY')).toHaveAttribute('data-status', 'done');
+            if (front) {
+              // (작업 154) 앞 시간: [중계] 도장 분류는 그대로, '싱가포르의 무역' 개념 카드는 뜨지 않는다
+              await expect(s2.getByTestId('concept-pop')).toHaveCount(0);
+              await s2.getByTestId('port-back').click();
+            } else {
+              await s2.getByTestId('port-back').click();
+              await expect(s2.getByTestId('mission-M-RELAY')).toHaveAttribute('data-status', 'done');
+            }
             await tidy(s2, seen, 's2');
           }
           await t.bringToFront();
@@ -388,8 +426,15 @@ for (const minutes of [15, 25, 30] as const) {
     // 지나간 장면·학습지·임무
     expect([...scenes]).toContain('customs');
     expect(customsShot).toBe(true);
-    for (const w of ['W05', 'W06', 'W07', 'W08']) expect([...seen.worksheets], `학습지 ${w} — ${log.join(' / ')}`).toContain(w);
-    if (minutes === 25) {
+    // (작업 154) 앞 시간은 ⑤ → ⑥ 두 장만, 두 시간 모두는 ⑤~⑧. 어느 쪽이든 확인 퀴즈는 없다
+    const wantWs = front ? ['W05', 'W06'] : ['W05', 'W06', 'W07', 'W08'];
+    expect([...seen.worksheets], `학습지 — ${log.join(' / ')}`).toEqual(wantWs);
+    expect([...seen.quiz], '확인 퀴즈 없음').toEqual([]);
+    expect(log.join(' / '), '교사 카드에 확인 퀴즈 없음').not.toContain('확인 퀴즈');
+    if (front) {
+      expect(seen.orders.get('W05')).toBe('오늘 학습지: ⑤ 지금 → ⑥');
+      expect(seen.orders.get('W06')).toMatch(/^오늘 학습지: ⑤✓? → ⑥ 지금$/);
+    } else {
       // (작업 153) 학습지가 번호 순으로 한 장씩: ⑤ → ⑥ → ⑦ → ⑧, 팝업마다 '오늘 학습지' 줄(앞 번호 ✓·지금 번호 '지금')
       expect([...seen.worksheets]).toEqual(['W05', 'W06', 'W07', 'W08']);
       expect(seen.orders.get('W05')).toBe('오늘 학습지: ⑤ 지금 → ⑥ → ⑦ → ⑧');
@@ -402,7 +447,8 @@ for (const minutes of [15, 25, 30] as const) {
     expect(roundsDone.size).toBeGreaterThanOrEqual(2);
     // 자원 수입 → 생산 → 수출 순환을 끝까지(수정 1회차, 2차시 핵심 p.101)
     expect(ipeDone).toBe(true);
-    expect([...seen.cards]).toEqual(expect.arrayContaining(['L2-E2', 'missions', 'arrival:s2']));
+    expect([...seen.cards]).toEqual(expect.arrayContaining(front ? ['L2-E2', 'missions'] : ['L2-E2', 'missions', 'arrival:s2']));
+    if (front) expect([...seen.cards]).not.toContain('arrival:s2');
     await ctx.close();
   });
 }

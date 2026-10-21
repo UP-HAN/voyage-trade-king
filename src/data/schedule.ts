@@ -198,7 +198,7 @@ export const fillSteps: Readonly<Record<FillStepId, string>> = {
   tier2Short: '2등급: 빠짐 → 짧은 형태(우선 숫자가 작은 것부터)',
   wsDuring: '지금 쓰기: 원천 체험이 들어간 진행 중 필수 번호(③·⑭)의 ★ 칸을 체험 직후에 40초(번호 순, 라운드 보호 없음)',
   tier1Full: '1등급: 짧은 형태 → 전체(늘어나는 시간이 작은 것부터)',
-  coreFull: '핵심 체험(두 섬 이야기·벽란도 시장·학급 스마트폰 프로젝트): 짧은 형태 → 전체(우선 숫자가 작은 것부터)',
+  coreFull: '핵심 체험(㉮ 나라와 ㉯ 나라 이야기·벽란도 시장·학급 스마트폰 프로젝트): 짧은 형태 → 전체(우선 숫자가 작은 것부터)',
   wsStageEnd: '학습지: 끝나고 → 구간 끝 모아 쓰기(자동일 때)',
   tier2Full: '나머지 2등급: 짧은 형태 → 전체(우선 숫자가 작은 것부터)',
   wsEach: '학습지: 구간 끝 → 중간마다(자동일 때)',
@@ -233,7 +233,7 @@ export const reductionOrder: readonly { step: number; id: ReductionStepId; desc:
   { step: 2, id: 'worksheetEachToStageEnd', desc: "학습지를 '중간마다' → '구간 끝 모아 쓰기'로 바꾼다" },
   { step: 3, id: 'shortTier2', desc: '2등급 활동(핵심 체험 아님)을 짧은 형태로 바꾼다' },
   { step: 4, id: 'worksheetStageEndToAfter', desc: "학습지를 '구간 끝' → '끝나고 쓰기'로 옮긴다(번호는 빠지지 않음)" },
-  { step: 5, id: 'shortCore', desc: '핵심 체험(두 섬 이야기, 벽란도 시장, 학급 스마트폰 프로젝트)을 짧은 형태로 바꾼다' },
+  { step: 5, id: 'shortCore', desc: '핵심 체험(㉮ 나라와 ㉯ 나라 이야기, 벽란도 시장, 학급 스마트폰 프로젝트)을 짧은 형태로 바꾼다' },
   { step: 6, id: 'shortTier1', desc: '1등급 활동을 짧은 형태로 바꾼다(빼지는 않는다)' },
   { step: 7, id: 'deferDuring', desc: '지금 쓰기를 끝나고로 돌린다(시간이 아주 짧을 때만)' },
   { step: 8, id: 'dropTier2', desc: '2등급 활동을 뺀다(우선 숫자가 큰 것부터)' },
@@ -246,7 +246,7 @@ const ALL_PORTS: readonly PortId[] = [...L1_PORTS, 'JKT', 'DAM', 'SIN', 'MUM', '
 
 /** 판마다 새 회사로 시작한다(차시 한 판·단원 한 판 공통). 범위의 첫 구간 줄로 시작 */
 export const stageStart: readonly StageStart[] = [
-  { lesson: 'L1', money: 500, ports: L1_PORTS, features: ['market'], summaryCardIds: [], tutorial: true, remark: '500만 원 + 벽란도·두 섬 보상' },
+  { lesson: 'L1', money: 500, ports: L1_PORTS, features: ['market'], summaryCardIds: [], tutorial: true, remark: '500만 원 + 벽란도·두 나라 이야기 보상' },
   { lesson: 'L2', money: 800, ports: ALL_PORTS, features: ['market', 'factory'], summaryCardIds: ['SUM-L1'], tutorial: false, startCargo: [{ good: 'crude', qty: 2, unitCost: 42, boughtAt: 'DAM' }], remark: '첫 화면에 L1 요약 카드(무역·수입·수출, 무역하는 까닭). (작업 115 수정 1회차) 담맘에서 사 온 원유 2상자를 싣고 시작 — 라운드 3개 안에 수입 → 생산 → 수출' },
   { lesson: 'L3', money: 1000, ports: ALL_PORTS, features: ['market', 'factory', 'shipyard'], summaryCardIds: ['SUM-L1', 'SUM-L2'], tutorial: false, remark: 'L1~L2 요약 카드' },
   { lesson: 'L4', money: 1200, ports: ALL_PORTS, features: ['market', 'factory', 'shipyard'], summaryCardIds: ['SUM-L1', 'SUM-L2', 'SUM-L3'], tutorial: false, remark: 'L1~L3 요약 카드' },

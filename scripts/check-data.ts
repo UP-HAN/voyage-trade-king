@@ -29,6 +29,7 @@ import * as dexMod from '../src/data/dex';
 import * as eventsMod from '../src/data/events';
 import * as goodsMod from '../src/data/goods';
 import * as lessonsMod from '../src/data/lessons';
+import * as lessonPartsMod from '../src/data/lessonParts';
 import * as letterScheduleMod from '../src/data/letterSchedule';
 import * as lettersMod from '../src/data/letters';
 import * as marketMod from '../src/data/market';
@@ -55,6 +56,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'events.ts': eventsMod,
   'goods.ts': goodsMod,
   'lessons.ts': lessonsMod,
+  'lessonParts.ts': lessonPartsMod,
   'letterSchedule.ts': letterScheduleMod,
   'letters.ts': lettersMod,
   'market.ts': marketMod,

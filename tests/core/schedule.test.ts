@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSchedule,
+  lessonPartRuleOf,
   letterFormula,
   previewSchedule,
   reduceStageForBudget,
@@ -55,7 +56,12 @@ function checkCommon(s: Schedule): void {
   expect(rounds.has(1)).toBe(false); // 첫 라운드 제외
   for (const l of letters) expect(typeof l.round).toBe('number'); // 103 편지 배달이 읽는 round
   // 범위 안 무역 학습지 번호는 어딘가(중간마다/구간 끝/끝나고)에 있다
-  for (const st of s.input.scope) for (const w of tradeWorksheets(st)) expect(s.worksheetWhere[w], w).toBeDefined();
+  // (작업 154) 2차시 나눠 고르기로 빠진 번호는 어디에도 없어야 한다
+  const drop = lessonPartRuleOf(s.input)?.dropWorksheets ?? [];
+  for (const st of s.input.scope) for (const w of tradeWorksheets(st)) {
+    if (drop.includes(w)) expect(s.worksheetWhere[w], w).toBeUndefined();
+    else expect(s.worksheetWhere[w], w).toBeDefined();
+  }
   // 항목은 시각 순, 무역 시간 안
   for (let i = 1; i < s.items.length; i++) expect(s.items[i].at).toBeGreaterThanOrEqual(s.items[i - 1].at);
   const end = Math.max(...s.items.map((it) => it.at + it.durSec));
@@ -157,8 +163,12 @@ const EXPECTED: [string, ScheduleInput, Partial<Record<LessonId, StageExp>>][] =
   ['차시 L1 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, {
     L1: { forms: { 'L1-E2': 's', 'L1-E5': 's', 'L1-E1': 's', 'L1-E4': 's', 'L1-E8': '-' }, ws: 'each', during: [], used: 900, rounds: 3, len: [193, 194] },
   }],
-  ['차시 L2 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25 }, {
-    L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F', 'L2-E5': 'F', 'L2-E4': 'F', 'L2-E7': 'F' }, ws: 'each', during: [], used: 900, rounds: 3, len: [186, 187] },
+  // v0.3.9(작업 154): 차시 한 판 2차시는 확인 퀴즈(L2-E7)를 후보에서 뺀다. 두 시간 모두 / 앞 시간(기본)
+  ['차시 L2 25분 두 시간 모두(v0.3.9)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all' }, {
+    L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F', 'L2-E5': 'F', 'L2-E4': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
+  }],
+  ['차시 L2 25분 앞 시간(v0.3.9)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front' }, {
+    L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F' }, ws: 'each', during: [], used: 540, rounds: 5, len: [184, 184] },
   }],
   ['차시 L3 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, {
     L3: { forms: { 'L3-E1': 's', 'L3-E3': 'F', 'L3-E2': 'F', 'L3-E5': 'F', 'L3-E4': 's', 'L3-E6': '-' }, ws: 'each', during: [], used: 870, rounds: 3, len: [196, 197] },
@@ -176,7 +186,8 @@ const TOTALS: Record<string, { rounds: number; letters: number; incidents: numbe
   'L1만 30분': { rounds: 4, letters: 3, incidents: 2, minutes: 40 },
   'L1만 10분': { rounds: 2, letters: 1, incidents: 0, minutes: 20 },
   '차시 L1 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
-  '차시 L2 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
+  '차시 L2 25분 두 시간 모두(v0.3.9)': { rounds: 4, letters: 3, incidents: 2, minutes: 35 },
+  '차시 L2 25분 앞 시간(v0.3.9)': { rounds: 5, letters: 4, incidents: 2, minutes: 35 },
   '차시 L3 25분(차시 한 판 v0.3.8)': { rounds: 3, letters: 2, incidents: 1, minutes: 35 },
   '차시 L4 25분(차시 한 판 v0.3.8)': { rounds: 4, letters: 3, incidents: 2, minutes: 39 },
 };
@@ -472,11 +483,14 @@ const wsItems = (s: Schedule) => s.items.filter((it) => it.kind === 'worksheet')
 /** 차시 한 판 '알아서' 확정값(작업 153 result.md 표): [차시, 무역 분, 학습지 방식, 라운드 수] */
 const LESSON_AUTO: [LessonId, number, 'each' | 'stageEnd', number][] = [
   ['L1', 10, 'stageEnd', 2], ['L1', 15, 'each', 2], ['L1', 20, 'each', 3], ['L1', 25, 'each', 3], ['L1', 30, 'each', 4], ['L1', 40, 'each', 6],
-  ['L2', 10, 'stageEnd', 2], ['L2', 15, 'each', 2], ['L2', 20, 'each', 3], ['L2', 25, 'each', 3], ['L2', 30, 'each', 5], ['L2', 40, 'each', 8],
+];
+/** (v0.3.9, 작업 154) 2차시 두 시간 모두(규칙 엔진 기본 'all') — 확인 퀴즈가 빠져 라운드가 늘었다 */
+const LESSON_AUTO_L2: [LessonId, number, 'each' | 'stageEnd', number][] = [
+  ['L2', 10, 'stageEnd', 2], ['L2', 15, 'each', 2], ['L2', 20, 'each', 3], ['L2', 25, 'each', 4], ['L2', 30, 'each', 5], ['L2', 40, 'each', 9],
 ];
 
 describe("차시 한 판 학습지 '알아서'(PRD 4.3.3 v0.3.8, 작업 153) — 단원 한 판 줄은 위 확정값 그대로", () => {
-  it.each(LESSON_AUTO)('차시 %s %i분: 방식 %s, 라운드 %i, ★ 없음, 번호 순, 끝나고 쓰기 없음', (L, T, ws, rounds) => {
+  const autoCase = (L: LessonId, T: number, ws: 'each' | 'stageEnd', rounds: number) => {
     const s = buildSchedule({ playUnit: 'lesson', scope: [L], tradeMinutes: T });
     expect(s.stages[0].worksheetMode).toBe(ws);
     expect(s.totalRounds).toBe(rounds);
@@ -490,7 +504,9 @@ describe("차시 한 판 학습지 '알아서'(PRD 4.3.3 v0.3.8, 작업 153) —
       const at = wsItems(s).map((it) => it.at);
       expect([...at].sort((a, b) => a - b)).toEqual(at);
     } else expect(wsItems(s)).toHaveLength(1);
-  });
+  };
+  it.each(LESSON_AUTO)('차시 %s %i분: 방식 %s, 라운드 %i, ★ 없음, 번호 순, 끝나고 쓰기 없음', autoCase);
+  it.each(LESSON_AUTO_L2)('차시 %s %i분 두 시간 모두: 방식 %s, 라운드 %i, ★ 없음, 번호 순, 끝나고 쓰기 없음(v0.3.9)', autoCase);
 
   it("1차시 25분: ① 무역·수입·수출 뒤 → ② 무역이 없다면? 뒤 → ③ 두 섬 뒤 → ④ 마지막 라운드 끝", () => {
     const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 });
@@ -501,10 +517,10 @@ describe("차시 한 판 학습지 '알아서'(PRD 4.3.3 v0.3.8, 작업 153) —
     expect(s.items.find((x) => x.id === 'ws:W04')!.at).toBe(end('r:3'));
   });
 
-  it('2차시 25분: ⑤ 세관 게시판 뒤 → 확인 퀴즈 → ⑥ → ⑦ → ⑧(거꾸로 가지 않음)', () => {
+  it('2차시 25분 두 시간 모두: ⑤ 세관 게시판 뒤 → ⑥ → ⑦ → ⑧, 확인 퀴즈 없음(v0.3.9)', () => {
     const s = buildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25 });
     const seq = s.items.filter((it) => it.kind === 'worksheet' || it.refId === 'L2-E6' || it.refId === 'L2-E7').map((it) => it.refId);
-    expect(seq).toEqual(['L2-E6', 'W05', 'L2-E7', 'W06', 'W07', 'W08']);
+    expect(seq).toEqual(['L2-E6', 'W05', 'W06', 'W07', 'W08']);
   });
 
   it("교사가 고른 방식은 그대로, 차시 한 판은 ★ 없음('차시 끝에 모아서'·'게임 끝나고')", () => {
@@ -521,5 +537,99 @@ describe("차시 한 판 학습지 '알아서'(PRD 4.3.3 v0.3.8, 작업 153) —
     const s = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 20 });
     expect(s.activities.find((a) => a.id === 'L1-E4')!.form).toBe('dropped');
     expect(wsItems(s).map((it) => it.refId)).toEqual(['W01', 'W02', 'W03', 'W04']);
+  });
+});
+
+// ─── 작업 154: 2차시 나눠 고르기(PRD 4.1.1 v0.3.9) ───
+describe('2차시 앞 시간 / 뒤 시간 / 두 시간 모두(v0.3.9, 작업 154)', () => {
+  const L2 = (part: 'front' | 'back' | 'all', T = 25, extra: Partial<ScheduleInput> = {}) =>
+    buildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: T, lessonPart: part, ...extra });
+  const evIds = (s: Schedule) => s.items.filter((it) => it.kind === 'event').map((it) => it.refId);
+  const wsIds = (s: Schedule) => wsItems(s).flatMap((it) => it.refIds ?? [it.refId]);
+  const wrapWs = (s: Schedule) => s.wrapup.flatMap((w) => w.worksheetIds);
+
+  it('앞 시간 25분: L2-E4·E5·E7·⑦⑧ 없음, L2-E2·E3·E6 있음, ⑤ → ⑥, 끝나고·마무리·where 에 ⑦⑧ 없음(v0.3.9)', () => {
+    const s = L2('front');
+    checkCommon(s);
+    for (const id of ['L2-E4', 'L2-E5', 'L2-E7']) {
+      expect(evIds(s), id).not.toContain(id);
+      expect(s.activities.map((a) => a.id), id).not.toContain(id);
+    }
+    for (const id of ['L2-E2', 'L2-E3', 'L2-E6']) expect(evIds(s), id).toContain(id);
+    expect(wsIds(s)).toEqual(['W05', 'W06']);
+    const at = wsItems(s).map((it) => it.at);
+    expect(at[0]).toBeLessThan(at[1]);
+    expect(s.afterWorksheets.ids).toEqual([]);
+    expect(wrapWs(s)).not.toContain('W07');
+    expect(wrapWs(s)).not.toContain('W08');
+    expect(Object.keys(s.worksheetWhere).sort()).toEqual(['W05', 'W06']);
+    expect(s.dropped).toEqual([]);
+  });
+
+  it("앞 시간 '게임 끝나고'여도 끝나고 쓰기는 ⑤⑥만(v0.3.9)", () => {
+    const s = L2('front', 25, { worksheetMode: 'after' });
+    expect(s.afterWorksheets.ids).toEqual(['W05', 'W06']);
+    expect(wrapWs(s)).toEqual(['W05', 'W06']);
+  });
+
+  it('뒤 시간 25분: L2-E2·E3·E6·E7 없음, L2-E4·E5 있음, ⑦ → ⑧(v0.3.9)', () => {
+    const s = L2('back');
+    checkCommon(s);
+    for (const id of ['L2-E2', 'L2-E3', 'L2-E6', 'L2-E7']) expect(evIds(s), id).not.toContain(id);
+    expect(evIds(s)).toContain('L2-E4');
+    expect(evIds(s)).toContain('L2-E5');
+    expect(wsIds(s)).toEqual(['W07', 'W08']);
+    expect(Object.keys(s.worksheetWhere).sort()).toEqual(['W07', 'W08']);
+  });
+
+  it('두 시간 모두 25분: 확인 퀴즈 없음, ⑤ → ⑥ → ⑦ → ⑧(v0.3.9)', () => {
+    const s = L2('all');
+    expect(evIds(s)).not.toContain('L2-E7');
+    expect(s.activities.map((a) => a.id)).not.toContain('L2-E7');
+    expect(wsIds(s)).toEqual(['W05', 'W06', 'W07', 'W08']);
+  });
+
+  it.each([10, 15, 20, 25, 30, 40])("앞 시간 %i분 '알아서': ⑤⑥만, 번호 순, ★ 없음, 오류 없음(v0.3.9)", (T) => {
+    const r = tryBuildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: T, lessonPart: 'front' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const s = r.schedule;
+    checkCommon(s);
+    expect(s.items.some((it) => it.placement === 'during')).toBe(false);
+    expect(wsIds(s)).toEqual(['W05', 'W06']);
+    const at = wsItems(s).map((it) => it.at);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(evIds(s)).not.toContain('L2-E7');
+  });
+
+  it('나눠 고르기는 차시 한 판 2차시만: 단원 한 판·연속 구간은 L2-E7 그대로, lessonPart 를 줘도 무시(v0.3.9)', () => {
+    expect(lessonPartRuleOf({ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], lessonPart: 'front' })).toBeNull();
+    expect(lessonPartRuleOf({ playUnit: 'custom', scope: ['L1', 'L2'], lessonPart: 'front' })).toBeNull();
+    expect(lessonPartRuleOf({ playUnit: 'custom', scope: ['L2'], lessonPart: 'front' })).toBeNull();
+    expect(lessonPartRuleOf({ playUnit: 'lesson', scope: ['L1'], lessonPart: 'front' })).toBeNull();
+    const unit = buildSchedule({ ...UNIT(80), lessonPart: 'front' });
+    expect(JSON.stringify(unit.items)).toBe(JSON.stringify(buildSchedule(UNIT(80)).items));
+    expect(evIds(unit)).toContain('L2-E7');
+    const custom = buildSchedule({ playUnit: 'custom', scope: ['L1', 'L2'], tradeMinutes: 40, lessonPart: 'back' });
+    expect(custom.activities.map((a) => a.id)).toContain('L2-E7');
+    expect(JSON.stringify(custom.items)).toBe(JSON.stringify(buildSchedule({ playUnit: 'custom', scope: ['L1', 'L2'], tradeMinutes: 40 }).items));
+    const l1 = buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25, lessonPart: 'front' });
+    expect(JSON.stringify(l1.items)).toBe(JSON.stringify(buildSchedule({ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }).items));
+  });
+
+  it('미리보기 활동 표에도 빠진 사건이 없다(교사 [넣기]에 안 보임)(v0.3.9)', () => {
+    const p = previewSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front' });
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    const ids = JSON.stringify(p);
+    expect(ids).not.toContain('L2-E4');
+    expect(ids).not.toContain('L2-E5');
+    expect(ids).not.toContain('L2-E7');
+  });
+
+  it('교사가 빠진 사건을 [넣기]로 고정해도 들어가지 않는다(v0.3.9)', () => {
+    const s = buildSchedule({ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front', overrides: { 'L2-E4': 'full', 'L2-E7': 'full' } });
+    expect(evIds(s)).not.toContain('L2-E4');
+    expect(evIds(s)).not.toContain('L2-E7');
   });
 });

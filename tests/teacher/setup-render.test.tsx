@@ -10,7 +10,7 @@ import { ROOM_BLOCKED_TEXT, ROOM_FULL_TEXT, RoomFullNotice } from '../../src/ui/
 import { ServerRoomsStore, judgeHealth, type RoomStatus } from '../../src/ui/common/server-status';
 import { trapFocus } from '../../src/ui/common/ServiceFooter';
 import { SetupContainer } from '../../src/teacher/index';
-import { defaultSetup, type SetupValues } from '../../src/teacher/setup';
+import { defaultSetup, PREFS_KEY, savePrefs, type SetupValues } from '../../src/teacher/setup';
 import { installFakeDom, type FakeElement } from '../map/fake-dom';
 import { MemStorage } from '../sync/session-helpers';
 
@@ -275,7 +275,10 @@ describe('ServiceFooter [이용 안내] 창 포커스 가두기(131 최소 수�
 describe('판 설정 미리보기 학습지 순서 한 줄(작업 153, preview-ws-order)', () => {
   it.each([
     [{ ...L1, tradeMinutes: 25 }, 'each', '학습지: 활동마다 바로 ① → ② → ③ → ④'],
-    [{ ...L1, lesson: 'L2' as const, tradeMinutes: 25 }, 'each', '학습지: 활동마다 바로 ⑤ → ⑥ → ⑦ → ⑧'],
+    // (v0.3.9, 작업 154) 2차시는 고른 시간의 번호만
+    [{ ...L1, lesson: 'L2' as const, tradeMinutes: 25, lessonPart: 'all' as const }, 'each', '학습지: 활동마다 바로 ⑤ → ⑥ → ⑦ → ⑧'],
+    [{ ...L1, lesson: 'L2' as const, tradeMinutes: 25 }, 'each', '학습지: 활동마다 바로 ⑤ → ⑥'],
+    [{ ...L1, lesson: 'L2' as const, tradeMinutes: 25, lessonPart: 'back' as const }, 'each', '학습지: 활동마다 바로 ⑦ → ⑧'],
     [{ ...L1, tradeMinutes: 10 }, 'stageEnd', '학습지: 차시 끝에 한 번에 ①②③④'],
     [{ ...L1, tradeMinutes: 25, worksheetMode: 'after' as const }, 'after', '학습지: 게임 끝나고 마무리에서'],
   ])('%#: %s', async (values, mode, line) => {
@@ -291,5 +294,71 @@ describe('판 설정 미리보기 학습지 순서 한 줄(작업 153, preview-w
     const f = fakeRooms(health(1));
     await mountSetup(f.store, { ...L1, worksheetMode: 'off' });
     expect(byId(dom.root, 'preview-ws-order')).toBeUndefined();
+  });
+});
+
+describe('2차시 나눠 고르기(v0.3.9, 작업 154)', () => {
+  const L2: SetupValues = { ...defaultSetup(), playUnit: 'lesson', lesson: 'L2', tradeMinutes: 25 };
+
+  it("2차시를 고르면 버튼 셋이 보이고 '앞 시간'이 눌려 있다, 미리보기 위 한 줄(v0.3.9)", async () => {
+    const f = fakeRooms(health(1));
+    await mountSetup(f.store, L2);
+    expect(byId(dom.root, 'lesson-part-front')?.getAttribute('aria-pressed')).toBe('true');
+    expect(byId(dom.root, 'lesson-part-back')?.getAttribute('aria-pressed')).toBe('false');
+    expect(byId(dom.root, 'lesson-part-all')?.getAttribute('aria-pressed')).toBe('false');
+    expect(text(byId(dom.root, 'lesson-part-front'))).toContain('앞 시간 — 우리나라 무역의 특징');
+    expect(text(byId(dom.root, 'lesson-part-front'))).toContain('교과서 100~102쪽 · 부산 공장, 자원 수입 → 생산 → 수출, 세관 게시판 · 학습지 ⑤⑥');
+    expect(text(byId(dom.root, 'lesson-part-back'))).toContain('뒤 시간 — 세계의 다양한 무역');
+    expect(text(byId(dom.root, 'lesson-part-all'))).toContain('두 시간 내용 모두 한 판에');
+    expect(text(byId(dom.root, 'preview-part'))).toBe('2차시 앞 시간: 우리나라 무역의 특징 (교과서 100~102쪽)');
+    expect(text(byId(dom.root, 'preview-ws-order'))).toBe('학습지: 활동마다 바로 ⑤ → ⑥');
+  });
+
+  it('[뒤 시간]을 누르면 값이 바뀌고, 그 값으로 미리보기·학습지 줄이 바뀐다(v0.3.9)', async () => {
+    const f = fakeRooms(health(1));
+    const st = await mountSetup(f.store, L2);
+    await act(async () => {
+      byId(dom.root, 'lesson-part-back')!.dispatch('click');
+    });
+    expect(st.values.lessonPart).toBe('back');
+    act(() => render(null, dom.root as unknown as Element));
+    await mountSetup(f.store, st.values);
+    expect(byId(dom.root, 'lesson-part-back')?.getAttribute('aria-pressed')).toBe('true');
+    expect(text(byId(dom.root, 'preview-part'))).toBe('2차시 뒤 시간: 세계의 다양한 무역 (교과서 103~104쪽)');
+    expect(text(byId(dom.root, 'preview-ws-order'))).toBe('학습지: 활동마다 바로 ⑦ → ⑧');
+    expect(text(byId(dom.root, 'preview-order'))).not.toContain('세관 게시판');
+    // 세관 게시판 문구(25분 미만 권장)는 뒤 시간이면 숨긴다
+    act(() => render(null, dom.root as unknown as Element));
+    await mountSetup(f.store, { ...st.values, tradeMinutes: 15 });
+    expect(byId(dom.root, 'lesson2-time-hint')).toBeUndefined();
+  });
+
+  it('두 시간 모두: 미리보기 한 줄, 앞 시간 15분이면 세관 게시판 안내 보임(v0.3.9)', async () => {
+    const f = fakeRooms(health(1));
+    await mountSetup(f.store, { ...L2, lessonPart: 'all' });
+    expect(text(byId(dom.root, 'preview-part'))).toBe('2차시 두 시간 모두 (교과서 100~104쪽)');
+    act(() => render(null, dom.root as unknown as Element));
+    await mountSetup(f.store, { ...L2, tradeMinutes: 15 });
+    expect(byId(dom.root, 'lesson2-time-hint')).toBeDefined();
+  });
+
+  it('2차시가 아니면 버튼·미리보기 한 줄이 없다(v0.3.9)', async () => {
+    const f = fakeRooms(health(1));
+    await mountSetup(f.store, { ...L1, tradeMinutes: 25 });
+    expect(byId(dom.root, 'lesson-part-front')).toBeUndefined();
+    expect(byId(dom.root, 'lesson-part-pick')).toBeUndefined();
+    expect(byId(dom.root, 'preview-part')).toBeUndefined();
+    act(() => render(null, dom.root as unknown as Element));
+    await mountSetup(f.store, { ...defaultSetup(), playUnit: 'unit', tradeMinutes: 25 });
+    expect(byId(dom.root, 'lesson-part-front')).toBeUndefined();
+  });
+
+  it('savePrefs 는 lessonPart 를 저장하지 않는다(v0.3.9)', () => {
+    const m = new MemStorage();
+    savePrefs({ ...L2, lessonPart: 'back' }, m);
+    const raw = JSON.parse(m.getItem(PREFS_KEY) ?? '{}') as Record<string, unknown>;
+    expect(raw.lesson).toBe('L2');
+    expect('lessonPart' in raw).toBe(false);
+    expect(defaultSetup().lessonPart).toBe('front');
   });
 });

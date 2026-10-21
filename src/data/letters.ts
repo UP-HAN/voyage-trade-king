@@ -358,6 +358,8 @@ export function commonLetters(difficulty?: Difficulty): LetterQuestion[] {
  * 그 구간 슬롯이 쓰는 은행: 구간 고유 문항을 먼저, 그 뒤에 common 문항을 붙인다(고유 문항이 모자랄 때 채우는 규칙).
  * 학생별 회전 순서·중복 방지(answeredLetterIds)는 core(작업 103·112)가 이 순서 위에서 정한다.
  */
-export function letterBank(lesson: LessonId, difficulty: Difficulty): LetterQuestion[] {
-  return [...stageLetters(lesson, difficulty), ...commonLetters(difficulty)];
+export function letterBank(lesson: LessonId, difficulty: Difficulty, dropIds?: readonly string[]): LetterQuestion[] {
+  const all = [...stageLetters(lesson, difficulty), ...commonLetters(difficulty)];
+  // (작업 154) 2차시 나눠 고르기: 그 시간에 배우지 않는 문항을 뺀다(배치 은행 크기와 실제 배달이 같은 은행을 쓴다)
+  return dropIds?.length ? all.filter((q) => !dropIds.includes(q.id)) : all;
 }

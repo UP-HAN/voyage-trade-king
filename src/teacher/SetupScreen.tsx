@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
 import { tradeWorksheets, type ItemForm, type SchedulePreview } from '../core';
 import { leaderboardRules } from '../data/awards';
+import { LESSON_PART_TEXT, LESSON_PARTS, lessonPartRules, type LessonPart } from '../data/lessonParts';
 import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes, type WorksheetMode } from '../data/schedule';
 import type { LessonId } from '../data/types';
 import { NoticeBanner } from '../ui/common/NoticeBanner';
@@ -32,6 +33,8 @@ import {
   previewOf,
   savePrefs,
   freeVoyageAvailable,
+  lessonPartAvailable,
+  lessonPartOf,
   VOYAGE_MODE_SHORT,
   VOYAGE_MODE_TEXT,
   voyageModeOf,
@@ -125,8 +128,10 @@ const MODE_TEXT: Record<string, string> = WORKSHEET_MODE_TEXT;
  * 차시 한 판 미리보기 한 줄(작업 153, PRD 4.3.3 v0.3.8): 이 차시 학습지 번호가 언제 뜨는지.
  * 'each' → `학습지: 활동마다 바로 ① → ② → ③ → ④`, 'stageEnd' → `학습지: 차시 끝에 한 번에 ①②③④`, 'after' → `학습지: 게임 끝나고 마무리에서`
  */
-export function worksheetOrderLine(mode: string, stage: LessonId): string | null {
-  const nos = tradeWorksheets(stage).map(worksheetNo);
+export function worksheetOrderLine(mode: string, stage: LessonId, part?: LessonPart): string | null {
+  // (작업 154) 2차시 나눠 고르기로 빠진 번호는 보이지 않는다(차시 한 판에서만 부르므로 'lesson')
+  const drop = lessonPartRules('lesson', [stage], part)?.dropWorksheets;
+  const nos = tradeWorksheets(stage, drop).map(worksheetNo);
   if (!nos.length) return null;
   if (mode === 'each') return `학습지: 활동마다 바로 ${nos.join(' → ')}`;
   if (mode === 'stageEnd') return `학습지: 차시 끝에 한 번에 ${nos.join('')}`;
@@ -164,6 +169,11 @@ function PreviewPanel({
   }
   return (
     <div class="t-preview" data-testid="preview">
+      {lessonPartAvailable(values) && (
+        <p class="t-preview__part" data-testid="preview-part" data-part={values.lessonPart}>
+          {LESSON_PART_TEXT[values.lessonPart].preview}
+        </p>
+      )}
       {order && (
         <p class="t-order" data-testid="preview-order">
           <span class="t-order__label">오늘 순서</span> {order}
@@ -179,9 +189,9 @@ function PreviewPanel({
         <span class="t-sheet__label">{values.playUnit === 'lesson' ? '이 차시 학습지' : '학습지'}</span>
         <WorksheetPdfMenu variant="inline" highlightLesson={values.playUnit === 'lesson' ? values.lesson : 'unit'} />
       </div>
-      {values.playUnit === 'lesson' && preview.bands[0] && worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage) && (
+      {values.playUnit === 'lesson' && preview.bands[0] && worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage, lessonPartOf(values)) && (
         <p class="t-preview__facts" data-testid="preview-ws-order" data-mode={preview.bands[0].worksheetMode}>
-          {worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage)}
+          {worksheetOrderLine(preview.bands[0].worksheetMode, preview.bands[0].stage, lessonPartOf(values))}
         </p>
       )}
       <div class="t-bands" data-testid="preview-bands" aria-label="구간 띠">
@@ -294,10 +304,13 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
   const big = openError && ['BUSY', 'ROOM_LIMIT', 'MAINTENANCE'].includes(openError.code);
 
   // 기본으로 보이는 칸 번호(① 판 단위 ② 차시 ③ 무역 시간 ④ 학급 이름 — 차시를 고르지 않는 판이면 번호를 당긴다)
-  const nums = '①②③④';
+  const nums = '①②③④⑤';
   const lessonStep = values.playUnit === 'lesson';
-  const nTime = nums[lessonStep ? 2 : 1];
-  const nClass = nums[lessonStep ? 3 : 2];
+  // (작업 154) 2차시면 ③ 어느 시간 내용을 할까요? 가 끼어 번호가 하나씩 밀린다
+  const partStep = lessonPartAvailable(values);
+  const nPart = nums[2];
+  const nTime = nums[(lessonStep ? 2 : 1) + (partStep ? 1 : 0)];
+  const nClass = nums[(lessonStep ? 3 : 2) + (partStep ? 1 : 0)];
 
   const basic: ComponentChildren = (
     <>
@@ -475,7 +488,27 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
                   );
                 })}
               </div>
-              {values.lesson === 'L2' && values.tradeMinutes < 25 && (
+              {partStep && (
+                <>
+                  <h2 class="t-h2">{nPart} 어느 시간 내용을 할까요?</h2>
+                  <div class="t-lessons t-parts" data-testid="lesson-part-pick" role="group" aria-label="어느 시간 내용을 할까요?">
+                    {LESSON_PARTS.map((part) => (
+                      <button
+                        key={part}
+                        type="button"
+                        class="t-lesson"
+                        data-testid={`lesson-part-${part}`}
+                        aria-pressed={values.lessonPart === part}
+                        onClick={() => set({ lessonPart: part, overrides: {} })}
+                      >
+                        <b>{LESSON_PART_TEXT[part].title}</b>
+                        <span class="t-lesson__pages">{LESSON_PART_TEXT[part].sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {values.lesson === 'L2' && values.tradeMinutes < 25 && values.lessonPart !== 'back' && (
                 <p class="t-note" data-testid="lesson2-time-hint">
                   2차시는 무역 25분 이상을 권해요. 라운드가 3개 이상이어야 공장에서 만든 상품을 수출하고 세관 게시판을 채울 시간이 넉넉해요.
                 </p>

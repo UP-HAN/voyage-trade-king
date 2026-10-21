@@ -1,11 +1,11 @@
 /**
- * S07 상단 HUD (PRD 8.3 S07, 8.1-2 핵심 숫자 3개: 자금·배 칸·라운드 남은 시간).
- * 무역 남은 시간은 작게("무역 14분 남음"). 시각은 서버 시각(`store.serverNow()`) 기준.
+ * S07 상단 HUD (PRD 8.3 S07, 8.1-2 핵심 숫자: 자금·배 칸). 시간 칸에는 구간·라운드 이름만 —
+ * (작업 159) 남은 시간 숫자는 학생 화면에 보이지 않는다(교사 요청).
  * 출석번호는 HUD에 없다 — 설정(톱니) 안 작은 글씨에만(v0.3.1).
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { ActiveNotice } from '@shared/protocol';
-import { tradeClock, type PublicClass } from '../core';
+import type { PublicClass } from '../core';
 import { shipsById } from '../data/ships';
 import { FlagIcon } from '../ui/common/FlagIcon';
 import { NoticeBanner } from '../ui/common/NoticeBanner';
@@ -13,7 +13,7 @@ import { BellDotIcon, BookIcon, CoinIcon, CrateIcon, ClockIcon, GearIcon } from 
 import type { MeView } from './predict';
 import { LetterHudSlot } from './slots';
 import type { StudentState, StudentStore } from './store';
-import { formatClock, formatMinutes, formatMoney } from './text';
+import { formatMoney } from './text';
 
 export function cargoUsed(me: MeView): number {
   return me.game.cargo.reduce((s, l) => s + l.qty, 0);
@@ -22,33 +22,28 @@ export function cargoUsed(me: MeView): number {
 export interface TimeInfo {
   /** 구간·라운드 표시 */
   label: string;
-  /** 큰 숫자(라운드 남은 시간) — 없으면 null */
-  round: string | null;
-  /** 작은 글씨: "무역 14분 남음" */
+  /** 작은 글씨: "무역 중"·"무역 시작 전"·"무역 끝" — (작업 159) 시간 숫자는 보이지 않는다 */
   trade: string;
-  /** 라운드 30초 이하 */
-  warn: boolean;
 }
 
-/** 시간 표시 계산(순수) */
-export function timeInfo(cls: PublicClass, now: number): TimeInfo {
+/**
+ * 시간 표시 계산(순수).
+ * (작업 159, 교사 요청 2026-10-21) 학생 화면에는 남은 무역 시간·라운드 남은 시간을 숫자로 보이지 않는다 —
+ * 교사가 분위기를 보며 이끈다. 라운드 번호·구간 이름만 남긴다. `now` 는 옛 호출과 맞추려고 받기만 한다.
+ */
+export function timeInfo(cls: PublicClass, _now?: number): TimeInfo {
   // (작업 115) 차시 한 판이면 "2차시"(개발 용어 'L2 구간' 대신). 단원 한 판은 그대로
   const stage = `${cls.stage.replace(/^L/, '')}차시`;
-  const tradeLeft = tradeClock.remaining(cls.clock, now);
   const started = cls.clock.startedAt !== null;
-  const trade = !started ? `무역 ${formatMinutes(cls.clock.durationSec)} · 시작 전` : cls.tradeEnded ? '무역 끝' : `무역 ${formatMinutes(tradeLeft)} 남음`;
-  if (cls.phase === 'prep') return { label: '준비 시간', round: null, trade, warn: false };
-  if (cls.phase === 'wrapup' || cls.phase === 'ended') return { label: '마무리', round: null, trade: '무역 끝', warn: false };
-  if (cls.phase === 'round') {
-    const ms = cls.paused || cls.roundEndsAt === null ? cls.roundRemainingMs ?? 0 : cls.roundEndsAt - now;
-    const sec = Math.max(0, ms / 1000);
-    return { label: `${stage} · 라운드 ${cls.round}`, round: formatClock(sec), trade, warn: sec <= 30 };
-  }
-  if (cls.phase === 'event') return { label: `${stage} · 활동`, round: null, trade, warn: false };
-  if (cls.phase === 'worksheet') return { label: `${stage} · 잠깐!`, round: null, trade, warn: false };
+  const trade = !started ? '무역 시작 전' : cls.tradeEnded ? '무역 끝' : '무역 중';
+  if (cls.phase === 'prep') return { label: '준비 시간', trade };
+  if (cls.phase === 'wrapup' || cls.phase === 'ended') return { label: '마무리', trade: '무역 끝' };
+  if (cls.phase === 'round') return { label: `${stage} · 라운드 ${cls.round}`, trade };
+  if (cls.phase === 'event') return { label: `${stage} · 활동`, trade };
+  if (cls.phase === 'worksheet') return { label: `${stage} · 잠깐!`, trade };
   // (작업 153 추가) 자유 항해 판의 라운드 사이는 쉬는 때가 아니다
-  if (cls.settings?.voyageMode === 'free' && cls.round >= 1 && !cls.tradeEnded) return { label: `${stage} · 자유 항해`, round: null, trade, warn: false };
-  return { label: `${stage} · 쉬는 중`, round: null, trade, warn: false };
+  if (cls.settings?.voyageMode === 'free' && cls.round >= 1 && !cls.tradeEnded) return { label: `${stage} · 자유 항해`, trade };
+  return { label: `${stage} · 쉬는 중`, trade };
 }
 
 export function Hud({
@@ -105,12 +100,11 @@ export function Hud({
         </span>
       </div>
       {t && (
-        <div class={`st-hud__stat st-hud__time${t.warn ? ' is-warn' : ''}`} data-testid="hud-time">
+        <div class="st-hud__stat st-hud__time" data-testid="hud-time">
           <span class="st-hud__label">
             <ClockIcon /> {t.label}
           </span>
           <span class="st-hud__num-row">
-            {t.round && <span class="st-hud__num">{t.round}</span>}
             <span class="st-hud__trade" data-testid="hud-trade-left">
               {t.trade}
             </span>

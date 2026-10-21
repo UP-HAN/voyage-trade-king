@@ -50,7 +50,7 @@ describe('roundSteps', () => {
 
 // ─── 작업 151: 자유 항해 갈래 ───
 import { applyAction } from '../../src/core/rules';
-import { isFreeVoyage, pickInfo } from '../../src/student/GameScreen';
+import { isFreeVoyage, laterFareText, pickInfo } from '../../src/student/GameScreen';
 import { tutorialStep, tutorialText, TUTORIAL_FREE_ORDER } from '../../src/student/events/logic';
 import { teach } from '../core/helpers';
 
@@ -93,10 +93,15 @@ describe('pickInfo — 자유 항해(작업 151)', () => {
     expect((pickInfo(me(), cls, 'SHA') as { sail?: boolean }).sail).toBeUndefined();
   });
 
-  it('(작업 153 추가) 여러 번 항해해도 ok(횟수 제한 없음), 쓸 수 있는 돈이 모자라면 noMoney(spendable)', () => {
+  it('(작업 153 추가) 여러 번 항해해도 ok(횟수 제한 없음), (작업 159) 쓸 수 있는 돈이 모자라도 ok + later(후불)', () => {
     expect(pickInfo(fme((m) => { m.game.sailsThisRound = 10; }), fcls, 'SHA').kind).toBe('ok');
     const poor = pickInfo(fme((m) => { m.game.money = 50; m.game.fareDue = 45; }), fcls, 'SHA');
-    expect(poor).toMatchObject({ kind: 'noMoney', spendable: 5 });
+    expect(poor).toMatchObject({ kind: 'ok', sail: true, later: true });
+    expect(laterFareText((poor as { cost: number }).cost)).toMatch(/^운항비 .+만 원은 나중에 내요\. 도착해서 팔면 돼요\.$/);
+    // 돈이 넉넉하면 later 없음
+    expect((pickInfo(fme(), fcls, 'SHA') as { later?: boolean }).later).toBeUndefined();
+    // 돈이 0이어도(빈손) 출발 가능
+    expect(pickInfo(fme((m) => { m.game.money = 0; }), fcls, 'SHA')).toMatchObject({ kind: 'ok', later: true });
   });
 
   it('학생 예측과 같은 판정: 예측이 되면 pickInfo 도 ok', () => {

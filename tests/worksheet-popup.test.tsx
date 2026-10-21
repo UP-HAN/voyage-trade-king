@@ -12,7 +12,7 @@ import { parseScreenData } from '../src/screen/model';
 import { AfterWorksheetBand, pickAfterWorksheetScene, WorksheetScene } from '../src/screen/scenes/WorksheetScene';
 import { StoreContext } from '../src/student/hooks';
 import type { StudentStore } from '../src/student/store';
-import { allDone, openWorksheetIds, waitLeftSec, WorksheetLayer } from '../src/student/worksheet/WorksheetLayer';
+import { allDone, openWorksheetIds, waitLeftSec, WorksheetLayer, worksheetOrderParts } from '../src/student/worksheet/WorksheetLayer';
 import { demoActions, type TeacherActions } from '../src/teacher/actions';
 import { publicView, screenView, type TeacherGame } from '../src/teacher/game';
 import { completionGroups, popupProgress, seatLabel, WorksheetPanel } from '../src/teacher/panels/WorksheetPanel';
@@ -450,7 +450,7 @@ describe("(작업 132) 지금 쓰기 ③★·⑭★ 팝업", () => {
     const actFn = mountStudent(snap, 1, () => NOW + 1000);
     expect(byTest('worksheet-popup')[0]!.getAttribute('data-during')).toBe('1');
     expect(text(byTest('worksheet-head')[0])).toBe('잠깐! ③★ 지금 써요');
-    expect(text(byTest('worksheet-prompt')[0])).toBe('지금 써요! 두 섬이 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.');
+    expect(text(byTest('worksheet-prompt')[0])).toBe('지금 써요! 두 나라가 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.');
     expect(text(byTest('worksheet-pages')[0])).toBe('교과서 98~99쪽');
     expect(text(byTest('worksheet-helper')[0])).toContain('[내 기록:');
     expect(text(byTest('worksheet-during-rest')[0])).toBe('나머지 칸은 끝나고 써요');
@@ -538,6 +538,22 @@ describe('(작업 153) 팝업 "오늘 학습지 순서" 한 줄', () => {
   it('묶음 팝업이면 지금 번호가 모두 굵게', () => {
     mountStudent(snapWith(['W01', 'W02', 'W03', 'W04']));
     expect(orderOf()).toEqual({ text: '오늘 학습지: ① 지금 → ② 지금 → ③ 지금 → ④ 지금', bold: ['① 지금', '② 지금', '③ 지금', '④ 지금'] });
+  });
+
+  // (작업 154) 2차시 나눠 고르기: 고른 시간의 번호만
+  const withPart = (s: HostSnapshot, part: 'front' | 'back'): HostSnapshot => ({ ...s, class: { ...s.class, settings: { ...s.class.settings, lessonPart: part } } });
+  it('2차시 앞 시간 ⑤ 팝업: "오늘 학습지: ⑤ 지금 → ⑥"(v0.3.9)', () => {
+    mountStudent(withPart(snapWith(['W05'], { scope: ['L2'] }), 'front'));
+    expect(orderOf()).toEqual({ text: '오늘 학습지: ⑤ 지금 → ⑥', bold: ['⑤ 지금'] });
+  });
+  it('2차시 뒤 시간 ⑦ 팝업: "오늘 학습지: ⑦ 지금 → ⑧"(v0.3.9)', () => {
+    mountStudent(withPart(snapWith(['W07'], { scope: ['L2'] }), 'back'));
+    expect(orderOf()).toEqual({ text: '오늘 학습지: ⑦ 지금 → ⑧', bold: ['⑦ 지금'] });
+  });
+  it('worksheetOrderParts: 앞 시간 → ⑤⑥만, 단원 한 판은 거르지 않음(v0.3.9)', () => {
+    const me = playerView(snapWith(['W05'], { scope: ['L2'] }).players[seatKey(1)]);
+    expect(worksheetOrderParts(me, ['W05'], { playUnit: 'lesson', scope: ['L2'], lessonPart: 'front' }).map((x) => x.id)).toEqual(['W05', 'W06']);
+    expect(worksheetOrderParts(me, ['W05'], { playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], lessonPart: 'front' }).map((x) => x.id)).toEqual(['W05', 'W06', 'W07', 'W08']);
   });
 
   it("마무리 '끝나고 쓰기' 목록에는 없다", () => {

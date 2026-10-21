@@ -7,10 +7,10 @@ import type { PublicPayload } from '../../src/core';
 import { seatKey } from '../../src/sync/host-session';
 import { botAction, makeSimWorld, rng, type SimStudent } from './sim-world';
 
-async function flowL2(minutes: number) {
+async function flowL2(minutes: number, lessonPart: 'all' | 'front' | 'back' = 'all') {
   const w = makeSimWorld();
   const h = w.host();
-  const code = await w.openGame(h, { playUnit: 'lesson', scope: ['L2'], tradeMinutes: minutes });
+  const code = await w.openGame(h, { playUnit: 'lesson', scope: ['L2'], tradeMinutes: minutes, settings: { lessonPart } });
   const students: SimStudent[] = [];
   for (const [seat, name] of [[1, '해오름무역'], [2, '바다상회']] as const) {
     const s = w.student(seat, name);
@@ -52,11 +52,11 @@ async function flowL2(minutes: number) {
 
 describe('2차시 흐름(Memory)', () => {
   for (const minutes of [15, 25]) {
-    it(`차시 한 판 2차시 ${minutes}분: 표지 → 공장 개장 → 임무 3종 → 라운드 → 세관 게시판 → 마무리`, { timeout: 120_000 }, async () => {
+    it(`차시 한 판 2차시 ${minutes}분 두 시간 모두: 표지 → 공장 개장 → 임무 3종 → 라운드 → 세관 게시판 → 마무리, 확인 퀴즈 없음(v0.3.9)`, { timeout: 120_000 }, async () => {
       const { g, h, sawCustoms } = await flowL2(minutes);
       expect(g.class.phase).toBe('wrapup');
       for (const id of ['L2-E1', 'L2-E2', 'L2-E3', 'L2-E4', 'L2-E5', 'L2-E6']) expect(g.class.firedEvents).toContain(id);
-      if (minutes >= 25) expect(g.class.firedEvents).toContain('L2-E7');
+      expect(g.class.firedEvents).not.toContain('L2-E7');
       expect(g.class.features).toContain('factory');
       expect(g.class.openPorts).toHaveLength(12);
       expect(sawCustoms).toBe(true);
@@ -70,4 +70,35 @@ describe('2차시 흐름(Memory)', () => {
       h.session.dispose();
     });
   }
+
+  it('차시 한 판 2차시 25분 앞 시간: 4유형·싱가포르·퀴즈 없음, 임무는 자원 수입→생산→수출 하나, 학습지 ⑤ → ⑥(v0.3.9)', { timeout: 120_000 }, async () => {
+    const { g, h, sawCustoms } = await flowL2(25, 'front');
+    expect(g.class.phase).toBe('wrapup');
+    for (const id of ['L2-E1', 'L2-E2', 'L2-E3', 'L2-E6']) expect(g.class.firedEvents).toContain(id);
+    for (const id of ['L2-E4', 'L2-E5', 'L2-E7']) expect(g.class.firedEvents).not.toContain(id);
+    expect(sawCustoms).toBe(true);
+    for (const k of [1, 2, 3]) expect(Object.keys(g.players[seatKey(k)]!.game.missions)).toEqual(['M-IPE']);
+    const ws = g.class.schedule.items.filter((it) => it.kind === 'worksheet').flatMap((it) => it.refIds ?? [it.refId]);
+    expect(ws).toEqual(['W05', 'W06']);
+    expect(g.class.schedule.wrapup?.flatMap((x) => x.worksheetIds)).toEqual([]);
+    h.session.dispose();
+  });
+
+  it('차시 한 판 2차시 25분 뒤 시간: 공장 개념·IPE·세관 게시판·퀴즈 없음, 처음 화물 없음, 학습지 ⑦ → ⑧(v0.3.9)', { timeout: 120_000 }, async () => {
+    const { g, h } = await flowL2(25, 'back');
+    expect(g.class.phase).toBe('wrapup');
+    expect(g.class.firedEvents).toContain('L2-E1');
+    expect(g.class.firedEvents).toContain('L2-E4');
+    for (const id of ['L2-E2', 'L2-E3', 'L2-E6', 'L2-E7']) expect(g.class.firedEvents).not.toContain(id);
+    expect(g.class.features).toContain('factory');
+    for (const k of [1, 2, 3]) {
+      const p = g.players[seatKey(k)]!;
+      expect(p.game.missions['M-IPE']).toBeUndefined();
+      expect(p.game.missions['M-EXPORT4']).toBeDefined();
+      expect(p.game.log.some((e) => e.ref === 'startCargo')).toBe(false);
+    }
+    const ws = g.class.schedule.items.filter((it) => it.kind === 'worksheet').flatMap((it) => it.refIds ?? [it.refId]);
+    expect(ws).toEqual(['W07', 'W08']);
+    h.session.dispose();
+  });
 });

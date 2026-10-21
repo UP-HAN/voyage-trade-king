@@ -154,7 +154,7 @@ function sanitizeSettings(cur: ClassSettings, patch: Partial<ClassSettings>): Cl
   if (patch.progressMode === 'auto' || patch.progressMode === 'manual') next.progressMode = patch.progressMode;
   if (typeof patch.activityRatio === 'number' && patch.activityRatio >= 0.5 && patch.activityRatio <= 0.8) next.activityRatio = patch.activityRatio;
   if (typeof patch.tradeMinutes === 'number' && patch.tradeMinutes >= 5 && patch.tradeMinutes <= 90) next.tradeMinutes = patch.tradeMinutes;
-  // playUnit·scope 는 판 중에 바꾸지 않는다(새 판으로)
+  // playUnit·scope·lessonPart(작업 154) 는 판 중에 바꾸지 않는다(새 판으로)
   return next;
 }
 

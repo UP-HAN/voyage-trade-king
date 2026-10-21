@@ -6,6 +6,7 @@
 import { previewSchedule, tryBuildSchedule, type IncidentFreq, type VoyageMode, type ItemForm, type PlayUnit, type ScheduleInput, type ScheduleItem, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { eventsById } from '../data/events';
+import { LESSON_PART_LESSON, type LessonPart } from '../data/lessonParts';
 import { lessons, lessonsById } from '../data/lessons';
 import { activityRatio as RATIO, FULL_UNIT_READY, incidentCountRule, playUnits, READY_LESSONS_BEFORE_FULL, tradeMinutes as TRADE_MINUTES } from '../data/schedule';
 import type { LessonId } from '../data/types';
@@ -39,6 +40,11 @@ export interface SetupValues {
    * 기억하지 않는다(147과 같은 방식). 실제 값은 `voyageModeOf`
    */
   voyageMode: VoyageMode | null;
+  /**
+   * (v0.3.9, 작업 154, PRD 4.1.1) 차시 한 판 2차시 나눠 고르기(앞 시간 / 뒤 시간 / 두 시간 모두). 기본 'front'.
+   * 기억하지 않는다(PREF_FIELDS 밖). 실제 값은 `lessonPartOf`(2차시가 아니면 'all')
+   */
+  lessonPart: LessonPart;
 }
 
 export function defaultSetup(): SetupValues {
@@ -56,7 +62,18 @@ export function defaultSetup(): SetupValues {
     progressMode: 'auto',
     overrides: {},
     voyageMode: null,
+    lessonPart: 'front',
   };
+}
+
+/** (작업 154) 2차시 나눠 고르기를 보이는 판: 차시 한 판 + 2차시 */
+export function lessonPartAvailable(v: Pick<SetupValues, 'playUnit' | 'lesson'>): boolean {
+  return v.playUnit === 'lesson' && v.lesson === LESSON_PART_LESSON;
+}
+
+/** (작업 154) 이 판의 나눠 고르기 값: 2차시 차시 판이면 고른 값, 아니면 'all' */
+export function lessonPartOf(v: Pick<SetupValues, 'playUnit' | 'lesson' | 'lessonPart'>): LessonPart {
+  return lessonPartAvailable(v) ? v.lessonPart : 'all';
 }
 
 /** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1·2차시(3·4차시·단원 한 판은 '준비 중') */
@@ -160,6 +177,7 @@ function scheduleInputOf(v: SetupValues): ScheduleInput | null {
     worksheetMode: v.worksheetMode,
     overrides: v.overrides,
     letters: true,
+    lessonPart: lessonPartOf(v),
     seed: 0,
     incidentFreq: v.incidentFreq,
     comeback: v.comeback,
@@ -290,6 +308,7 @@ const PREF_FIELDS = [
 ] as const;
 // (작업 147) 진행 방식(progressMode)·학습지 방식(worksheetMode)은 기억하지 않는다 — 판마다 기본값('auto')으로 시작.
 // (작업 151) 항해 방식(voyageMode)도 기억하지 않는다 — 판마다 판 기본(1·2차시 '자유롭게')으로 시작.
+// (작업 154) 2차시 나눠 고르기(lessonPart)도 기억하지 않는다 — 판 설정을 열 때마다 '앞 시간'.
 
 export type TeacherPrefs = Pick<SetupValues, (typeof PREF_FIELDS)[number]>;
 

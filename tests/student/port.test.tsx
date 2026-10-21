@@ -342,3 +342,32 @@ describe('관세를 매기는 나라(수정 1회차)', () => {
     }
   });
 });
+
+describe('(작업 154) 2차시 나눠 고르기 — 싱가포르 안내 줄·첫 중계 개념 카드(v0.3.9)', () => {
+  const withPart = (s: HostSnapshot, part: 'front' | 'back' | 'all'): HostSnapshot => ({ ...s, class: { ...s.class, settings: { ...s.class.settings, lessonPart: part } } });
+  const sinState = (part: 'front' | 'back' | 'all') => {
+    let s = withPart(startFirstRound(makeSession({ n: 1, scope: ['L2'], playUnit: 'lesson' })), part);
+    s = editPlayer(s, 1, (p) => (p.game.port = 'SIN'));
+    return s;
+  };
+
+  it('앞 시간 판: 싱가포르 항구에 singapore-note 없음, 뒤 시간·두 시간 모두는 있음', () => {
+    let root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(sinState('front'), player(sinState('front'), 1))} onBack={() => undefined} />);
+    expect(byTestId(root, 'singapore-note')).toHaveLength(0);
+    expect(byTestId(root, 'port-screen')).toHaveLength(1);
+    act(() => render(null, dom.root as unknown as Element));
+    root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(sinState('back'), player(sinState('back'), 1))} onBack={() => undefined} />);
+    expect(byTestId(root, 'singapore-note')).toHaveLength(1);
+    act(() => render(null, dom.root as unknown as Element));
+    root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(sinState('all'), player(sinState('all'), 1))} onBack={() => undefined} />);
+    expect(byTestId(root, 'singapore-note')).toHaveLength(1);
+  });
+
+  it('firstStampConcept hideRelay: 첫 중계 카드는 띄우지 않고 첫 수출·수입 카드는 그대로', () => {
+    const { p } = round1();
+    expect(firstStampConcept(p, ['relay'], { hideRelay: true })).toBeNull();
+    expect(firstStampConcept(p, ['relay'])).toEqual({ stamp: 'relay', cardId: 'relay' });
+    expect(firstStampConcept(p, ['export'], { hideRelay: true })).toEqual({ stamp: 'export', cardId: 'trade-def' });
+    expect(firstStampConcept(p, ['relay', 'export'], { hideRelay: true })).toEqual({ stamp: 'export', cardId: 'trade-def' });
+  });
+});

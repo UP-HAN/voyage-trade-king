@@ -109,8 +109,8 @@ const L1_EVENTS: readonly GameEvent[] = [
   },
   {
     id: 'L1-E5', lesson: 'L1', kind: 'minigame', required: false, trigger: { type: 'teacher' }, fake: false, gameRule: false,
-    title: '두 섬 이야기',
-    body: '㉮섬과 ㉯섬은 모두 쌀과 옷을 만들 수 있어요. 각 섬이 더 잘 만드는 것에 집중한 뒤 서로 바꾸면 어떻게 될까요? 두 섬 모두 혼자 살 때보다 쌀과 옷을 같거나 더 많이 갖게 만들어 보세요.',
+    title: '㉮ 나라와 ㉯ 나라 이야기',
+    body: '㉮ 나라와 ㉯ 나라는 모두 쌀과 옷을 만들 수 있어요. 각 나라가 더 잘 만드는 것에 집중한 뒤 서로 바꾸면 어떻게 될까요? 두 나라 모두 혼자 살 때보다 쌀과 옷을 같거나 더 많이 갖게 만들어 보세요.',
     textbook: [
       { pages: [98], note: '㉮ 나라는 높은 수준의 기술을 갖추고 있어서 같은 시간과 비용을 들인다면 쌀보다 옷을 생산하여 수출할 때 더 큰 이익을 얻을 수 있습니다.' },
       { pages: [98], note: '㉯ 나라는 ㉮ 나라에 비해 기술 수준이 낮지만, 쌀을 재배하기에 적합한 환경이어서 같은 시간과 비용을 들인다면 옷보다 쌀을 생산하여 수출할 때 더 큰 이익을 얻을 수 있습니다.' },
@@ -124,7 +124,7 @@ const L1_EVENTS: readonly GameEvent[] = [
     ],
     goal: { type: 'complete', ref: 'twoIslands' },
     needsResponse: true, catchUp: 'replay', worksheetAfter: 'W03',
-    teacherPrompts: ['㉮섬은 쌀도 옷도 더 잘 만드는데 왜 쌀을 ㉯섬에서 사 올까?'],
+    teacherPrompts: ['㉮ 나라는 쌀도 옷도 더 잘 만드는데 왜 쌀을 ㉯ 나라에서 사 올까?'],
     image: 'scenes/two-islands.png',
     tier: 2, priority: 1, blocking: true, minutes: { full: 6, short: 2.5 },
     shortForm: { blocking: true, note: "3단계 '바꾸기'부터, [예시 따라 하기] 바로 제공" },

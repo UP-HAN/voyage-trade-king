@@ -3,6 +3,7 @@
  * `types.ts`가 `normalizePlayer`·`normalizeClass`·`normalizeSnapshot`을 다시 내보낸다.
  */
 import { goodsUnlockedBy } from '../data/goods';
+import { isLessonPart, lessonPartRules } from '../data/lessonParts';
 import { incidentCountRule, roundLength, stageStartByLesson, tradeMinutes, WORKSHEET_WAIT_SEC_DEFAULT } from '../data/schedule';
 import { STARTING_PORT, STARTING_SHIP } from '../data/ships';
 import { awardRules, leaderboardRules, scoringConstants } from '../data/awards';
@@ -139,6 +140,7 @@ export function defaultSettings(playUnit: PlayUnit, scope: LessonId[], minutes: 
     progressMode: 'auto',
     awardsOff: [],
     voyageMode: 'round',
+    lessonPart: 'all',
   };
 }
 
@@ -277,7 +279,9 @@ export function createPlayer(meta: SessionMeta, cs: ClassState, input: NewPlayer
   const flag = defaultFlag(input.seat);
   const game = newGame(start.money);
   // (작업 115 수정 1회차) 처음 화물(2차시: 담맘 원유 2상자). 기록에는 '처음 화물'(ref startCargo, 0원)로 남겨 학습지 ⑥ [내 기록]이 수입한 곳을 안다
-  for (const c of start.startCargo ?? []) {
+  // (작업 154) 2차시 뒤 시간 판은 처음 화물을 싣지 않는다(공장 임무가 없음). 돈은 그대로
+  const cargoOn = lessonPartRules(meta.playUnit, meta.scope, cs.settings.lessonPart)?.startCargo ?? true;
+  for (const c of cargoOn ? (start.startCargo ?? []) : []) {
     game.cargo.push({ good: c.good, qty: c.qty, unitCost: c.unitCost, origin: 'foreign', source: 'specialty', boughtAt: c.boughtAt });
     game.log.push({ round: 0, stage: start.lesson, kind: 'buy', good: c.good, qty: c.qty, port: c.boughtAt, amount: 0, ref: 'startCargo' });
   }
@@ -421,6 +425,8 @@ export function normalizeClass(raw: unknown, meta?: Pick<SessionMeta, 'playUnit'
     awardsOff: arr(s.awardsOff),
     // (작업 151) 옛 판에는 없음 → 라운드마다
     voyageMode: s.voyageMode === 'free' ? 'free' : 'round',
+    // (작업 154) 옛 판에는 없음·틀린 값 → 두 시간 모두
+    lessonPart: isLessonPart(s.lessonPart) ? s.lessonPart : 'all',
   };
   const stage = isLesson(r.stage) ? r.stage : settings.scope[0];
   const start = stageStartByLesson[settings.scope[0]];

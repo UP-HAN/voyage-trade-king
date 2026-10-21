@@ -25,7 +25,7 @@ export {
   applyTeacherAction, catchUpQueue, CLOCK_TEACHER_ACTIONS, EVENT_RESULT_SHOW_SEC, hasResultView, HOST_TEACHER_ACTIONS, isBlocking, resultShowing, type SideEffect, type TeacherResult,
 } from './lesson';
 export {
-  assignDeliveredLetters, deliveredSlots, isSlotExpired, letterForSlot, letterSlots, mailbox, makeSlots, slotIndex, slotsArrivingAt, type LetterView,
+  assignDeliveredLetters, deliveredSlots, isSlotExpired, letterDropOf, letterForSlot, letterSlots, mailbox, makeSlots, slotIndex, slotsArrivingAt, type LetterView,
 } from './letters';
 export {
   assetValue, awards, flatMetrics, hasCertificate, leaderboard, leapBase, leapRatio, metricValue, myRankIfTop, publicCompanyName,
@@ -43,13 +43,13 @@ export {
 export * as tradeClock from './clock';
 export {
   autoRoundSec, blockingIn, buildSchedule, buildWrapup, costIn, expectedTime, extraPlacers, findItem, incidentFormula, inputFromClass,
-  letterFormula, LINKED_EVENTS, normalizeInput, PREP_MINUTES, previewSchedule, RAISE_WARNING, fillForms, activityBudget, afterWorksheetsOf, reduceStageForBudget, reschedule, ScheduleError,
+  lessonPartRuleOf, letterFormula, LINKED_EVENTS, normalizeInput, PREP_MINUTES, previewSchedule, RAISE_WARNING, fillForms, activityBudget, afterWorksheetsOf, reduceStageForBudget, reschedule, ScheduleError,
   stageActivities, toScheduleState, tradeWorksheets, tryBuildSchedule, worksheetPlacementOf,
   type ActivityStatus, type BankSize, type ExtraPlacer, type NormalizedInput, type PlacerContext, type RescheduleChange,
   type RescheduleResult, type RoundInfo, type Schedule, type ScheduleErrorCode, type ScheduleInput, type SchedulePreview,
   type StageSummary, type WorksheetWhere,
 } from './schedule';
 export {
-  BASE_ASSET_RATIO, createTradeHooks, firstRoundPreview, itemFirers, lateness, nextRoundWait, POSTPONE_DEFAULT_SEC, roundNowPlan, TIME_UP_GRACE_SEC,
+  BASE_ASSET_RATIO, createTradeHooks, firstRoundPreview, itemFirers, lateness, lateSecOf, nextRoundWait, POSTPONE_DEFAULT_SEC, roundNowPlan, TIME_UP_GRACE_SEC,
   tradeHooks, tradeRemaining, UPCOMING_SEC, type ItemFirer, type RoundNowBlock, type RoundNowPlan,
 } from './trade';

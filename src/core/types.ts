@@ -8,6 +8,7 @@
  * - 저장·전송 뒤 읽을 때는 `normalizeSnapshot()` 등으로 기본값을 채운다(옛 필드 무시, 버전 `v: 3` 확인).
  */
 import type { MetricId } from '../data/awards';
+import type { LessonPart } from '../data/lessonParts';
 import type {
   Difficulty,
   GoodId,
@@ -260,6 +261,11 @@ export interface ClassSettings {
    * 'free' = 자유롭게(라운드 중 [여기로 출발]로 바로 이동, 운항비는 라운드 끝에 한꺼번에). 규칙 엔진 기본 'round'
    */
   voyageMode: VoyageMode;
+  /**
+   * (v0.3.9, 작업 154, PRD 4.1.1) 차시 한 판 2차시 나눠 고르기: 'front' 앞 시간 / 'back' 뒤 시간 / 'all' 두 시간 모두.
+   * 차시 한 판 + 범위 ['L2']일 때만 효과(`lessonPartRules`). 판을 만들 때만 정한다(`updateSettings`로 못 바꿈). 규칙 엔진 기본 'all'
+   */
+  lessonPart: LessonPart;
 }
 
 /** 항해 방식(PRD 4.3.7.1) */

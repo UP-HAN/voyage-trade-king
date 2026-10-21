@@ -19,7 +19,7 @@ export function CompanyTag({ name, color, emblem, size = 64 }: { name: string | 
   );
 }
 
-/** 위쪽 구석 무역 시계 + 구간 이름(준비 단계 "곧 무역이 시작돼요", 마무리에는 숨김, 멈춤 표시) */
+/** 위쪽 구석 구간 이름 띠((작업 159) 남은 시간 숫자 없음, 준비 단계 "곧 무역이 시작돼요", 마무리에는 숨김, 멈춤 표시) */
 export function TradeClockBar({ d, now }: { d: ScreenData; now: number }) {
   const c = clockInfo(d, now);
   if (c.mode === 'hidden') return null;
@@ -31,12 +31,10 @@ export function TradeClockBar({ d, now }: { d: ScreenData; now: number }) {
     );
   }
   return (
-    <div class={`scr-clock${c.remainingSec <= 60 ? ' scr-clock--warn' : ''}`} data-testid="screen-clock" data-mode="trade" data-sec={Math.round(c.remainingSec)}>
+    // (작업 159, 교사 요청) TV에는 남은 시간 숫자를 보이지 않는다 — 구간 이름·멈춤만. data-sec 은 시험·리허설 도구용(화면에 안 보임)
+    <div class="scr-clock" data-testid="screen-clock" data-mode="trade" data-sec={Math.round(c.remainingSec)}>
       <span class="scr-clock__stage" data-testid="screen-clock-stage">
         {c.stageLabel}
-      </span>
-      <span class="scr-clock__time" aria-label={`무역 남은 시간 ${c.remaining}`}>
-        {c.remaining}
       </span>
       {c.paused && (
         <span class="scr-clock__paused" data-testid="screen-clock-paused">

@@ -276,6 +276,7 @@ function setDestination(cs: ClassState, p: Player, port: PortId | null, events: 
 
 /**
  * (작업 151, PRD 4.3.7.1) 자유 항해: 라운드 중 바로 그 항구로 출발·도착. 운항비는 낼 운항비(fareDue)에 쌓고 라운드 끝에 정산.
+ * (작업 159) 돈이 운항비보다 적어도 막지 않는다(후불).
  * 도착 처리는 라운드 항해와 같은 `arrive`(입항 한도 새로 시작·첫 입항 카드·도감·싱가포르 사건).
  */
 function sailTo(cs: ClassState, p: Player, port: PortId, events: GameEvent[]): string | null {
@@ -287,7 +288,7 @@ function sailTo(cs: ClassState, p: Player, port: PortId, events: GameEvent[]): s
   if (isPortClosed(cs, port)) return 'PORT_CLOSED';
   const free = p.game.effects.tailwind > 0;
   const cost = free ? 0 : voyageCostFor(cs, p, p.game.port, port);
-  if (cost > spendable(cs, p)) return 'NO_MONEY';
+  // (작업 159, 교사 요청) 쓸 수 있는 돈이 운항비보다 적어도 출발한다 — 운항비는 쌓였다가 라운드 끝·무역 끝에 정산, 모자라면 대출(voyage.ts settleFare)
   const from = p.game.port;
   if (free) p.game.effects.tailwind -= 1;
   p.game.fareDue = fareDueOf(p) + cost;

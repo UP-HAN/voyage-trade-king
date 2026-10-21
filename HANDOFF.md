@@ -1,9 +1,58 @@
 # 인수인계서 (HANDOFF) — 대항해 무역왕
 
-- 기준일: **2026-10-20**
+- 기준일: **2026-10-21 21시**(학교 PC → 집 컴퓨터). 1~11장은 2026-10-20 기준이고, **오늘 바뀐 것과 할 일은 0장이 우선**이다.
 - 읽는 사람: ① 이 프로젝트의 교사(주인) ② 새 컴퓨터의 Claude Code(오케스트레이터)
 - 목적: 작업 환경을 다른 데스크톱으로 완전히 옮긴 뒤, 이 문서만 보고 같은 상태에서 바로 이어서 작업한다.
 - **이 파일은 공개 저장소에 있다.** 비밀값, 서버 접속 정보, 개인 설정은 여기에 쓰지 않는다. 그런 것은 모두 **비공개 작업 저장소 `UP-HAN/voyage-trade-king-workspace`(비공개)의 `RESTORE.md`를 따른다.**
+
+---
+
+## 0. 지금 바로 (2026-10-21 밤 → 10-22 13:50 공개수업 전)
+
+### 0.1 어디에 무엇이 있나
+| 무엇 | 위치 | 상태 |
+|---|---|---|
+| **운영 사이트** | `https://lab.ches.es.kr/voyage/` = 커밋 `a7d7804`(147~153), 2026-10-21 18:24 게임 화면만 배포(release `20261021-092438`) | 교사가 시연 연습함 |
+| 배포된 코드 | `main` 가지(`a7d7804`) | — |
+| **이어서 할 코드** | 가지 **`wip/2026-10-21-school`** (main + 아래 0.2의 커밋 전 작업 전부 + 이 HANDOFF) | 시험 1285개 중 2개 실패(159 중간, 0.3) |
+| 배포 예비본 | 가지 `release/157-158-only` = a7d7804 + 157 + 158만(나눠 고르기·159 없음). 시험 1235개·build 통과 | 나눠 고르기가 늦어질 때만 |
+| 작업 기록·영상·촬영본 | 비공개 저장소 `RESTORE.md` **0절**대로 덮어쓰기 | — |
+
+> 배포는 **ras-server와 같은 서버**다(교사의 다른 앱 ras·class·kart가 함께 있음 — 절대 건드리지 않는다). 게임 화면만 바꿀 때는 비공개 저장소의 `tmp/deploy/redeploy-web-only.sh`를 쓴다(중계 서버·nginx 안 건드림): `npm run build` → `tar -czf tmp/deploy/web.tgz -C dist .` → `scp tmp/deploy/web.tgz tmp/deploy/redeploy-web-only.sh ras-server:/tmp/` → `ssh ras-server "bash /tmp/redeploy-web-only.sh"`. **배포·서버 접속은 매번 교사 승인.** 앱 버전에 빌드 시각이 들어가므로 배포 뒤 **교사 화면부터 새로 고침**해야 학생이 들어온다(수업 중 배포 피하기).
+
+### 0.2 오늘(10-21) 한 일 — 실제 1차시 수업 뒤 교사 피드백 반영
+피드백 원문: `.orch/reports/2026-10-21-교사-수업-피드백.md`(1~11번, 비공개). 방향: **쉽게. 교사 조작은 [잠깐 멈춤]과 학습지 정도, 판은 저절로. 학습지는 번호(=교과서) 순서대로.**
+| 작업 | 내용 | 상태 |
+|---|---|---|
+| 145 | 판 끝내기 알림을 못 받은 학생이 옛 방 대기 화면에 갇힘 → 10초 뒤 [새 방 코드로 들어가기], 새로 고침해도 대기 시각 이어 셈 | 커밋 1682929, 배포됨 |
+| 147~153 | 판 설정 늘 자동 진행, 교사 카드 '아직 못 한 학생 n명'+[잠깐 멈춤], 학생 표 '지금 할 일', 학생 할 일 띠, ㉮·㉯ 나라 이야기 3장면, **자유 항해**(항구 자유 이동·운항비 후불·횟수 제한 없음·멈춤은 교사만), 개념 카드 TV 슬라이드, 학습지 번호 순서 | 커밋 a7d7804, 배포됨. 통합 검증 조건부 PASS(`.orch/reports/2026-10-21-147-153-통합검증.md`) |
+| 157 | 종이 학습지 PDF 문구: ③ '두 섬' → '㉮ 나라와 ㉯ 나라 이야기', ★ 지금 써요 삭제 | wip 가지, **미배포** |
+| 158 | 게임 안 '두 섬' → '㉮ 나라와 ㉯ 나라 이야기' | wip 가지, **미배포** |
+| 154-lesson2-split | **2차시 나눠 고르기**(앞 시간 100~102쪽 ⑤⑥ / 뒤 시간 103~104쪽 ⑦⑧ / 두 시간 모두, 기본 앞 시간) + 2차시 확인 퀴즈 제거. **교사: "무조건 올려야 함"** | wip 가지, 구현 완료·단위 시험 통과, **e2e 마무리 전**, 미배포 |
+| 159 | **학생·TV에서 시간 숫자 숨기기**, 교사 화면에 "예정보다 n분 느려요", **자유 항해에서 돈 < 운항비여도 출발**(후불, 모자라면 정산 때 대출) | wip 가지, **구현 중간에 멈춤**(0.3) |
+| 154-video-shots | 설명 영상 v2용 스크린숏 57장(`tmp/video/`, 비공개) | 완료 |
+| 155 | 선생님용 설명 영상 v2 `media/out/대항해무역왕_설명영상_선생님_v2.mp4`(2:47) | 렌더됨, **검증 안 함** |
+| 156 | 학생용 설명 영상 v2 | 7조각 중 4조각 렌더 뒤 멈춤 |
+| 160 | **갈매기 신문 힌트**(교사 아이디어: 갈매기가 "원유는 사우디…" 같은 기사를 주어 수입할 나라를 추리, 수출도 "○○에 △△가 모자라 값이 올랐어요" 힌트) | 기획 시작 직후 멈춤 — 처음부터 |
+| 오늘 순서 해설 docx | 교사 요청 "1·2차시 '오늘 순서' 항목이 각각 뭘 하는지 docx로" | 조사 완료(`.orch/reports/2026-10-21-오늘순서-해설-조사.md`), **docx 미작성** |
+> 작업 번호 주의: 154·155·156 폴더가 둘씩 있다(154-lesson2-split vs 154-video-shots, 지도안 세션의 155-lesson-plan-art·156-lesson-plan-infographic vs 155/156-video-*). 다음 번호는 **161**부터.
+
+### 0.3 159에서 남은 일(멈춘 자리)
+- 고친 파일 14개: `src/core/{index,trade,rules}.ts`, `src/teacher/{NowCard.tsx,now-card.ts,teacher.css}`, `src/student/{Hud.tsx,GameScreen.tsx}`, `src/screen/{parts.tsx,scenes/MapScene.tsx}`, 시험 4개. 같은 파일들의 diff가 `.orch/tasks/159-hide-clock-free-sail-debt/wip-159-files.diff`에 있다(같은 파일에 나눠 고르기 변경이 섞였을 수 있음).
+- 시험 상태(10-21 21:10): typecheck 오류 1(`tests/core/free-voyage.test.ts:162` HostSnapshot 타입), vitest 실패 2(`free-voyage.test.ts` 159 시험, `tests/screen/render.test.tsx` '해도: 라운드 타이머…' — 시계 숨김 뒤 옛 기대값).
+- 남은 것(지시서 `.orch/tasks/159-hide-clock-free-sail-debt/brief.md` 대조): 학생 대기 카드 "라운드 1까지 m:ss" 등 남은 시간 문구 전부 확인, 돈 모자랄 때 학생 안내 토스트("운항비 ○만 원은 나중에 내요. 도착해서 팔면 돼요."), 대출 수치 시뮬레이션, e2e(student-port, round-start, lesson2-full 25분, teacher-first-time), result.md.
+
+### 0.4 공개수업 전 순서(추천)
+1. 159 마무리 → 2. 전체 검증(typecheck·npm test·check:data·build·e2e: lesson2-full 앞 시간 25분·두 시간 모두, teacher-first-time, student-port, lesson1-events, minigames-l1) → 3. 교사 승인 받고 **게임 화면만 배포**(0.1) → 4. 교사 시연.
+- 시간이 모자라면: 159를 빼고(되돌리고) 나눠 고르기+157+158만 배포. 그것도 어려우면 `release/157-158-only`.
+- 수업 뒤: 160 갈매기 신문, 오늘 순서 해설 docx, 영상 155 검증·156 렌더, 공략집 PDF 다시 찍기(옛 화면 '두 섬'·'출항 준비'·'★' 남음, 기존 `scripts/guide/capture.ts`는 자유 항해 기본값에서 실패 가능), 돈 격차 조정 사건(교사: "벌어지면 자연재해 등으로 가끔 맞춰줘" — 151/153 result.md 설계안: 상위 '폭풍 경보', 하위 '구호 무역선'), 통합 검증 참고 사항(교사 화면 띠 생길 때 학생 해도 범위 다시 맞추기, 자유 항해 판 학생 표 '출항 준비 0' 숨기기, 무역 끝 없이 [수업 끝내기] 때 운항비 정산 누락), `tests/tmp154/` 정리.
+
+### 0.5 수업 운영 메모(교사가 오늘 확인한 것)
+- 판 시간 **25분** 권장(더 짧으면 1차시 벽란도·두 나라, 2차시 세관 게시판이 빠질 수 있음).
+- 1차시 ㉮·㉯ 나라 [다 했어요] 뒤 창이 바로 닫히는지 볼 것(PC 과부하 중 e2e에서 한 번 안 닫힘).
+- 수업을 끝낼 때 '무역 끝'을 거친 뒤 [수업 끝내기].
+
+---
 
 ---
 
@@ -381,6 +430,17 @@ gh repo clone UP-HAN/voyage-trade-king-workspace "<작업 폴더>/voyage-trade-k
 ---
 
 ## 11. 새 Claude 세션 시작 프롬프트 (붙여 넣기용)
+
+### 11.0 (2026-10-21 밤) 집에서 이어갈 때 — 이것을 붙여 넣는다
+```
+이 저장소는 「대항해 무역왕」(초6 사회 무역 수업용 웹 게임)이야. 오늘(10-21) 학교 PC에서 작업하다 퇴근해서 집에서 이어 가. 내일 10-22 13:50에 2차시 공개수업(교과서 100~102쪽, 2차시 '앞 시간')이 있어.
+1) HANDOFF.md 0장을 먼저 끝까지 읽고, 비공개 저장소 UP-HAN/voyage-trade-king-workspace의 RESTORE.md 0절대로 이 컴퓨터를 맞췄는지 확인해 줘(공개 저장소는 wip/2026-10-21-school 가지, .orch·.claude·CLAUDE.md·media·tmp/video·tmp/deploy 덮어쓰기). 안 됐으면 해 줘(git pull·복사까지는 해도 돼).
+2) npm install, npm run typecheck, npm test를 돌려 0.3에 적힌 상태(실패 2개)와 같은지 알려 줘.
+3) 그다음 0.4 순서대로 진행해: 159 마무리 → 전체 검증 → (내 승인 받고) 게임 화면만 배포. 오늘 피드백 원문은 .orch/reports/2026-10-21-교사-수업-피드백.md, 오늘 순서 해설 조사는 .orch/reports/2026-10-21-오늘순서-해설-조사.md에 있어.
+너는 오케스트레이터이고 이 프로젝트는 CLAUDE.md와 .claude/orch-rules.md의 방식(planner → implementer → verifier, .orch/tasks/<id>/)을 따른다. 쉬운 한국어로 보고해. 서버 접속·배포·git push는 내 승인 없이 하지 마. 배포 서버는 ras-server와 같은 서버라 ras·class·kart 등 다른 앱은 절대 건드리지 마.
+```
+
+### 11.1 (2026-10-20) 처음 옮겨 올 때
 
 ```
 이 저장소는 「대항해 무역왕」(초6 사회 무역 수업용 웹 게임)이고, 다른 컴퓨터에서 옮겨 왔어. 먼저 HANDOFF.md를 끝까지 읽고, 비공개 작업 저장소 UP-HAN/voyage-trade-king-workspace의 RESTORE.md대로 복원이 끝났는지(~/.claude 설정, CLAUDE.md, .orch/, media/, deploy 전용 스크립트) 확인해 줘. 그다음 npm install, npx playwright install chromium, npm run typecheck, npm test, npm run check:data, npm run build를 돌려 결과를 짧게 알려 주고, .orch/STATUS.md와 .orch/PROGRESS.md를 읽어 지금 할 일을 정리해 줘. 너는 오케스트레이터이고 역할 분담·표준 흐름은 ~/.claude/CLAUDE.md를 따른다. 서버 접속·배포·git push는 내 승인 없이 하지 마. 작업 뷰어는 포트 8765(.claude/launch.json의 orch-viewer)로 띄워 주고, 자동 이어하기 예약(매시 17분 확인)은 내가 원한다고 할 때만 다시 걸어 줘.

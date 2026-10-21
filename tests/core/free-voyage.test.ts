@@ -129,14 +129,48 @@ describe('자유 항해 — 바로 이동(sailTo)', () => {
     expect(player(s, 1).game.money).toBe(5000 - r.player.game.fareDue!);
   });
 
-  it('쓸 수 있는 돈(자금 − 낼 운항비)이 운항비보다 적으면 NO_MONEY', () => {
+  it('(작업 159) 쓸 수 있는 돈(자금 − 낼 운항비)이 운항비보다 적어도 출발 — 낼 운항비에 쌓이고 정산 때 모자란 만큼 대출', () => {
     let s = startFirstRound(freeSession());
     const cost = voyageCostFor(s.class, player(s, 1), 'BUS', 'SHA');
     s = editPlayer(s, 1, (p) => {
       p.game.money = 100;
       p.game.fareDue = 100 - cost + 1;
     });
-    expect(applyAction(s.class, player(s, 1), { type: 'sailTo', port: 'SHA' }).error).toBe('NO_MONEY');
+    const r = applyAction(s.class, player(s, 1), { type: 'sailTo', port: 'SHA' });
+    expect(r.error).toBeUndefined();
+    expect(r.player.game.port).toBe('SHA');
+    expect(r.player.game.fareDue).toBe(101);
+    expect(spendable(s.class, r.player)).toBe(-1);
+    // 자금 0(빈손)이어도 출발
+    const zero = editPlayer(s, 1, (p) => {
+      p.game.money = 0;
+      p.game.fareDue = 0;
+    });
+    const z = applyAction(zero.class, player(zero, 1), { type: 'sailTo', port: 'SHA' });
+    expect(z.error).toBeUndefined();
+    expect(z.player.game.fareDue).toBe(cost);
+    // 쓸 수 있는 돈이 음수면 사기는 막힌다(기존 판정 그대로)
+    expect(applyAction(s.class, z.player, { type: 'buy', good: 'rice' as never, qty: 1 }).error).toBeTruthy();
+    // 라운드 끝 정산: 모자란 만큼 대출, 자금 음수 없음
+    const res = resolveRounds({ ...s.class, phase: 'between' }, r.player);
+    expect(res.player.game.money).toBe(0);
+    expect(res.player.game.loan).toBe(1);
+    expect(res.player.game.fareDue).toBe(0);
+    expect(res.events).toContainEqual({ type: 'loan', amount: 1 });
+    // 무역 끝 정산도 같은 길(호스트 endTrade)
+    let t = { ...zero, players: { ...zero.players, s01: z.player } };
+    t = teach(t, { type: 'endTrade' });
+    expect(player(t, 1).game.fareDue).toBe(0);
+    expect(player(t, 1).game.money).toBe(0);
+    expect(player(t, 1).game.loan).toBe(cost);
+  });
+
+  it('(작업 159) 라운드마다 판은 그대로 — 자금이 운항비보다 적으면 목적지 NO_MONEY', () => {
+    let s = startFirstRound(makeSession({ n: 1 }));
+    s = editPlayer(s, 1, (p) => {
+      p.game.money = 0;
+    });
+    expect(applyAction(s.class, player(s, 1), { type: 'setDestination', port: 'SHA' }).error).toBe('NO_MONEY');
   });
 
   it('무역 시작 전·멈춤 중에는 거절, 라운드마다 판에서도 거절(작업 153 추가: 라운드 사이는 허용)', () => {

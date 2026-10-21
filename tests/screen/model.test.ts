@@ -163,6 +163,31 @@ describe('표지·요약 카드', () => {
   });
 });
 
+describe('(작업 154) 2차시 나눠 고르기 표지(v0.3.9)', () => {
+  const l2 = (part: 'front' | 'back' | 'all'): ScreenData => {
+    const d = data('summary');
+    return { ...d, cls: { ...d.cls, settings: { ...d.cls.settings, playUnit: 'lesson', scope: ['L2'], lessonPart: part } } };
+  };
+  it('앞 시간: 제목·쪽 / 뒤 시간: 제목·질문·쪽 / 두 시간 모두: 그대로', () => {
+    const f = coverFor(l2('front'), 'L2-E1');
+    // 공용 화면은 개발 용어 'L2' 없이(차시 번호는 kicker '2차시')
+    expect(f.kicker).toBe('2차시');
+    expect(f.title).toBe('자원을 사 와서 만들어 팔아요');
+    expect(f.pages).toBe('교과서 100~102쪽');
+    const b = coverFor(l2('back'), 'L2-E1');
+    expect(b.title).toBe('세계의 다양한 무역');
+    expect(b.question).toBe('나라마다 수출하는 것이 다른 까닭은 무엇일까요?');
+    expect(b.pages).toBe('교과서 103~104쪽');
+    const a = coverFor(l2('all'), 'L2-E1');
+    expect(a.title).not.toContain('L2.');
+    expect(a.title).toContain('세계의 다양한 무역');
+  });
+  it('무역 시계 제목도 그 시간 제목', () => {
+    expect(clockInfo(l2('front'), NOW).stageLabel).toBe('2차시 · 자원을 사 와서 만들어 팔아요');
+    expect(clockInfo(l2('back'), NOW).stageLabel).toBe('2차시 · 세계의 다양한 무역');
+  });
+});
+
 describe('막대', () => {
   it('벽란도 맞힌 수 분포(이름 없음)', () => {
     const m = barsFor(data('bars'), 'L1-E1')!;

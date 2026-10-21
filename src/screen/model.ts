@@ -12,6 +12,7 @@ import { checkQuizFor } from '../data/checkQuiz';
 import { ruleCards, summaryCards } from '../data/dex';
 import { COVER_EVENT_IDS, eventsById } from '../data/events';
 import { lessonsById } from '../data/lessons';
+import { coverTextFor, lessonPartRulesOf } from '../data/lessonParts';
 import { lessonCards, DURING_AFTER_NEWS_TEXT } from '../data/schedule';
 import type { LessonId, WorksheetId } from '../data/types';
 import { worksheetById, duringLabel } from '../data/worksheet';
@@ -94,7 +95,9 @@ export function clockInfo(d: ScreenData, now: number): ClockInfo {
   const { cls } = d;
   const lesson = lessonsById[cls.stage];
   // (작업 115 수정 1회차) 개발 용어 'L2' 대신 '2차시'
-  const stageLabel = `${cls.stage.replace(/^L/, '')}차시 · ${shortTitle(lesson?.title ?? '')}`;
+  // (작업 154) 2차시 나눠 고르기 판은 그 시간 제목(앞 'L2. '는 뗀다)
+  const partCover = lessonPartRulesOf(cls.settings)?.cover;
+  const stageLabel = `${cls.stage.replace(/^L/, '')}차시 · ${partCover ? partCover.title.replace(/^L\d\.\s*/, '') : shortTitle(lesson?.title ?? '')}`;
   const sec = tradeRemainingSec(cls, now);
   const base = { stageLabel, remaining: mmss(sec), remainingSec: sec, paused: !!cls.paused };
   if (cls.phase === 'wrapup' || cls.phase === 'ended' || cls.tradeEnded) return { ...base, mode: 'hidden' };
@@ -293,7 +296,7 @@ export function barsFor(d: ScreenData, eventId: string): BarsModel | null {
     const t = pub.twoIslands;
     return {
       ...base,
-      question: '두 섬의 교환에 성공한 회사',
+      question: '두 나라의 교환에 성공한 회사',
       countOnly: false,
       rows: [
         { label: '성공', value: t.success },
@@ -366,13 +369,17 @@ export function coverFor(d: ScreenData, eventId: string): CoverModel {
     const raw = d.pub.leaderboard.finalAsset ?? d.pub.leaderboard.exports;
     if (Array.isArray(raw)) topCompanies = raw.filter((e) => e.rank <= topN).slice(0, topN);
   }
+  // (작업 154) 차시 한 판 2차시 나눠 고르기: 표지 제목·질문·쪽을 그 시간에 맞춘다(학생 카드와 같은 도우미)
+  const part = def ? lessonPartRulesOf(d.cls.settings)?.cover ?? null : null;
+  // 공용 화면은 개발 용어 'L2'를 쓰지 않는다(위 kicker '2차시'가 대신) — 앞 'L2. '만 뗀다
+  const partTitle = part && def ? coverTextFor(def, d.cls.settings).title.replace(/^L\d\.\s*/, '') : null;
   return {
     lesson,
     variant,
     kicker: variant === 'lesson' ? `${lesson.replace(/^L/, '')}차시` : `단원 한 판 · ${lesson.replace(/^L/, '')}차시`,
-    title: card?.title ?? lessonsById[lesson]?.title ?? '',
-    question: card?.question ?? '',
-    pages: card ? `교과서 ${card.pages}쪽` : '',
+    title: partTitle ?? card?.title ?? lessonsById[lesson]?.title ?? '',
+    question: part?.question ?? card?.question ?? '',
+    pages: part ? `교과서 ${part.pages}쪽` : card ? `교과서 ${card.pages}쪽` : '',
     image: def?.image ?? null,
     topCompanies,
   };

@@ -25,9 +25,9 @@ export const worksheet: readonly WorksheetPrompt[] = [
   },
   {
     id: 'W03', no: 3, label: '③', lesson: 'L1', afterEvent: 'L1-E5',
-    prompt: '두 섬의 교환 전후 결과를 적고, 무역의 좋은 점을 한 문장으로 써요.',
+    prompt: '㉮ 나라와 ㉯ 나라의 교환 전후 결과를 적고, 무역의 좋은 점을 한 문장으로 써요.',
     pages: [98, 99], pagesLabel: '교과서 98~99쪽', helper: 'twoIslandsResult', minutes: 2, phase: 'trade', stageEndFallback: true,
-    during: { part: '2', prompt: '지금 써요! 두 섬이 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.', sec: 40 },
+    during: { part: '2', prompt: '지금 써요! 두 나라가 잘 만드는 것을 바꾸었더니 무엇이 좋아졌는지 ③의 2번 칸에 한 문장으로 써요.', sec: 40 },
   },
   {
     id: 'W04', no: 4, label: '④', lesson: 'L1', afterEvent: 'stageLastRound',

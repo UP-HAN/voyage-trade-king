@@ -21,7 +21,7 @@ import { SlotLayers, topLayer } from './slots';
 import { RejoinEscapeButton } from './RejoinEscape';
 import { showRejoinEscape, type StudentState, type StudentStore } from './store';
 import { toggleAllowed } from './guard';
-import { formatClock, formatMoney } from './text';
+import { formatMoney } from './text';
 import { WrapupView } from './wrapup/WrapupView';
 
 /** 호스트가 15초 넘게 없으면 띠(PRD 7.8) */
@@ -92,7 +92,8 @@ export function spendableOf(me: MeView, cls: PublicClass | null | undefined): nu
 
 /**
  * (작업 134) 라운드 전·사이 상태 카드 문구(순수). 무역을 시작했고 라운드가 아닐 때(사전 활동·라운드 사이) 쓴다.
- * 남은 시간은 배치표(공개 상태 schedule) − 무역 경과(서버 시각 기준) — 교사 화면과 같은 계산(nextRoundWait).
+ * 다음 라운드 여부는 배치표(공개 상태 schedule) − 무역 경과(서버 시각 기준) — 교사 화면과 같은 계산(nextRoundWait).
+ * (작업 159) 남은 시간 숫자는 보이지 않는다 — "지금 활동이 끝나면 라운드 1이 열려요".
  * (작업 149) me 를 주면 카드 확인 뒤·라운드 사이(도착 뒤) 문구로 바꾼다. 자동 진행 판에서는 "선생님이 시작하면"을 쓰지 않는다.
  */
 export function roundWaitInfo(cls: PublicClass, now: number, me?: MeView | null): { title: string; line: string; sub: string; over: boolean } {
@@ -109,9 +110,8 @@ export function roundWaitInfo(cls: PublicClass, now: number, me?: MeView | null)
     if (cls.clock.startedAt === null) line = '선생님이 시작하면 라운드가 열려요';
     else line = manual ? '남은 라운드가 없어요 · 선생님이 시작하면 정리 활동을 함께 해요' : '남은 라운드가 없어요 · 곧 다 함께 정리 활동을 해요';
   } else if (w.manual) line = '선생님이 시작하면 라운드가 열려요';
-  else if (w.sec > 0) line = w.first ? `라운드 ${w.round}까지 ${formatClock(w.sec)}` : `다음 라운드까지 ${formatClock(w.sec)}`;
-  // (수정 1회차) 계획 시각이 지났는데 활동이 아직 진행 중 — 언제 열리는지 그대로 알린다
-  else line = `${w.first ? `라운드 ${w.round}` : '다음 라운드'}까지 0:00 · 지금 활동이 끝나면 열려요`;
+  // (작업 159, 교사 요청) 학생 화면에는 남은 시간 숫자를 보이지 않는다 — 언제 열리는지만 말로
+  else line = w.first ? `지금 활동이 끝나면 라운드 ${w.round}이 열려요` : '지금 활동이 끝나면 다음 라운드가 열려요';
   if (me) {
     const ev = cls.currentEvent;
     if (cls.phase === 'event' && ev && !ev.closed && eventsById[ev.id]?.needsResponse !== true && me.game.responses[ev.id] !== undefined) {
@@ -249,8 +249,17 @@ export type PickInfo =
   | { kind: 'notTrading'; port: PortId }
   | { kind: 'closed'; port: PortId }
   | { kind: 'locked'; port: PortId }
-  | { kind: 'noMoney'; port: PortId; cost: number; /** (작업 151) 자유 항해: 쓸 수 있는 돈 */ spendable?: number }
-  | { kind: 'ok'; port: PortId; cost: number; free: boolean; /** (작업 151) 자유 항해: 바로 출발 */ sail?: boolean };
+  | { kind: 'noMoney'; port: PortId; cost: number }
+  | {
+      kind: 'ok';
+      port: PortId;
+      cost: number;
+      free: boolean;
+      /** (작업 151) 자유 항해: 바로 출발 */
+      sail?: boolean;
+      /** (작업 159) 자유 항해: 쓸 수 있는 돈이 운항비보다 적다 — 막지 않고 "나중에 내요" 안내 */
+      later?: boolean;
+    };
 
 /** 항구를 눌렀을 때 보여 줄 정보(순수): 운항비·못 가는 이유 */
 export function pickInfo(me: MeView, cls: PublicClass, port: PortId): PickInfo {
@@ -262,13 +271,19 @@ export function pickInfo(me: MeView, cls: PublicClass, port: PortId): PickInfo {
   const cost = voyageCostFor(cs, playerForPredict(me), me.game.port, port);
   if (!isTradingPhase(cls)) return { kind: 'notTrading', port };
   if (isFreeVoyage(cls)) {
-    // (작업 151, PRD 4.3.7.1) 자유 항해: core sailTo 와 같은 판정(쓸 수 있는 돈). 횟수 제한은 없앰(작업 153 추가)
+    // (작업 151, PRD 4.3.7.1) 자유 항해. 횟수 제한은 없앰(작업 153 추가)
+    // (작업 159, 교사 요청) 쓸 수 있는 돈이 운항비보다 적어도 출발(후불) — 막지 않고 안내만
     const money = spendableOf(me, cls);
-    if (!free && cost > money) return { kind: 'noMoney', port, cost, spendable: money };
+    if (!free && cost > money) return { kind: 'ok', port, cost, free, sail: true, later: true };
     return { kind: 'ok', port, cost: free ? 0 : cost, free, sail: true };
   }
   if (!free && cost > me.game.money) return { kind: 'noMoney', port, cost };
   return { kind: 'ok', port, cost: free ? 0 : cost, free };
+}
+
+/** (작업 159) 자유 항해에서 돈이 운항비보다 적을 때 안내(막지 않음) */
+export function laterFareText(cost: number): string {
+  return `운항비 ${formatMoney(cost)}은 나중에 내요. 도착해서 팔면 돼요.`;
 }
 
 function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: () => void; onClose: () => void }) {
@@ -288,15 +303,15 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
       body = '아직 열리지 않은 항구예요.';
       break;
     case 'noMoney':
-      body =
-        info.spendable !== undefined
-          ? `쓸 수 있는 돈(${formatMoney(info.spendable)})이 운항비보다 적어요.`
-          : `운항비 ${formatMoney(info.cost)}이 필요한데 자금이 모자라요.`;
+      // (작업 159) 자유 항해에서는 이 경우가 없다(후불 — 'ok'·later). 라운드마다 판만
+      body = `운항비 ${formatMoney(info.cost)}이 필요한데 자금이 모자라요.`;
       break;
     case 'ok':
       body = info.free
         ? '순풍 덕분에 이번 운항비는 0원이에요.'
-        : info.sail
+        : info.later
+          ? laterFareText(info.cost)
+          : info.sail
           ? `운항비 ${formatMoney(info.cost)} · 라운드가 끝나면 한꺼번에 내요`
           : `운항비 ${formatMoney(info.cost)}`;
       break;
@@ -489,6 +504,7 @@ function MapView({ store, st, onSail }: { store: StudentStore; st: StudentState;
               if (!pub || predict(playerForPredict(me), classForPredict(pub.class), action).error) return;
               const r = store.act(action);
               if (r !== 'sent' && r !== 'queued') return;
+              if (info.later) store.toast(laterFareText(info.cost), 'info');
               onSail?.(info.port);
               return;
             }

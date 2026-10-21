@@ -17,6 +17,7 @@ import { canTrade, cargoCapacity, cargoUsed } from '../../core';
 import { conceptCards } from '../../data/dex';
 import { goodsById, serviceRules } from '../../data/goods';
 import { factoryCycleCard } from '../../data/recipes';
+import { lessonPartRulesOf } from '../../data/lessonParts';
 import { portsById } from '../../data/ports';
 import { pageLabel } from '../../data/text';
 import type { GoodId, PortId } from '../../data/types';
@@ -393,6 +394,8 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   }
   const cls = pub.class;
   const cs = classForPredict(cls);
+  // (작업 154) 2차시 앞 시간 판: 싱가포르 중계 안내 줄·첫 [중계] 개념 카드를 숨긴다
+  const hideRelay = !!lessonPartRulesOf(cls.settings)?.hideRelay;
   const player = playerForPredict(me);
   const port = portsById[me.game.port];
   const trading = canTrade(cs); // (작업 153 추가) 자유 항해 판은 라운드 사이에도
@@ -429,7 +432,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
     if (!events) return;
     const s = saleSummary(events);
     setSale({ ...s, id: ++seq.current });
-    const first = firstStampConcept(player, s.stamps);
+    const first = firstStampConcept(player, s.stamps, { hideRelay });
     if (first) setConcept(first);
     setQ(`s:${c.good}`, 1);
     if (s.profit !== null) store.toast(profitText(s.profit), s.profit < 0 ? 'warn' : 'info');
@@ -541,7 +544,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
                 게임 규칙
               </span>
             </div>
-            {port.id === 'SIN' && (
+            {port.id === 'SIN' && !hideRelay && (
               <p class="pt-sec__note" data-testid="singapore-note">
                 <span class="st-tag pt-rule-tag">게임 규칙</span> {SINGAPORE_NOTE.replace(/^게임 규칙: ?/, '')} (<Term id="relay" /> 무역항)
               </p>

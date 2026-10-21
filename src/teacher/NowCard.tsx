@@ -6,6 +6,7 @@
  *   확인 창에서 [취소]하면 바로 다시 켜진다.
  * - 상태가 바뀌면 0.2초 페이드·강조(`prefers-reduced-motion`이면 없음 — teacher.css).
  * - (작업 147) `card.quiet`(자동 진행의 카드·응답·라운드·기다림·결과)이면 [잠깐 멈춤]을 위에 큰 주 색 버튼으로, 큰 버튼은 아래 '급할 때만' 작은 버튼으로.
+ * - (작업 159) 예정보다 늦으면 꼬리표 옆에 `now-late` 한 줄("예정보다 3분 느려요").
  * - data-testid: 카드 `now-card`(data-state), 큰 버튼 자리 `now-primary`(안의 버튼은 기존 시험이 쓰던 testid), 멈춤 자리 `now-pause`.
  */
 import { useEffect, useState } from 'preact/hooks';
@@ -78,6 +79,11 @@ export function NowCard({ card, onAction }: NowCardProps) {
         <span class="t-now__tag" data-testid="now-tag">
           {card.tag}
         </span>
+        {card.late && (
+          <span class="t-now__late" data-testid="now-late" role="status">
+            {card.late}
+          </span>
+        )}
         <span class="t-grow" />
         {card.state !== 'ended' && <span class={`t-now__tv t-now__tv--${card.tv.kind}`} data-testid="tv-chip" data-kind={card.tv.kind} data-scene={card.tv.scene ?? ''}>
           {card.tv.text}

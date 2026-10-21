@@ -18,6 +18,7 @@
  * 라운드 끝 항해 처리, 사건 개인 효과). 그래서 이 파일은 학급 상태를 직접 고치지 않고 교사 행동을 `hostReduce`로 넣는다.
  */
 import { eventsById } from '../data/events';
+import { lessonPartRules, lessonPartRulesOf } from '../data/lessonParts';
 import * as clock from './clock';
 import { hostReduce, type HostHooks } from './host';
 import { applyTeacherAction, EVENT_RESULT_SHOW_SEC, hasResultView, isBlocking, resultShowing } from './lesson';
@@ -300,7 +301,8 @@ function unwrittenWorksheets(c: ClassState): WorksheetId[] {
   const shown = new Set<string>();
   // '지금 쓰기'(★ 칸) 팝업은 번호를 띄운 것으로 세지 않는다 — ③·⑭는 끝나고 쓰기에 그대로 남는다(PRD 4.3.3.1 규칙 7)
   for (const it of c.schedule.items) if (it.kind === 'worksheet' && it.placement !== 'during' && (it.status === 'live' || it.status === 'done')) (it.refIds ?? [it.refId]).forEach((w) => shown.add(w));
-  return c.settings.scope.flatMap(tradeWorksheets).filter((w) => !shown.has(w));
+  const drop = lessonPartRulesOf(c.settings)?.dropWorksheets;
+  return c.settings.scope.flatMap((st) => tradeWorksheets(st, drop)).filter((w) => !shown.has(w));
 }
 
 /** 무역 끝 → 마무리 */
@@ -726,7 +728,8 @@ function rebuildAfterWorksheets(ctx: Ctx): void {
   const scope = c.settings.scope;
   const accounted = new Set<string>();
   for (const it of c.schedule.items) if (it.kind === 'worksheet' && it.placement !== 'during') (it.refIds ?? [it.refId]).forEach((w) => accounted.add(w));
-  const after = scope.flatMap(tradeWorksheets).filter((w) => !accounted.has(w));
+  const drop = lessonPartRules(ctx.snap.meta.playUnit, scope, c.settings.lessonPart)?.dropWorksheets;
+  const after = scope.flatMap((st) => tradeWorksheets(st, drop)).filter((w) => !accounted.has(w));
   setSchedule(ctx, { ...c.schedule, wrapup: buildWrapup(ctx.snap.meta.playUnit, scope, after) });
 }
 
@@ -856,15 +859,23 @@ export const tradeHooks: HostHooks = createTradeHooks();
  */
 export function lateness(snapshot: HostSnapshot, now: number): { lateSec: number; waitingId: string | null; wouldDrop: string[] } {
   const c = snapshot.class;
-  if (!started(c) || c.tradeEnded) return { lateSec: 0, waitingId: null, wouldDrop: [] };
-  const e = clock.elapsedSec(c.clock, now);
-  const next = c.schedule.items.find(firable);
-  if (!next || next.at >= e) return { lateSec: 0, waitingId: null, wouldDrop: [] };
-  const lateSec = Math.floor(e - next.at);
+  const { lateSec, waitingId } = lateSecOf(c, now);
+  if (!waitingId) return { lateSec: 0, waitingId: null, wouldDrop: [] };
   const r = reschedule(c.schedule, c, now, { type: 'none' }, { playUnit: snapshot.meta.playUnit, scope: c.settings.scope });
   const droppedNow = new Set(c.schedule.items.filter((it) => it.kind === 'event' && it.form === 'dropped').map((it) => it.refId));
   const wouldDrop = r.error ? [] : r.activities.filter((a) => a.form === 'dropped' && !droppedNow.has(a.id)).map((a) => a.id);
-  return { lateSec, waitingId: next.id, wouldDrop };
+  return { lateSec, waitingId, wouldDrop };
+}
+
+/**
+ * (작업 159) 늦은 정도만(다시 배치 계산 없이 — 교사 '지금 할 일' 카드가 1초마다 부른다). lateness 와 같은 기준.
+ */
+export function lateSecOf(c: ClassState, now: number): { lateSec: number; waitingId: string | null } {
+  if (!started(c) || c.tradeEnded) return { lateSec: 0, waitingId: null };
+  const e = clock.elapsedSec(c.clock, now);
+  const next = c.schedule.items.find(firable);
+  if (!next || next.at >= e) return { lateSec: 0, waitingId: null };
+  return { lateSec: Math.floor(e - next.at), waitingId: next.id };
 }
 
 /** 남은 무역 시간(초) */

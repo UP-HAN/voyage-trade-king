@@ -85,18 +85,21 @@ describe('표시 도우미', () => {
     expect(formatMinutes(30)).toBe('1분 안');
   });
 
-  it('HUD 시간: 준비·라운드·쉬는 중, 무역 남은 시간은 작은 글씨 문구', () => {
+  it('HUD 시간: 준비·라운드·쉬는 중 — (작업 159) 남은 시간 숫자는 없다', () => {
     const now = Date.UTC(2026, 9, 9, 1, 0, 0);
     const snap = startSession({ code: '000000', playUnit: 'lesson', scope: ['L1'], seed: 1, now, settings: { tradeMinutes: 25 } });
     const prep = timeInfo(publicClass(snap.class), now);
-    expect(prep).toMatchObject({ label: '준비 시간', round: null });
-    expect(prep.trade).toContain('25분');
+    expect(prep).toEqual({ label: '준비 시간', trade: '무역 시작 전' });
     const started = { ...snap.class, phase: 'round' as const, round: 2, roundEndsAt: now + 130_000, clock: { ...snap.class.clock, startedAt: now - 60_000, endsAt: now + 24 * 60_000 } };
     const t = timeInfo(publicClass(started), now);
-    expect(t).toMatchObject({ label: '1차시 · 라운드 2', round: '2:10', warn: false });
-    expect(t.trade).toBe('무역 24분 남음');
-    expect(timeInfo(publicClass({ ...started, roundEndsAt: now + 20_000 }), now).warn).toBe(true);
+    expect(t).toEqual({ label: '1차시 · 라운드 2', trade: '무역 중' });
     expect(timeInfo(publicClass({ ...started, phase: 'between', roundEndsAt: null }), now).label).toBe('1차시 · 쉬는 중');
+    expect(timeInfo(publicClass({ ...started, tradeEnded: true }), now).trade).toBe('무역 끝');
+    // 어느 단계에서도 m:ss·n분·n초 같은 시간 숫자가 없다
+    for (const phase of ['prep', 'round', 'between', 'event', 'worksheet', 'wrapup'] as const) {
+      const x = timeInfo(publicClass({ ...started, phase }), now);
+      expect(`${x.label} ${x.trade}`).not.toMatch(/\d+:\d{2}|\d+\s*(분|초)/);
+    }
   });
 
   it('항해 규칙 카드: 역전 장치가 꺼지면 2번 숨김', () => {

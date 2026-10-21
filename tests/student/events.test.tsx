@@ -419,3 +419,42 @@ describe('(작업 153) 2차시 임무 패널 "먼저 할 일"', () => {
     expect(items.find((li) => li.getAttribute('data-testid') === 'mission-intro-M-RELAY')!.textContent).toContain(' · 시간 나면');
   });
 });
+
+describe('(작업 154) 2차시 나눠 고르기 — 임무 패널·표지 카드(v0.3.9)', () => {
+  const withPart = (s: HostSnapshot, part: 'front' | 'back' | 'all'): HostSnapshot => ({ ...s, class: { ...s.class, settings: { ...s.class.settings, lessonPart: part } } });
+  function panel(part: 'front' | 'back' | 'all', missions: string[], cargo: boolean): FakeElement {
+    let s = startFirstRound(makeSession({ n: 1, scope: ['L2'], playUnit: 'lesson' }));
+    s = withPart(founded(teach(s, { type: 'fireEvent', id: missions[0] === 'M-IPE' ? 'L2-E3' : 'L2-E4' }), 1), part);
+    s = editPlayer(s, 1, (p) => {
+      p.game.missions = {};
+      for (const id of missions) p.game.missions[id] = { status: 'active', steps: [] } as never;
+      if (!cargo) p.game.log = p.game.log.filter((e) => e.ref !== 'startCargo');
+    });
+    return mount(<EventLayer store={fakeStore([])} st={fakeState(s, player(s, 1))} />);
+  }
+
+  it("뒤 시간: '먼저 할 일'이 뒤 시간 문구, 4유형·중계 임무에 '시간 나면' 없음", () => {
+    const root = panel('back', ['M-EXPORT4', 'M-RELAY'], false);
+    expect(byTestId(root, 'mission-first')[0]!.textContent).toBe('먼저 할 일: 쌀·원유·로봇·K-콘텐츠처럼 종류가 다른 상품을 사고팔아 수출국 4유형 칸을 채워요');
+    expect(byTestId(root, 'mission-panel')[0]!.textContent).not.toContain('시간 나면');
+    expect(root.find((e) => e.getAttribute('class') === 'ev-missions__opt')).toHaveLength(0);
+  });
+
+  it("앞 시간·두 시간 모두는 153 그대로(처음 화물 문구, 꼭 할 임무가 아닌 것에 '시간 나면')", () => {
+    let root = panel('front', ['M-IPE'], true);
+    expect(byTestId(root, 'mission-first')[0]!.textContent).toContain('먼저 할 일: 부산 [항구 들어가기] → [공장]에서 원유로 석유 제품 만들기');
+    act(() => render(null, dom.root as unknown as Element));
+    root = panel('all', ['M-IPE', 'M-EXPORT4', 'M-RELAY'], true);
+    expect(byTestId(root, 'mission-panel')[0]!.textContent).toContain(' · 시간 나면');
+  });
+
+  it('표지 카드 제목: 앞 시간 / 뒤 시간 / 두 시간 모두', () => {
+    const def = eventsById['L2-E1']!;
+    const set = (lessonPart: 'front' | 'back' | 'all') => ({ playUnit: 'lesson', scope: ['L2'] as ['L2'], lessonPart });
+    expect(eventCardModel(def, { settings: set('front') }).title).toBe('L2. 자원을 사 와서 만들어 팔아요');
+    expect(eventCardModel(def, { settings: set('back') }).title).toBe('L2. 세계의 다양한 무역');
+    expect(eventCardModel(def, { settings: set('back') }).paragraphs.join(' ')).toContain('나라마다 무엇을 많이 수출하는지');
+    expect(eventCardModel(def, { settings: set('all') }).title).toBe(def.title);
+    expect(eventCardModel(def).title).toBe(def.title);
+  });
+});

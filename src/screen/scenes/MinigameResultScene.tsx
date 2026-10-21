@@ -119,7 +119,7 @@ export function MinigameResultScene({ d }: SceneProps) {
     return (
       <div class="scr-scene scr-bars" data-testid="scene-minigameResult" data-event={id} data-success={m.success} data-joined={m.joined}>
         <p class="scr-kicker">{title} 결과 · 교과서 p.98~99 · [게임 설정] 수치</p>
-        <h1 class="scr-h1">두 섬 합계: 혼자 살 때 vs 바꾼 뒤</h1>
+        <h1 class="scr-h1">두 나라 합계: 혼자 살 때 vs 바꾼 뒤</h1>
         <p class="scr-bars__count" data-testid="mg-result-count">
           성공 <b>{m.success}</b>명 / 참여 <b>{m.joined}</b>명
         </p>
@@ -129,7 +129,7 @@ export function MinigameResultScene({ d }: SceneProps) {
           <Bar label="옷 · 혼자 살 때(1단계)" value={m.base.clothes} max={m.max} suffix="" testId="mg-result-bar" />
           {m.avg && <Bar label="옷 · 바꾼 뒤(성공 평균)" value={Number(fmt(m.avg.clothes))} max={m.max} suffix="" testId="mg-result-bar" />}
         </div>
-        {!m.avg && <p class="scr-lead">아직 성공한 친구가 없어요. 두 섬이 서로 바꾸면 어떻게 될까요?</p>}
+        {!m.avg && <p class="scr-lead">아직 성공한 친구가 없어요. 두 나라가 서로 바꾸면 어떻게 될까요?</p>}
       </div>
     );
   }
