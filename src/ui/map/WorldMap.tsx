@@ -68,6 +68,8 @@ export interface WorldMapProps {
   routePreview?: { from: PortId; to: PortId } | null;
   /** 그리는 항로가 바뀔 때(없어지면 null) */
   onRouteChange?: (route: RouteInfo | null) => void;
+  /** (작업 167) 학급의 열린 항구. 주면 이 목록에 없는 항구도 잠김으로 그린다(2차시 앞 시간 싱가포르). 없으면 구간만 본다 */
+  openPorts?: readonly PortId[];
   class?: string;
 }
 
@@ -79,8 +81,13 @@ const MY_SHIP_OFFSET = { dx: -38, dy: -4 };
 const LABEL_SIDE: Partial<Record<PortId, 'left' | 'right'>> = { SHA: 'left', BKK: 'left', LAX: 'left', YOK: 'right', MUM: 'right' };
 
 /** 이름표 그리는 순서: 잠긴 항구 먼저(겹치면 열린 항구 이름표가 위에 보이게) */
-function labelOrder(lesson: LessonId) {
-  return [...ports].sort((a, b) => Number(isPortOpen(a.id, lesson)) - Number(isPortOpen(b.id, lesson)));
+function labelOrder(lesson: LessonId, openPorts?: readonly PortId[]) {
+  return [...ports].sort((a, b) => Number(portOpenIn(a.id, lesson, openPorts)) - Number(portOpenIn(b.id, lesson, openPorts)));
+}
+
+/** (작업 167) 해도에서 열린 항구인가: 구간으로 열렸고, 학급 열린 항구를 주었으면 거기에도 있어야 한다 */
+export function portOpenIn(port: PortId, lesson: LessonId, openPorts?: readonly PortId[]): boolean {
+  return isPortOpen(port, lesson) && (!openPorts || openPorts.includes(port));
 }
 
 /** (107) 학생 기본 배율의 이 비율보다 작게 보면 '멀리 본 보기'(is-far) — 이름표를 짧게 */
@@ -109,7 +116,7 @@ function readViewport(el: HTMLElement | null): Viewport {
 }
 
 export function WorldMap(props: WorldMapProps) {
-  const { mode, lesson, myShip, otherShips, selectedDest, onSelectPort, highlightPorts, routePreview, onRouteChange } = props;
+  const { mode, lesson, myShip, otherShips, selectedDest, onSelectPort, highlightPorts, routePreview, onRouteChange, openPorts } = props;
   const interactive = mode === 'student';
   const rootRef = useRef<HTMLDivElement>(null);
   const camRef = useRef<Camera>({ k: 0.5, tx: 0, ty: 0 });
@@ -376,7 +383,7 @@ export function WorldMap(props: WorldMapProps) {
       {/* ④ 항구 표식 + 이름표 */}
       <div class="wm-overlay">
         {ports.map((p) => {
-          const open = isPortOpen(p.id, lesson);
+          const open = portOpenIn(p.id, lesson, openPorts);
           const hl = highlightByPort.get(p.id);
           const selected = open && selectedDest === p.id;
           const here = myShip?.port === p.id;
@@ -466,10 +473,10 @@ export function WorldMap(props: WorldMapProps) {
         )}
 
         {/* 이름표: 배·표식보다 위에(겹쳐도 읽히게). 누르기는 아래 표식으로 통과 */}
-        {labelOrder(lesson).map((p) => (
+        {labelOrder(lesson, openPorts).map((p) => (
           <div
             key={`label-${p.id}`}
-            class={`wm-label-anchor${isPortOpen(p.id, lesson) ? '' : ' is-locked'}${myShip?.port === p.id ? ' is-here' : ''}`}
+            class={`wm-label-anchor${portOpenIn(p.id, lesson, openPorts) ? '' : ' is-locked'}${myShip?.port === p.id ? ' is-here' : ''}`}
             style={at(p.x, p.y)}
           >
             <span class={`wm-port-label wm-port-label--${LABEL_SIDE[p.id] ?? 'below'}`}>

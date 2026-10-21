@@ -134,6 +134,25 @@ describe('WorldMap 렌더(학생 모드)', () => {
     for (const el of open) expect(el.find((e) => e.hasClass('wm-port-hit'))[0]!.hasAttribute('disabled')).toBe(false);
   });
 
+  it('(작업 167) openPorts를 주면 L2라도 목록에 없는 싱가포르는 잠김(회색 점·누를 수 없음·이름표 잠김), 주지 않으면 그대로', () => {
+    const eleven = PORT_IDS.filter((x) => x !== 'SIN');
+    let root = mount(<WorldMap mode="student" lesson="L2" myShip={myShip} otherShips={[]} openPorts={eleven} />);
+    let portEls = root.find((e) => e.hasClass('wm-port'));
+    const locked = portEls.filter((e) => e.hasClass('is-locked'));
+    expect(locked.map((e) => e.getAttribute('data-port'))).toEqual(['SIN']);
+    const hit = locked[0]!.find((e) => e.hasClass('wm-port-hit'))[0]!;
+    expect(hit.hasAttribute('disabled')).toBe(true);
+    expect(hit.getAttribute('aria-label')).toBe('싱가포르(싱가포르) — 아직 열리지 않은 항구');
+    expect(root.find((e) => e.hasClass('wm-label-anchor') && e.hasClass('is-locked'))).toHaveLength(1);
+    act(() => render(null, dom.root as unknown as Element));
+    root = mount(<WorldMap mode="student" lesson="L2" myShip={myShip} otherShips={[]} openPorts={PORT_IDS} />);
+    portEls = root.find((e) => e.hasClass('wm-port'));
+    expect(portEls.filter((e) => e.hasClass('is-locked'))).toHaveLength(0);
+    act(() => render(null, dom.root as unknown as Element));
+    root = mount(<WorldMap mode="screen" lesson="L2" otherShips={[]} openPorts={eleven} />);
+    expect(root.find((e) => e.hasClass('wm-port') && e.hasClass('is-locked')).map((e) => e.getAttribute('data-port'))).toEqual(['SIN']);
+  });
+
   it('이름표는 "부산(대한민국)" 형식이다(국경선·지명 라벨 없음)', () => {
     const root = mount(<WorldMap mode="student" lesson="L2" />);
     const labels = root.find((e) => e.hasClass('wm-port-label')).map((e) => e.textContent);

@@ -6,8 +6,11 @@ import { stageStartByLesson } from '../../src/data/schedule';
 import { act, makeSession, player, run, teach } from './helpers';
 
 describe('구간별 시작 조건(PRD 4.2.3)', () => {
-  it('L2로 시작하면 800만 원·12항구·공장', () => {
-    let s = makeSession({ n: 2, scope: ['L2'], playUnit: 'lesson' });
+  it('L2로 시작하면 800만 원·12항구(뒤 시간)·공장', () => {
+    // (작업 167) 차시 한 판 2차시 기본('두 시간 모두')·앞 시간은 싱가포르를 아직 열지 않아 11곳
+    expect(makeSession({ n: 0, scope: ['L2'], playUnit: 'lesson' }).class.openPorts).toHaveLength(11);
+    expect(makeSession({ n: 0, scope: ['L2'], playUnit: 'lesson', lessonPart: 'front' }).class.openPorts).not.toContain('SIN');
+    let s = makeSession({ n: 2, scope: ['L2'], playUnit: 'lesson', lessonPart: 'back' });
     expect(player(s, 1).game.money).toBe(800);
     expect(s.class.openPorts).toHaveLength(12);
     expect(s.class.features).toEqual(expect.arrayContaining(['market', 'factory']));

@@ -7,6 +7,7 @@
  * 무역 시계·배치표 자동 진행(startTrade/extend/shorten, 틱)은 작업 123.
  */
 import { eventsById } from '../data/events';
+import { lessonPartRulesOf, portsHeldBack, SINGAPORE_OPEN_AFTER, SINGAPORE_PORT } from '../data/lessonParts';
 import { roundLength, stageStartByLesson } from '../data/schedule';
 import { worksheetById } from '../data/worksheet';
 import type { GameEvent as EventDef, LessonId, WorksheetId } from '../data/types';
@@ -89,9 +90,13 @@ function fire(cs: ClassState, def: EventDef, short: boolean, now: number): Teach
   const openPorts = new Set(cls.openPorts);
   const features = new Set(cls.features);
   const effects: ActiveEffect[] = [...cls.activeEffects];
+  // (작업 167) 아직 열지 않는 항구(2차시 앞 시간·두 시간 모두의 싱가포르)는 표지 unlock에서 건너뛴다(이미 열린 것은 그대로)
+  const held = portsHeldBack(lessonPartRulesOf(cls.settings));
   for (const e of def.effects) {
     if (e.type === 'unlock') {
-      e.ports?.forEach((x) => openPorts.add(x));
+      e.ports?.forEach((x) => {
+        if (!held.includes(x)) openPorts.add(x);
+      });
       e.features?.forEach((x) => features.add(x));
     }
     if (e.type === 'priceTag') {
@@ -112,6 +117,25 @@ function fire(cs: ClassState, def: EventDef, short: boolean, now: number): Teach
     shortEvents: short ? [...new Set([...cls.shortEvents, def.id])] : cls.shortEvents.filter((x) => x !== def.id),
   };
   side.push({ type: 'eventFired', id: def.id });
+  return ok(cls, side);
+}
+
+/**
+ * (작업 167·168, PRD 4.1.1 v0.3.11) 지금 떠 있는 학습지 팝업에 ⑥(`SINGAPORE_OPEN_AFTER`)이 있고 규칙이 'afterW06'(두 시간 모두)이면
+ * 싱가포르를 열고, `fireAfterW06` 사건(수출국 4유형 임무 L2-E4)을 학급 발동 기록에 더한다(지금 사건 카드는 바꾸지 않음 —
+ * 비차단 임무라 학생 개인 효과는 호스트가 `eventFired`로 준다). 이미 열었거나 발동했으면 그대로.
+ */
+function afterW06(cs: ClassState): TeacherResult {
+  const rule = lessonPartRulesOf(cs.settings);
+  if (rule?.singapore !== 'afterW06' || !cs.worksheet.current?.includes(SINGAPORE_OPEN_AFTER)) return ok(cs);
+  const side: SideEffect[] = [];
+  let cls = cs;
+  if (!cls.openPorts.includes(SINGAPORE_PORT)) cls = { ...cls, openPorts: [...cls.openPorts, SINGAPORE_PORT] };
+  for (const id of rule.fireAfterW06) {
+    if (!eventsById[id] || cls.firedEvents.includes(id) || rule.dropEvents.includes(id)) continue;
+    cls = { ...cls, firedEvents: [...cls.firedEvents, id] };
+    side.push({ type: 'eventFired', id });
+  }
   return ok(cls, side);
 }
 
@@ -175,7 +199,7 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
         ...cs,
         stage,
         stageFirstRound: null,
-        openPorts: [...new Set([...cs.openPorts, ...start.ports])],
+        openPorts: [...new Set([...cs.openPorts, ...start.ports.filter((x) => !portsHeldBack(lessonPartRulesOf(cs.settings)).includes(x))])],
         features: [...new Set([...cs.features, ...start.features])],
         // 구간 효과(그 구간 끝까지)는 사라진다
         activeEffects: cs.activeEffects.filter((e) => !(e.until && e.until.stage !== null && e.until.stage !== stage)),
@@ -332,13 +356,17 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
         return ok({ ...cs, worksheet: { ...cs.worksheet, pending: [] } });
       }
       if (!cs.worksheet.current) return err(cs, 'NO_WORKSHEET');
+      // (작업 167·168) ⑥ 팝업이 닫히는 순간: 두 시간 모두 판은 싱가포르를 열고 수출국 4유형 임무를 준다
+      const w6 = afterW06(cs);
+      cs = w6.class;
+      const w6Side = w6.sideEffects;
       const [next, ...rest] = action.all ? [] : cs.worksheet.pending;
       if (action.all && cs.worksheet.pending.length) cs = { ...cs, worksheet: { ...cs.worksheet, pending: [] } };
-      if (next) return ok({ ...cs, worksheet: { ...cs.worksheet, current: next, pending: rest, openedAt: now, during: false, afterNews: false } });
+      if (next) return ok({ ...cs, worksheet: { ...cs.worksheet, current: next, pending: rest, openedAt: now, during: false, afterNews: false } }, w6Side);
       // 팝업 전 단계로 돌아간다: 무역 시작 전이면 'prep'(방 코드 장면 유지), 무역 중이면 'between', 마무리면 'wrapup'(작업 112 수정 1회차)
       const { returnPhase: _rp, ...rest0 } = cs.worksheet;
       void _rp;
-      return ok({ ...cs, phase: cs.phase === 'worksheet' ? phaseAfterWorksheet(cs) : cs.phase, worksheet: { ...rest0, current: null, openedAt: null, during: false, afterNews: false } });
+      return ok({ ...cs, phase: cs.phase === 'worksheet' ? phaseAfterWorksheet(cs) : cs.phase, worksheet: { ...rest0, current: null, openedAt: null, during: false, afterNews: false } }, w6Side);
     }
     case 'toggleLetters':
       return ok({ ...cs, letters: { ...cs.letters, enabled: action.enabled ?? !cs.letters.enabled } });

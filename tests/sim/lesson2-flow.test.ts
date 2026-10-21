@@ -57,14 +57,26 @@ describe('2차시 흐름(Memory)', () => {
     it(`차시 한 판 2차시 ${minutes}분 두 시간 모두: 표지 → 공장 개장 → 임무 3종 → 라운드 → 세관 게시판 → 마무리, 확인 퀴즈 없음(v0.3.9)`, { timeout: 120_000 }, async () => {
       const { g, h, sawCustoms } = await flowL2(minutes);
       expect(g.class.phase).toBe('wrapup');
-      for (const id of ['L2-E1', 'L2-E2', 'L2-E3', 'L2-E4', 'L2-E5', 'L2-E6']) expect(g.class.firedEvents).toContain(id);
+      for (const id of ['L2-E1', 'L2-E2', 'L2-E3', 'L2-E6']) expect(g.class.firedEvents).toContain(id);
       expect(g.class.firedEvents).not.toContain('L2-E7');
       expect(g.class.features).toContain('factory');
-      expect(g.class.openPorts).toHaveLength(12);
       expect(sawCustoms).toBe(true);
-      // 늦게 온 학생 포함 모두 임무 3종
       expect(Object.keys(g.players)).toHaveLength(3);
-      for (const k of [1, 2, 3]) expect(Object.keys(g.players[seatKey(k)]!.game.missions).sort()).toEqual(['M-EXPORT4', 'M-IPE', 'M-RELAY']);
+      // (작업 167·168) 배치표에 L2-E4·L2-E5 없음. 싱가포르·수출국 4유형 임무는 ⑥ 팝업이 닫히는 순간
+      const refs = g.class.schedule.items.map((it) => it.refId);
+      expect(refs).not.toContain('L2-E4');
+      expect(refs).not.toContain('L2-E5');
+      const w6Closed = g.class.schedule.items.some((it) => it.kind === 'worksheet' && (it.refIds ?? [it.refId]).includes('W06') && it.status === 'done');
+      // 25분('활동마다 바로') = 마지막 라운드 뒤 ⑥ 팝업이 닫힘, 15분('게임 끝나고') = ⑥은 마무리 끝나고 쓰기(아직 안 닫힘)
+      expect(w6Closed).toBe(minutes >= 25);
+      expect(g.class.openPorts).toHaveLength(w6Closed ? 12 : 11);
+      expect(g.class.firedEvents.includes('L2-E4')).toBe(w6Closed);
+      // 늦게 온 학생 포함 모두 자원 수입→생산→수출, ⑥ 뒤면 수출국 4유형도(봇이 ⑥ 뒤 싱가포르에 들르면 M-RELAY가 있을 수 있음)
+      for (const k of [1, 2, 3]) {
+        const m = Object.keys(g.players[seatKey(k)]!.game.missions);
+        expect(m).toContain('M-IPE');
+        expect(m.includes('M-EXPORT4')).toBe(w6Closed);
+      }
       // 모두 같은 라운드까지 처리
       expect(new Set(Object.values(g.players).map((p) => p.game.resolvedRound)).size).toBe(1);
       // 마무리 목록: 결산·시상 → 되돌아보기
@@ -79,6 +91,9 @@ describe('2차시 흐름(Memory)', () => {
     for (const id of ['L2-E1', 'L2-E2', 'L2-E3', 'L2-E6']) expect(g.class.firedEvents).toContain(id);
     for (const id of ['L2-E4', 'L2-E5', 'L2-E7']) expect(g.class.firedEvents).not.toContain(id);
     expect(sawCustoms).toBe(true);
+    // (작업 167) 싱가포르는 끝까지 잠김
+    expect(g.class.openPorts).toHaveLength(11);
+    expect(g.class.openPorts).not.toContain('SIN');
     for (const k of [1, 2, 3]) expect(Object.keys(g.players[seatKey(k)]!.game.missions)).toEqual(['M-IPE']);
     const ws = g.class.schedule.items.filter((it) => it.kind === 'worksheet').flatMap((it) => it.refIds ?? [it.refId]);
     expect(ws).toEqual(['W05', 'W06']);

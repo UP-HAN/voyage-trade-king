@@ -379,10 +379,9 @@ describe('(작업 154) 2차시 나눠 고르기 — 싱가포르 안내 줄·첫
 });
 
 describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배 꽉 참 안내(PRD 6.5.5)', () => {
-  /** 2차시 판(기본 앞 시간) 라운드 1, 상하이 */
+  /** 2차시 판(기본 앞 시간) 라운드 1, 상하이. (작업 167) 나눠 고르기는 판을 만들 때 넣는다 — 앞 시간·두 시간 모두는 싱가포르가 잠김 */
   const l2Sha = (fn?: (p: Player) => void, part: 'front' | 'back' | 'all' = 'front'): HostSnapshot => {
-    let s = startFirstRound(makeSession({ n: 1, scope: ['L2'], playUnit: 'lesson' }));
-    s = { ...s, class: { ...s.class, settings: { ...s.class.settings, lessonPart: part } } };
+    const s = startFirstRound(makeSession({ n: 1, scope: ['L2'], playUnit: 'lesson', lessonPart: part }));
     return editPlayer(s, 1, (p) => {
       p.game.port = 'SHA';
       p.game.visit = { arrival: 1, sold: {}, bought: {} };
@@ -392,12 +391,17 @@ describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배
   };
   const BATTERY = '부산 공장에서 배터리 재료로 써요(흑연·니켈·정밀 화학 원료 1상자씩)';
 
-  it('힌트: 2차시 상하이 흑연 = 싱가포르 하나 + 배터리 재료 줄', () => {
+  it('힌트: 2차시 상하이 흑연 = 뒤 시간은 싱가포르 하나 + 배터리 재료 줄, 앞 시간·두 시간 모두는 사 주는 곳 없음 + 배터리 재료 줄(작업 167)', () => {
     const s = l2Sha();
-    const h = sellPortsHint(s.class, player(s, 1), 'graphite');
-    expect(h.ports).toEqual([{ id: 'SIN', name: '싱가포르', hot: false }]);
-    expect(h.factory).toBe(BATTERY);
-    expect(sellPortsLine(h)).toBe('사 주는 항구: 싱가포르');
+    const back = l2Sha(undefined, 'back');
+    const hb = sellPortsHint(back.class, player(back, 1), 'graphite');
+    expect(hb.ports).toEqual([{ id: 'SIN', name: '싱가포르', hot: false }]);
+    expect(hb.factory).toBe(BATTERY);
+    expect(sellPortsLine(hb)).toBe('사 주는 항구: 싱가포르');
+    for (const part of ['front', 'all'] as const) {
+      const f = l2Sha(undefined, part);
+      expect(sellPortsHint(f.class, player(f, 1), 'graphite'), part).toEqual({ ports: [], factory: BATTERY });
+    }
     expect(sellPortsHint(s.class, player(s, 1), 'crude').factory).toBe('부산 공장에서 석유 제품 재료로 써요(원유 1상자)');
     expect(sellPortsHint(s.class, player(s, 1), 'iron').factory).toBe('부산 공장에서 철강 재료로 써요(철광석 2상자)');
     // AI 반도체(기술 경쟁 레시피)·재료가 아닌 상품은 공장 줄 없음
@@ -413,7 +417,7 @@ describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배
   });
 
   it('힌트: 막힌 항구 제외, 인기(H) 먼저, 3곳 넘으면 " 등"', () => {
-    const s0 = l2Sha();
+    const s0 = l2Sha(undefined, 'back');
     const closed: HostSnapshot = {
       ...s0,
       class: { ...s0.class, activeEffects: [{ id: 'x', source: 'test', effect: { type: 'portClosed', port: 'SIN' }, until: null }] },
@@ -457,14 +461,16 @@ describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배
     const root = mount(<PortScreen store={fakeStore(log, toasts)} st={fakeState(s, bought.player)} onBack={() => undefined} />);
     const card = () => byTestId(root, 'sell-card-graphite')[0]!;
     expect(byTestId(card(), 'sell-reason')[0]!.textContent).toBe(SELL_REASON.specialty);
-    expect(byTestId(card(), 'sell-hint-ports')[0]!.textContent).toBe('사 주는 항구: 싱가포르');
+    // (작업 167) 앞 시간은 싱가포르가 잠겨 '사 주는 항구' 줄을 빼고 공장 줄만
+    expect(byTestId(card(), 'sell-hint-ports')).toHaveLength(0);
     expect(byTestId(card(), 'sell-hint-factory')[0]!.textContent).toBe(BATTERY);
+    expect(byTestId(card(), 'sell-hint')[0]!.textContent).not.toContain('싱가포르');
     const box = byTestId(card(), 'resell-box')[0]!;
     const per = Math.floor(price * 0.8);
     expect(box.textContent).toContain(resellBoxText(per));
     expect(byTestId(box, 'resell-rule-tag')[0]!.textContent).toBe('게임 규칙');
     expect(byTestId(box, 'resell-graphite')[0]!.getAttribute('class')).toContain('btn--secondary');
-    // 앞 시간 판: 싱가포르 안내 줄은 없음(상하이)·힌트에는 '싱가포르' 이름이 보임
+    // 앞 시간 판: 싱가포르 안내 줄은 없음(상하이)·힌트에도 '싱가포르' 이름이 보이지 않음(작업 167)
     expect(byTestId(root, 'singapore-note')).toHaveLength(0);
     for (let i = 0; i < 25; i++) act(() => {
       byTestId(root, 'resell-graphite-plus')[0]!.dispatch('click');
@@ -517,13 +523,52 @@ describe('(작업 161) 산 항구에서 되팔기·사 주는 항구 힌트·배
   });
 
   it('렌더: 다른 곳에서 산 상품이라 못 파는 카드에는 힌트만(되팔기 상자 없음)', () => {
-    const s = l2Sha((p) => {
+    const edit = (p: Player) => {
       p.game.port = 'YOK';
       p.game.cargo = [lot({ good: 'graphite', qty: 5, unitCost: 24, boughtAt: 'SHA' })];
-    });
-    const root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(s, player(s, 1))} onBack={() => undefined} />);
+    };
+    const s = l2Sha(edit, 'back');
+    let root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(s, player(s, 1))} onBack={() => undefined} />);
     expect(byTestId(root, 'sell-hint-ports')[0]!.textContent).toBe('사 주는 항구: 싱가포르');
     expect(byTestId(root, 'resell-box')).toHaveLength(0);
+    act(() => render(null, dom.root as unknown as Element));
+    // (작업 167) 앞 시간: 공장 줄만
+    const f = l2Sha(edit, 'front');
+    root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(f, player(f, 1))} onBack={() => undefined} />);
+    expect(byTestId(root, 'sell-hint-ports')).toHaveLength(0);
+    expect(byTestId(root, 'sell-hint-factory')[0]!.textContent).toBe(BATTERY);
+    expect(byTestId(root, 'resell-box')).toHaveLength(0);
+  });
+
+  it('렌더: 1차시 흑연(공장 줄 없음)은 "지금 열린 항구 중에는 사 주는 곳이 없어요" 그대로(작업 167)', () => {
+    const { s, p } = round1((q) => {
+      q.game.port = 'YOK';
+      q.game.cargo = [lot({ good: 'graphite', qty: 5, unitCost: 24, boughtAt: 'SHA' })];
+    });
+    const root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(s, p)} onBack={() => undefined} />);
+    expect(byTestId(root, 'sell-hint-ports')[0]!.textContent).toBe('지금 열린 항구 중에는 사 주는 곳이 없어요');
+    expect(byTestId(root, 'sell-hint-factory')).toHaveLength(0);
+  });
+
+  it('(작업 167) 두 시간 모두: 싱가포르가 열리기 전 첫 [중계](방콕 쌀 → 담맘)에는 "싱가포르의 무역" 카드 없음, 열린 뒤에는 있음', () => {
+    const edit = (p: Player) => {
+      p.game.port = 'DAM';
+      p.game.cargo = [lot({ good: 'rice', qty: 2, unitCost: 20, boughtAt: 'BKK' })];
+    };
+    for (const open of [false, true]) {
+      const s0 = l2Sha(edit, 'all');
+      const s = open ? { ...s0, class: { ...s0.class, openPorts: [...s0.class.openPorts, 'SIN' as const] } } : s0;
+      expect(s.class.openPorts.includes('SIN')).toBe(open);
+      const root = mount(<PortScreen store={fakeStore([], [])} st={fakeState(s, player(s, 1))} onBack={() => undefined} />);
+      act(() => {
+        byTestId(root, 'sell-rice')[0]!.dispatch('click');
+      });
+      expect(byTestId(root, 'result-stamp-relay'), `open=${open}`).toHaveLength(1);
+      const pop = byTestId(root, 'concept-pop');
+      if (open) expect(pop[0]!.textContent).toContain('싱가포르');
+      else expect(pop).toHaveLength(0);
+      act(() => render(null, dom.root as unknown as Element));
+    }
   });
 
   it('buyFullNote: 물자이고 남은 칸 5 이상이고 고른 수량 = 남은 칸일 때만', () => {

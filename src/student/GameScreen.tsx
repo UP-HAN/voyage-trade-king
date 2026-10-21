@@ -496,6 +496,7 @@ function MapView({ store, st, onSail }: { store: StudentStore; st: StudentState;
         otherShips={others}
         selectedDest={picked ?? me.game.dest}
         onSelectPort={(port) => setPicked(port)}
+        openPorts={cls.openPorts}
       />
       {info && (
         <PickPanel

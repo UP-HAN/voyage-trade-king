@@ -241,6 +241,11 @@ function bankSizeFor(rule: LessonPartRule | null): BankSize {
   return (stage, d) => letterBank(stage, d, rule.dropLetters).length;
 }
 
+/** (작업 167·168) 배치에서 빼는 사건 = 나눠 고르기 `dropEvents` + 배치에서만 빼는 `scheduleOnlyDrop`(두 시간 모두: L2-E4·L2-E5) */
+function scheduleDropOf(rule: LessonPartRule | null): string[] {
+  return [...(rule?.dropEvents ?? []), ...(rule?.scheduleOnlyDrop ?? [])];
+}
+
 /** (작업 154) 이 입력의 2차시 나눠 고르기 규칙(차시 한 판 + ['L2']만, 그 밖 null) */
 export function lessonPartRuleOf(input: Pick<ScheduleInput, 'playUnit' | 'scope' | 'lessonPart'>): LessonPartRule | null {
   return lessonPartRules(input.playUnit, input.scope, input.lessonPart);
@@ -397,6 +402,8 @@ interface StageParams {
    * '활동마다 바로'이고 그 활동 뒤 학습지가 남아 있을 때만. 없으면 지금처럼 구간 끝
    */
   midTail?: { id: string; keep: number };
+  /** (작업 168) 고정 라운드 바꾸기(사건 ID → 'round:N', 2차시 뒤 시간 L2-E4 = 라운드 3) */
+  anchorOverride?: Readonly<Record<string, string>>;
 }
 
 interface StagePlan {
@@ -812,7 +819,8 @@ function planStage(p: StageParams): StagePlan {
       }
     }
     for (const c of anchored) {
-      const n = c.def.anchor.startsWith('round:') ? Number(c.def.anchor.slice(6)) : k2 + p.playedRounds;
+      const anchor = p.anchorOverride?.[c.id] ?? c.def.anchor;
+      const n = anchor.startsWith('round:') ? Number(anchor.slice(6)) : k2 + p.playedRounds;
       let idx = n - p.playedRounds;
       let mid = false;
       if (idx < 1) idx = 1;
@@ -1114,6 +1122,8 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
   const lessonGame = input.playUnit === 'lesson';
   const keep = lessonPartRuleOf(input)?.customsBeforeLastRounds ?? null;
   const midTail = keep !== null ? { id: CUSTOMS_BOARD_EVENT, keep } : undefined;
+  const anchorOverride = lessonPartRuleOf(input)?.anchorOverride;
+  const hasOverride = !!anchorOverride && Object.keys(anchorOverride).length > 0;
   for (const s of specs) {
     const planWith = (wsPolicy: 'auto' | WorksheetPlacement) => planStage({
       stage: s.stage,
@@ -1137,6 +1147,7 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
       carryDuring: s.carryDuring,
       noDuring: lessonGame,
       ...(midTail ? { midTail } : {}),
+      ...(hasOverride ? { anchorOverride } : {}),
     });
     const plan = lessonGame && input.worksheetMode === 'auto' ? lessonAutoPlan(planWith, s) : planWith(input.worksheetMode);
     out.items.push(...plan.items);
@@ -1212,7 +1223,7 @@ export function buildSchedule(raw: ScheduleInput): Schedule {
     stage,
     targetEnd: Math.round(Ts * (i + 1)),
     nominalSec: Ts,
-    pending: stageActivities(stage, part?.dropEvents).map((e) => ({ id: e.id, pin: input.overrides[LINKED_EVENTS[e.id] ?? e.id] ?? null })),
+    pending: stageActivities(stage, scheduleDropOf(part)).map((e) => ({ id: e.id, pin: input.overrides[LINKED_EVENTS[e.id] ?? e.id] ?? null })),
     pendingWs: input.worksheetMode === 'off' ? [] : tradeWorksheets(stage, part?.dropWorksheets),
     needCover: true,
     summaryIds: i === 0 && stageStartByLesson[stage].summaryCardIds.length ? stageStartByLesson[stage].summaryCardIds : null,
@@ -1452,7 +1463,7 @@ export function reschedule(
     acc += shares[i];
     const started = curStarted && i === 0;
     const stageItems = items.filter((it) => it.stage === stage);
-    const pendingEvents = stageActivities(stage, part?.dropEvents)
+    const pendingEvents = stageActivities(stage, scheduleDropOf(part))
       .map((def) => def.id)
       .filter((id) => {
         const it = stageItems.find((x) => x.kind === 'event' && x.refId === id);

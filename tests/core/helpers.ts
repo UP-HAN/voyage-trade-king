@@ -3,10 +3,11 @@ import { hostReduce, type HostHooks } from '../../src/core/host';
 import { seatKey, startSession } from '../../src/core/state';
 import type { Action, HostInput, HostSnapshot, PlayUnit, Player, ReduceResult, TeacherAction } from '../../src/core/types';
 import type { LessonId } from '../../src/data/types';
+import type { LessonPart } from '../../src/data/lessonParts';
 
 export const pidOf = (seat: number) => `p${String(seat).padStart(2, '0')}qz`;
 
-export function makeSession(opts: { n?: number; scope?: LessonId[]; playUnit?: PlayUnit; seed?: number } = {}): HostSnapshot {
+export function makeSession(opts: { n?: number; scope?: LessonId[]; playUnit?: PlayUnit; seed?: number; lessonPart?: LessonPart } = {}): HostSnapshot {
   let snap = startSession({
     code: '482137',
     playUnit: opts.playUnit ?? 'lesson',
@@ -14,6 +15,8 @@ export function makeSession(opts: { n?: number; scope?: LessonId[]; playUnit?: P
     seed: opts.seed ?? 12345,
     now: 0,
     hostToken: 'host-token',
+    // (작업 167) 2차시 나눠 고르기 — 싱가포르 중계를 시험하는 L2 판은 'back'(기본 'all'은 ⑥ 뒤에 싱가포르가 열림)
+    ...(opts.lessonPart ? { settings: { lessonPart: opts.lessonPart } } : {}),
   });
   for (let seat = 1; seat <= (opts.n ?? 0); seat++) {
     snap = hostReduce(snap, {

@@ -8,7 +8,8 @@ import { openTvMenu } from './support/voyage-ui';
  * 작업 115 — 2차시 판(차시 한 판 L2) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — teacher-first-time.spec.ts와 같은 기반).
  * 교사는 '지금 할 일' 카드의 큰 버튼만 누른다(라운드 끝내기 확인 포함). 학생 3명이 각자 맡은 길을 간다:
  *  - s1 공장: 포트헤들랜드 철광석 → 부산에 1상자 팔기[수입] → [공장] 철강 만들기(첫 생산 순환 카드) (25분 판 — 라운드 3개)
- *  - s2 중계: 싱가포르 첫 입항 개념 카드 → 쌀 사기 → 담맘에 팔기[중계] (15분 판은 사기까지)
+ *  - s2 중계: (작업 167) 싱가포르 잠김 확인 → 방콕 쌀 사기 → 담맘에 팔기[중계] (15분 판은 사기까지).
+ *    30분 '두 시간 모두'는 ⑥ 팝업이 닫힌 뒤(오늘 순서를 다 했어요, 자유 항해) 싱가포르 열림 → 첫 입항 개념 카드 → 쌀 → 담맘[중계]
  *  - s3 수출: 부산 자동차 사기 → 상하이에 팔기[수출]
  * 공용 화면: 세관 게시판 장면(학급 수입·수출 순위 + 교과서 100쪽). 학습지 ⑤~⑧ 팝업, 마무리 → 수업 끝.
  * (작업 154, v0.3.9) 2차시는 [앞 시간(기본)/뒤 시간/두 시간 모두]를 고른다. 15·25분은 앞 시간(기본) — 학습지 ⑤ → ⑥만, 확인 퀴즈·싱가포르 카드·중계 임무 없음.
@@ -415,7 +416,9 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
           if (r === 1) {
             // 임무 3종: 아래 줄 칩
             // (작업 154) 두 시간 모두 = 임무 3종 칩 줄. 앞 시간은 임무가 하나(자원 수입→생산→수출)라 한 줄 막대(data-testid=mission)
-            for (const s of students) await expect(s.getByTestId(front ? 'mission' : 'missions')).toBeVisible();
+            // (작업 167·168) 두 시간 모두도 라운드 1에는 임무가 하나(수출국 4유형은 ⑥ 팝업이 닫힐 때, 중계는 ⑥ 뒤 싱가포르 첫 입항 때)
+            for (const s of students) await expect(s.getByTestId('mission')).toBeVisible();
+            for (const s of students) await expect(s.getByTestId('mission-M-EXPORT4')).toHaveCount(0);
             await expect(ipeMission(s1)).toBeVisible();
             await shot(s1, `${P}-04-student-missions.png`);
             // s1: 처음 화물(담맘 원유 2상자) → 부산 [공장]에서 석유 제품 → 호찌민으로
@@ -431,7 +434,23 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
             await s1.getByTestId('factory-cycle-ok').click();
             await expect(s1.getByTestId('factory-record')).toContainText('원유 수입(담맘) → 석유 제품 생산 → 아직 수출 전');
             await sailTo(s1, 'HCM');
-            await sailTo(s2, 'SIN');
+            // (작업 167) 싱가포르는 잠김(앞 시간 = 끝까지, 두 시간 모두 = ⑥ 팝업이 닫힐 때까지): 회색 점·누를 수 없음
+            if (await s2.getByTestId('port-screen').count()) await s2.getByTestId('port-back').click();
+            const sin2 = s2.locator('.wm-port[data-port="SIN"]');
+            await expect(sin2).toHaveClass(/is-locked/);
+            await expect(sin2.locator('.wm-port-hit')).toBeDisabled();
+            await expect(sin2.locator('.wm-port-hit')).toHaveAttribute('aria-label', /아직 열리지 않은 항구/);
+            // 스크린숏은 싱가포르가 보이게 전체 보기로
+            await s2.getByRole('button', { name: '전체 보기' }).click();
+            await tick(ctx, t, 800);
+            await shot(s2, `${P}-06f-student-singapore-locked.png`);
+            const tvSin = scr.locator('.wm-port[data-port="SIN"]');
+            if (await tvSin.count()) {
+              await expect(tvSin).toHaveClass(/is-locked/);
+              seen.shots.add('tv-sin-locked');
+            }
+            // s2: 방콕 쌀 → 담맘(다른 나라끼리 [중계] 도장)
+            await sailTo(s2, 'BKK');
             await enterPort(s3);
             await trade(ctx, t, s3, 'buy', 'car', 2);
             await sailTo(s3, 'SHA');
@@ -447,34 +466,18 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
             await expect(ipeMission(s1)).toHaveAttribute('data-status', 'done');
             ipeDone = true;
             await shot(s1, `${P}-10b-student-ipe-done.png`);
-            // s2: 싱가포르 첫 입항 개념 카드(p.104) → 쌀 사기 → 도감 4유형에 '내가 사고판 상품: 쌀'
+            // s2: 방콕에서 쌀 사기. (작업 167) 앞 시간·두 시간 모두(⑥ 전) 모두 싱가포르의 비밀 카드·중계·4유형 임무가 없다
             await tidy(s2, seen, 's2');
             // (작업 151) 자유 항해는 도착하면 항구 화면이 열린 채로 다음 라운드가 될 수 있다 — 임무 칩(하단 바)은 해도에서 본다
             if (await s2.getByTestId('port-screen').count()) await s2.getByTestId('port-back').click();
-            if (front) {
-              // (작업 154) 앞 시간: 싱가포르의 비밀 카드·중계 임무·싱가포르 중계 안내 줄이 없다
-              expect([...seen.cards]).not.toContain('arrival:s2');
-              await expect(s2.getByTestId('mission-M-RELAY')).toHaveCount(0);
-              await expect(s2.getByTestId('mission-M-EXPORT4')).toHaveCount(0);
-              await enterPort(s2);
-              await expect(s2.getByTestId('singapore-note')).toHaveCount(0);
-              await shot(s2, `${P}-06f-student-singapore-front.png`);
-              await trade(ctx, t, s2, 'buy', 'rice', 2);
-              await s2.getByTestId('port-back').click();
-            } else {
-              expect([...seen.cards]).toContain('arrival:s2');
-              await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
-              await enterPort(s2);
-              await expect(s2.getByTestId('singapore-note')).toBeVisible();
-              await trade(ctx, t, s2, 'buy', 'rice', 2);
-              await s2.getByTestId('port-back').click();
-              await s2.getByTestId('hud-dex').click();
-              await s2.getByTestId('dex-tab-exportTypes').click();
-              await expect(s2.locator('[data-testid="dex-mine"][data-card="export-agri"]')).toHaveText('내가 사고판 상품: 쌀');
-              await shot(s2, `${P}-12-student-dex-mine.png`);
-              await s2.keyboard.press('Escape');
-              await expect(s2.getByTestId('dex')).toHaveCount(0);
-            }
+            expect([...seen.cards]).not.toContain('arrival:s2');
+            await expect(s2.getByTestId('mission-M-RELAY')).toHaveCount(0);
+            await expect(s2.getByTestId('mission-M-EXPORT4')).toHaveCount(0);
+            await expect(s2.locator('.wm-port[data-port="SIN"]')).toHaveClass(/is-locked/);
+            await enterPort(s2);
+            await expect(s2.locator('[data-testid="port-screen"][data-port="BKK"]')).toBeVisible();
+            await trade(ctx, t, s2, 'buy', 'rice', 2);
+            await s2.getByTestId('port-back').click();
             await sailTo(s2, 'DAM');
             await enterPort(s3);
             await trade(ctx, t, s3, 'sell', 'car', 2);
@@ -486,14 +489,9 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
             await enterPort(s2);
             await trade(ctx, t, s2, 'sell', 'rice', 2);
             await expect(s2.getByTestId('result-stamp-relay')).toBeVisible();
-            if (front) {
-              // (작업 154) 앞 시간: [중계] 도장 분류는 그대로, '싱가포르의 무역' 개념 카드는 뜨지 않는다
-              await expect(s2.getByTestId('concept-pop')).toHaveCount(0);
-              await s2.getByTestId('port-back').click();
-            } else {
-              await s2.getByTestId('port-back').click();
-              await expect(s2.getByTestId('mission-M-RELAY')).toHaveAttribute('data-status', 'done');
-            }
+            // (작업 154·167) [중계] 도장 분류는 그대로, '싱가포르의 무역' 개념 카드는 뜨지 않는다(앞 시간 = 늘, 두 시간 모두 = 싱가포르가 열리기 전)
+            await expect(s2.getByTestId('concept-pop')).toHaveCount(0);
+            await s2.getByTestId('port-back').click();
             await tidy(s2, seen, 's2');
           }
           await t.bringToFront();
@@ -510,6 +508,64 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
         for (const [i, s] of students.entries()) await tidy(s, seen, `s${i + 1}`);
         await sailTo(s3, 'BUS');
         await tidy(s3, seen, 's3');
+        if (front) {
+          // (작업 167) 앞 시간: ⑥ 팝업이 닫힌 뒤에도 싱가포르는 잠김, 4유형·중계 임무 없음
+          for (const s of students) if (await s.getByTestId('port-screen').count()) await s.getByTestId('port-back').click();
+          await expect(s2.locator('.wm-port[data-port="SIN"]')).toHaveClass(/is-locked/);
+          for (const s of students) await expect(s.getByTestId('mission-M-EXPORT4')).toHaveCount(0);
+          for (const s of students) await expect(s.getByTestId('mission-M-RELAY')).toHaveCount(0);
+          // (작업 167) 흑연(사 주는 곳이 싱가포르뿐): 다른 항구 팔기 카드에 '사 주는 항구' 줄 없이 공장 재료 줄만
+          await sailTo(s2, 'SHA');
+          await tidy(s2, seen, 's2');
+          await enterPort(s2);
+          await trade(ctx, t, s2, 'buy', 'graphite', 1);
+          await sailTo(s2, 'YOK');
+          await tidy(s2, seen, 's2');
+          await enterPort(s2);
+          const gcard = s2.getByTestId('sell-card-graphite');
+          await expect(gcard.getByTestId('sell-hint-factory')).toHaveText('부산 공장에서 배터리 재료로 써요(흑연·니켈·정밀 화학 원료 1상자씩)');
+          await expect(gcard.getByTestId('sell-hint-ports')).toHaveCount(0);
+          await expect(gcard.getByTestId('sell-hint')).not.toContainText('싱가포르');
+          await gcard.scrollIntoViewIfNeeded();
+          await shot(s2, `${P}-06h-student-graphite-hint-front.png`);
+          await s2.getByTestId('port-back').click();
+        } else {
+          // (작업 167·168) 두 시간 모두: ⑥ 팝업이 닫힌 뒤 — 싱가포르 열림 + 수출국 4유형 임무(칩 줄)
+          // 임무 칩(하단 바)은 해도에서 본다 — 항구 화면에 있는 학생은 해도로
+          for (const s of students) if (await s.getByTestId('port-screen').count()) await s.getByTestId('port-back').click();
+          await expect(s2.locator('.wm-port[data-port="SIN"]')).toHaveCount(1);
+          await expect(s2.locator('.wm-port[data-port="SIN"]')).not.toHaveClass(/is-locked/);
+          for (const s of students) await expect(s.getByTestId('mission-M-EXPORT4')).toBeVisible();
+          const tvSinOpen = scr.locator('.wm-port[data-port="SIN"]');
+          if (await tvSinOpen.count()) await expect(tvSinOpen).not.toHaveClass(/is-locked/);
+          await s2.getByRole('button', { name: '전체 보기' }).click();
+          await tick(ctx, t, 800);
+          await shot(s2, `${P}-06g-student-singapore-open.png`);
+          // 싱가포르 첫 입항 개념 카드(p.104) → 중계 임무 → 쌀 사기 → 도감 4유형 '내가 사고판 상품: 쌀' → 담맘에 팔기[중계]
+          await sailTo(s2, 'SIN');
+          await tidy(s2, seen, 's2');
+          expect([...seen.cards]).toContain('arrival:s2');
+          if (await s2.getByTestId('port-screen').count()) await s2.getByTestId('port-back').click();
+          await expect(s2.getByTestId('mission-M-RELAY')).toBeVisible();
+          await enterPort(s2);
+          await expect(s2.getByTestId('singapore-note')).toBeVisible();
+          await trade(ctx, t, s2, 'buy', 'rice', 2);
+          await s2.getByTestId('port-back').click();
+          await s2.getByTestId('hud-dex').click();
+          await s2.getByTestId('dex-tab-exportTypes').click();
+          await expect(s2.locator('[data-testid="dex-mine"][data-card="export-agri"]')).toHaveText('내가 사고판 상품: 쌀');
+          await shot(s2, `${P}-12-student-dex-mine.png`);
+          await s2.keyboard.press('Escape');
+          await expect(s2.getByTestId('dex')).toHaveCount(0);
+          await sailTo(s2, 'DAM');
+          await tidy(s2, seen, 's2');
+          await enterPort(s2);
+          await trade(ctx, t, s2, 'sell', 'rice', 2);
+          await expect(s2.getByTestId('result-stamp-relay')).toBeVisible();
+          await s2.getByTestId('port-back').click();
+          await tidy(s2, seen, 's2');
+          await expect(s2.getByTestId('mission-M-RELAY')).toHaveAttribute('data-status', 'done');
+        }
         await t.bringToFront();
         if (minutes === 25) {
           // 공개수업 판: 추천 시간(25분)이 지날 때까지 그대로 두어도 끝나지 않는다 — T 뒤 교사·TV·학생 화면

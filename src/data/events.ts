@@ -183,7 +183,7 @@ const L2_EVENTS: readonly GameEvent[] = [
   skeleton({
     id: 'L2-E1', lesson: 'L2', kind: 'screen', required: true, trigger: { type: 'lessonStart' },
     title: 'L2. 자원을 사 와서 만들어 팔아요 · 세계의 다양한 무역', pages: [100], worksheetAfter: null,
-    body: '새 항구 6곳이 열렸어요. 자원을 사 와서 공장에서 만들어 파는 무역을 해 봐요.',
+    body: '새 항구들이 열렸어요. 자원을 사 와서 공장에서 만들어 파는 무역을 해 봐요.',
     textbook: [{ pages: [100], note: '우리나라는 원유, 정밀 화학 원료, 천연가스, 석탄 등을 주로 수입하고, 반도체, 자동차, 무선 통신 기기, 석유 제품 등을 주로 수출해요.' }],
     effects: [{ type: 'unlock', ports: ['JKT', 'DAM', 'SIN', 'MUM', 'ROT', 'LAX'], features: ['factory'] }],
     teacherPrompts: ['우리나라는 어떤 물건을 사 오고 어떤 물건을 팔까요?'],

@@ -18,7 +18,7 @@ export function MapScene({ d, now }: SceneProps) {
   const left = roundRemainingSec(cls, now);
   return (
     <div class="scr-scene scr-map" data-testid="scene-map">
-      <WorldMap mode="screen" lesson={cls.stage} otherShips={ships} class="scr-map__map" />
+      <WorldMap mode="screen" lesson={cls.stage} otherShips={ships} openPorts={cls.openPorts} class="scr-map__map" />
       <div class="scr-map__hud">
         {left !== null ? (
           // (작업 159, 교사 요청) TV에는 라운드 남은 시간 숫자를 보이지 않는다 — 라운드 번호만

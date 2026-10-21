@@ -165,7 +165,8 @@ const EXPECTED: [string, ScheduleInput, Partial<Record<LessonId, StageExp>>][] =
   }],
   // v0.3.9(작업 154): 차시 한 판 2차시는 확인 퀴즈(L2-E7)를 후보에서 뺀다. 두 시간 모두 / 앞 시간(기본)
   ['차시 L2 25분 두 시간 모두(v0.3.9)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all' }, {
-    L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F', 'L2-E5': 'F', 'L2-E4': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
+    // (작업 167·168) L2-E4·L2-E5는 배치에서 뺌(⑥ 뒤 발동·첫 입항) — 비차단 0분이라 사용 초·라운드 수는 그대로
+    L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
   }],
   ['차시 L2 25분 앞 시간(v0.3.9)', { playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front' }, {
     L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F' }, ws: 'each', during: [], used: 540, rounds: 5, len: [184, 184] },
@@ -706,10 +707,12 @@ describe('세관 게시판·⑤를 마지막 라운드 2개 앞으로(v0.3.10, �
   });
 
   // 작업 시작 때(고치기 전) 뜬 기준값: JSON.stringify(items) 의 FNV-1a 32비트
+  // (작업 167·168) 뒤 시간 3줄 = L2-E4가 라운드 1 → 라운드 3으로, 두 시간 모두 6줄 = 배치에서 L2-E4·L2-E5를 뺌(⑥ 뒤 발동·첫 입항)
+  //   — 두 시간 모두 'after'·'off'는 그래서 앞 시간과 같은 값이 된다. 1·3·4차시·단원 한 판·연속 구간·앞 시간은 그대로
   const BASELINE: [ScheduleInput, string][] = [
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 10, lessonPart: 'back' }, '0da17d9e'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'back' }, 'f2206c47'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'back' }, '698b8c92'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 10, lessonPart: 'back' }, 'd8bd18b8'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'back' }, 'fcf27e58'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'back' }, 'b8a8741a'],
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 10 }, 'ef8de1c0'],
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, 'b12ede2d'],
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 40 }, '4819425a'],
@@ -730,12 +733,12 @@ describe('세관 게시판·⑤를 마지막 라운드 2개 앞으로(v0.3.10, �
     [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'front', worksheetMode: 'after' }, '7bac78c4'],
     [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'front', worksheetMode: 'off' }, 'b471018c'],
     [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'front', worksheetMode: 'off' }, '7bac78c4'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'stageEnd' }, 'c5fb6dda'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'stageEnd' }, 'aee9e481'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'after' }, '19bbb0a2'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'after' }, 'c81d56e8'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'off' }, '19bbb0a2'],
-    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'off' }, 'c81d56e8'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'stageEnd' }, '46444fcc'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'stageEnd' }, '2f2c986d'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'after' }, 'b471018c'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'after' }, '7bac78c4'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 25, lessonPart: 'all', worksheetMode: 'off' }, 'b471018c'],
+    [{ playUnit: 'lesson', scope: ['L2'], tradeMinutes: 40, lessonPart: 'all', worksheetMode: 'off' }, '7bac78c4'],
   ];
   const fnv = (str: string) => {
     let x = 0x811c9dc5;

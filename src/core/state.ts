@@ -3,7 +3,7 @@
  * `types.ts`가 `normalizePlayer`·`normalizeClass`·`normalizeSnapshot`을 다시 내보낸다.
  */
 import { goodsUnlockedBy } from '../data/goods';
-import { isLessonPart, lessonPartRules } from '../data/lessonParts';
+import { isLessonPart, lessonPartRules, portsHeldBack } from '../data/lessonParts';
 import { incidentCountRule, roundLength, stageStartByLesson, tradeMinutes, WORKSHEET_WAIT_SEC_DEFAULT } from '../data/schedule';
 import { STARTING_PORT, STARTING_SHIP } from '../data/ships';
 import { awardRules, leaderboardRules, scoringConstants } from '../data/awards';
@@ -167,6 +167,7 @@ export function startSession(input: CreateSessionInput): HostSnapshot {
   const first = scope[0];
   const start = stageStartByLesson[first];
   const settings: ClassSettings = { ...defaultSettings(input.playUnit, scope), ...(input.settings ?? {}), playUnit: input.playUnit, scope };
+  const held = portsHeldBack(lessonPartRules(input.playUnit, scope, settings.lessonPart));
   const meta: SessionMeta = {
     v: 3,
     code: input.code,
@@ -194,7 +195,8 @@ export function startSession(input: CreateSessionInput): HostSnapshot {
     activeEffects: [],
     settings,
     bannedNameKeys: [],
-    openPorts: [...start.ports],
+    // (작업 167) 2차시 앞 시간·두 시간 모두는 싱가포르를 아직 열지 않는다
+    openPorts: start.ports.filter((x) => !held.includes(x)),
     features: [...start.features],
     stageFirstRound: null,
     firedEvents: [],

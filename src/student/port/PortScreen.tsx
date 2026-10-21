@@ -17,7 +17,7 @@ import { canTrade, cargoCapacity, cargoUsed } from '../../core';
 import { conceptCards } from '../../data/dex';
 import { goodsById, serviceRules } from '../../data/goods';
 import { factoryCycleCard } from '../../data/recipes';
-import { lessonPartRulesOf } from '../../data/lessonParts';
+import { lessonPartRulesOf, SINGAPORE_PORT } from '../../data/lessonParts';
 import { portsById } from '../../data/ports';
 import { pageLabel } from '../../data/text';
 import type { GoodId, PortId } from '../../data/types';
@@ -186,7 +186,8 @@ function SellCardView({
           </p>
           {hint && (
             <p class="pt-card__hint" data-testid="sell-hint">
-              <span data-testid="sell-hint-ports">{sellPortsLine(hint)}</span>
+              {/* (작업 167) 사 주는 열린 항구가 없고 공장 줄이 있으면 공장 줄만(앞 시간 흑연 — 싱가포르가 잠김) */}
+              {!(hint.ports.length === 0 && hint.factory) && <span data-testid="sell-hint-ports">{sellPortsLine(hint)}</span>}
               {hint.factory && (
                 <span class="pt-card__hint-fac" data-testid="sell-hint-factory">
                   {hint.factory}
@@ -474,7 +475,10 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   const cls = pub.class;
   const cs = classForPredict(cls);
   // (작업 154) 2차시 앞 시간 판: 싱가포르 중계 안내 줄·첫 [중계] 개념 카드를 숨긴다
-  const hideRelay = !!lessonPartRulesOf(cls.settings)?.hideRelay;
+  // (작업 167) 두 시간 모두 판도 싱가포르가 열리기(⑥ 뒤) 전에는 '싱가포르의 무역' 카드를 띄우지 않는다(다른 나라끼리 판 [중계]도 마찬가지)
+  const partRule = lessonPartRulesOf(cls.settings);
+  const hideRelay = !!partRule?.hideRelay;
+  const hideRelayCard = hideRelay || (!!partRule && !cls.openPorts.includes(SINGAPORE_PORT));
   const player = playerForPredict(me);
   const port = portsById[me.game.port];
   const trading = canTrade(cs); // (작업 153 추가) 자유 항해 판은 라운드 사이에도
@@ -511,7 +515,7 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
     if (!events) return;
     const s = saleSummary(events);
     setSale({ ...s, id: ++seq.current });
-    const first = firstStampConcept(player, s.stamps, { hideRelay });
+    const first = firstStampConcept(player, s.stamps, { hideRelay: hideRelayCard });
     if (first) setConcept(first);
     setQ(`s:${c.good}`, 1);
     if (s.profit !== null) store.toast(profitText(s.profit), s.profit < 0 ? 'warn' : 'info');

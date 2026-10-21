@@ -124,3 +124,19 @@ describe('1차시 첫 라운드 튜토리얼 — 자유 항해(작업 151)', () 
     expect(tutorialText('pickDest', cls)).toBe('① 지도에서 포트헤들랜드를 눌러 목적지로 정해요.');
   });
 });
+
+describe('pickInfo — 2차시 싱가포르 잠김(작업 167)', () => {
+  const l2 = (part: 'front' | 'back' | 'all') => {
+    const snap = startFirstRound(teach(teach(makeSession({ n: 1, scope: ['L2'], lessonPart: part }), { type: 'startStage', stage: 'L2' }), { type: 'closeEvent' }));
+    return { c: publicClass(snap.class), m: JSON.parse(JSON.stringify(playerView(player(snap, 1)))) as MeView };
+  };
+  it('앞 시간·두 시간 모두(⑥ 전): 싱가포르 = locked("아직 열리지 않은 항구예요"), 뒤 시간: 갈 수 있음', () => {
+    for (const part of ['front', 'all'] as const) {
+      const { c, m } = l2(part);
+      expect(pickInfo(m, c, 'SIN').kind, part).toBe('locked');
+      expect(pickInfo(m, c, 'DAM').kind, part).not.toBe('locked');
+    }
+    const { c, m } = l2('back');
+    expect(pickInfo(m, c, 'SIN').kind).not.toBe('locked');
+  });
+});

@@ -9,11 +9,12 @@ import { helperLine } from '../../src/core/worksheet-helpers';
 import { exportTypeCards } from '../../src/data/dex';
 import { myExportTypeGoods } from '../../src/student/Dex';
 import type { GoodId, PortId } from '../../src/data/types';
+import type { LessonPart } from '../../src/data/lessonParts';
 import { act, editPlayer, makeSession, player, teach } from './helpers';
 
 /** 2차시 판: 표지(공장·항구 열림) → 임무 3종 발동 → 라운드 1 */
-function l2Round(n = 2): HostSnapshot {
-  let s = makeSession({ n, scope: ['L2'] });
+function l2Round(n = 2, lessonPart?: LessonPart): HostSnapshot {
+  let s = makeSession({ n, scope: ['L2'], ...(lessonPart ? { lessonPart } : {}) });
   s = teach(s, { type: 'startStage', stage: 'L2' });
   s = teach(s, { type: 'closeEvent' });
   for (const id of ['L2-E3', 'L2-E4', 'L2-E5']) s = teach(s, { type: 'fireEvent', id });
@@ -27,8 +28,9 @@ const lot = (good: GoodId, qty: number, origin: 'korea' | 'foreign', boughtAt: P
 const types = (events: GameEvent[]) => events.map((e) => e.type);
 
 describe('2차시 시작', () => {
-  it('표지가 공장·12개 항구를 열고 임무 3종이 모두 시작된다', () => {
-    const s = l2Round();
+  // (작업 167) 싱가포르가 처음부터 열리는 판은 뒤 시간 — 기본 '두 시간 모두'는 11곳(⑥ 뒤에 12곳, lesson-part 시험)
+  it('표지가 공장·12개 항구를 열고 임무 3종이 모두 시작된다(뒤 시간)', () => {
+    const s = l2Round(2, 'back');
     expect(s.class.features).toContain('factory');
     expect(s.class.openPorts).toHaveLength(12);
     const m = player(s, 1).game.missions;
@@ -123,7 +125,7 @@ describe('수출국 4유형(L2-E4, 도감)', () => {
 
 describe('싱가포르 중계(L2-E5)', () => {
   it('첫 입항 때 개념 카드(도감 relay) + eventTriggered, 두 번째 입항은 없음', () => {
-    let s = l2Round();
+    let s = l2Round(2, 'back');
     s = editPlayer(s, 1, (p) => {
       p.game.port = 'JKT';
       p.game.dest = 'SIN';
@@ -137,7 +139,7 @@ describe('싱가포르 중계(L2-E5)', () => {
   });
 
   it('싱가포르에서 산 상품을 다른 나라에 팔면 [중계] 도장 + 중계 임무 완료', () => {
-    let s = l2Round();
+    let s = l2Round(2, 'back');
     s = editPlayer(s, 1, (p) => {
       p.game.port = 'SIN';
       p.game.money = 1000;

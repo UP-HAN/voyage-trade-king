@@ -9,11 +9,12 @@ import { resolveRounds } from '../../src/core/voyage';
 import { applyTeacherAction } from '../../src/core/lesson';
 import type { HostSnapshot, LogEntry } from '../../src/core/types';
 import type { LessonId } from '../../src/data/types';
+import type { LessonPart } from '../../src/data/lessonParts';
 import { act, editPlayer, makeSession, player, startFirstRound, teach } from './helpers';
 
 /** 자유 항해 판(준비 단계에서 교사 설정으로 바꿈) */
-function freeSession(n = 1, scope: LessonId[] = ['L1']): HostSnapshot {
-  const s = makeSession({ n, scope });
+function freeSession(n = 1, scope: LessonId[] = ['L1'], lessonPart?: LessonPart): HostSnapshot {
+  const s = makeSession({ n, scope, ...(lessonPart ? { lessonPart } : {}) });
   return teach(s, { type: 'updateSettings', settings: { voyageMode: 'free' } }, 0);
 }
 
@@ -41,8 +42,9 @@ describe('자유 항해 — 바로 이동(sailTo)', () => {
     expect(spendable(s.class, r.player)).toBe(500 - cost);
   });
 
-  it('첫 입항 사건(2차시 싱가포르 L2-E5)이 그대로 일어난다', () => {
-    const s = startFirstRound(freeSession(1, ['L2']));
+  // (작업 167) 싱가포르가 처음부터 열린 판 = 뒤 시간. 앞 시간·두 시간 모두(⑥ 전)는 PORT_LOCKED(lesson-part 시험)
+  it('첫 입항 사건(2차시 싱가포르 L2-E5)이 그대로 일어난다(뒤 시간)', () => {
+    const s = startFirstRound(freeSession(1, ['L2'], 'back'));
     const r = applyAction(s.class, player(s, 1), { type: 'sailTo', port: 'SIN' });
     expect(r.error).toBeUndefined();
     expect(r.events).toContainEqual({ type: 'eventTriggered', id: 'L2-E5' });

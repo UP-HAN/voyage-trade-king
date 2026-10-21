@@ -97,7 +97,8 @@ describe('도장 분류 4종(PRD 6.5.3)', () => {
     const r = applyAction(s.class, player(s, 1), { type: 'sell', good: 'clothes', qty: 3 });
     expect(stampOf(r.events)).toEqual(['relay']);
     // 싱가포르에서 팔면 관세 0
-    let t = startFirstRound(makeSession({ n: 1, scope: ['L2'] }));
+    // (작업 167) 싱가포르가 처음부터 열린 판 = 2차시 뒤 시간
+    let t = startFirstRound(makeSession({ n: 1, scope: ['L2'], lessonPart: 'back' }));
     t = editPlayer(t, 1, (p) => {
       p.game.port = 'SIN';
       p.game.cargo = [lot({ good: 'chip', qty: 2, boughtAt: 'SHA' })];
@@ -180,7 +181,7 @@ describe('서비스(PRD 6.4.2)', () => {
   });
 
   it('산 항구가 판매 가능 항구여도 같은 항구 되팔기는 막힌다(SAME_PORT)', () => {
-    let s = startFirstRound(makeSession({ n: 1, scope: ['L2'] }));
+    let s = startFirstRound(makeSession({ n: 1, scope: ['L2'], lessonPart: 'back' }));
     s = editPlayer(s, 1, (p) => {
       p.game.port = 'SIN';
       p.game.money = 9999;

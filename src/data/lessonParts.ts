@@ -6,7 +6,7 @@
  * - 빠지는 사건·학습지·편지는 배치 후보·은행에서 아예 뺀다(데이터 항목 자체는 지우지 않는다 — 단원 한 판이 그대로 쓴다).
  * - 확인 퀴즈(L2-E7)는 세 가지 모두 뺀다(수업 정리는 교사의 외부 퀴즈).
  */
-import type { LessonId, WorksheetId } from './types';
+import type { LessonId, PortId, WorksheetId } from './types';
 
 export type LessonPart = 'all' | 'front' | 'back';
 
@@ -46,6 +46,30 @@ export interface LessonPartRule {
    * (학습지 방식이 '활동마다 바로'일 때만 — ⑤가 바로 뒤에 붙고, 남은 라운드에서 ⑥을 게임하면서 쓴다). null = 지금처럼 구간 끝.
    */
   customsBeforeLastRounds: number | null;
+  /**
+   * (v0.3.11, 작업 167) 싱가포르(SIN) 항구 열림: 'closed' = 판 끝까지 잠김(앞 시간), 'afterW06' = 학습지 ⑥ 팝업이 닫히는 순간 열림(두 시간 모두),
+   * 'open' = 처음부터 열림(뒤 시간). 잠긴 동안은 판 시작·구간 시작·표지 unlock 모두에서 뺀다(`portsHeldBack`).
+   */
+  singapore: 'closed' | 'afterW06' | 'open';
+  /**
+   * (작업 167·168) 배치표에서만 빼는 사건(학급 발동을 배치하지 않음). `dropEvents`와 달리 첫 입항 처리(voyage.ts)·⑥ 뒤 발동은 그대로 쓴다.
+   * 두 시간 모두: L2-E5(잠긴 싱가포르를 가리키는 중계 임무를 라운드 1에 주지 않게), L2-E4(⑥ 뒤에 준다 — `fireAfterW06`).
+   */
+  scheduleOnlyDrop: readonly string[];
+  /** (작업 168) 학습지 ⑥ 팝업이 닫히는 순간 학급 발동하는 사건(두 시간 모두: 수출국 4유형 임무 L2-E4) */
+  fireAfterW06: readonly string[];
+  /** (작업 168) 배치 고정 라운드 바꾸기(사건 ID → 'round:N'). 뒤 시간: 수출국 4유형 임무 L2-E4 = 라운드 3 시작 */
+  anchorOverride: Readonly<Record<string, string>>;
+}
+
+/** (작업 167) 싱가포르가 열리는 학습지 팝업(이 번호가 든 팝업이 닫히면 열림 — 'afterW06'일 때) */
+export const SINGAPORE_OPEN_AFTER: WorksheetId = 'W06';
+/** (작업 167) 늦게 여는 항구 */
+export const SINGAPORE_PORT: PortId = 'SIN';
+
+/** (작업 167) 이 판에서 아직 열지 않는 항구(판 시작·구간 시작·표지 unlock에서 뺀다) */
+export function portsHeldBack(rule: LessonPartRule | null | undefined): PortId[] {
+  return rule?.singapore === 'closed' || rule?.singapore === 'afterW06' ? [SINGAPORE_PORT] : [];
 }
 
 /** 세관 게시판 사건(작업 165 — 마지막 라운드 n개 앞으로 옮기는 대상) */
@@ -85,12 +109,16 @@ const RULES: Record<LessonPart, LessonPartRule> = {
     hideRelay: true,
     cover: {
       title: 'L2. 자원을 사 와서 만들어 팔아요',
-      body: '새 항구 6곳이 열렸어요. 자원을 사 와서 공장에서 만들어 파는 무역을 해 봐요.',
+      body: '새 항구 5곳이 열렸어요. 자원을 사 와서 공장에서 만들어 파는 무역을 해 봐요.',
       pages: '100~102',
     },
     missionFirst: null,
     optionalTag: true,
     customsBeforeLastRounds: 2,
+    singapore: 'closed',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: {},
   },
   back: {
     part: 'back',
@@ -109,18 +137,27 @@ const RULES: Record<LessonPart, LessonPartRule> = {
     missionFirst: '먼저 할 일: 쌀·원유·로봇·K-콘텐츠처럼 종류가 다른 상품을 사고팔아 수출국 4유형 칸을 채워요',
     optionalTag: false,
     customsBeforeLastRounds: null,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: { 'L2-E4': 'round:3' },
   },
   all: {
     part: 'all',
     dropEvents: ['L2-E7'],
     dropWorksheets: [],
-    dropLetters: [],
+    // (작업 167) 싱가포르·수출국 4유형·박람회 편지는 ⑥ 뒤에야 열리는 내용 — ⑥ 뒤에는 라운드가 없으므로 앞 시간과 같이 뺀다
+    dropLetters: ['L2-03', 'L2-06', 'L2-07', 'L2-08'],
     startCargo: true,
     hideRelay: false,
     cover: null,
     missionFirst: null,
     optionalTag: true,
     customsBeforeLastRounds: 2,
+    singapore: 'afterW06',
+    scheduleOnlyDrop: ['L2-E4', 'L2-E5'],
+    fireAfterW06: ['L2-E4'],
+    anchorOverride: {},
   },
 };
 
