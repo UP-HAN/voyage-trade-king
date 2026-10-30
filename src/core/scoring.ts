@@ -10,6 +10,7 @@ import { AWARD_ORDER, metrics as metricDefs, type MetricId } from '../data/award
 import { eventsById } from '../data/events';
 import { missionsById } from '../data/missions';
 import { settlementRates, shipsById } from '../data/ships';
+import { tradedPortCount } from './fairTrade';
 import type { AwardResult, ClassState, LeaderEntry, Player } from './types';
 
 type Players = Record<string, Player> | readonly Player[];
@@ -52,7 +53,8 @@ export function metricValue(p: Player, metric: MetricId): number {
     case 'quiz':
       return m.quizRight;
     case 'explore':
-      return m.visited.length;
+      // (작업 176) 개척 = 실제로 사고판 항구 수(해외 거래 항구 + 부산). 들르기만 한 항구는 세지 않는다(방문 기록 visited 는 도감·카드용)
+      return tradedPortCount(p);
     case 'leap':
       return leapRatio(p);
   }

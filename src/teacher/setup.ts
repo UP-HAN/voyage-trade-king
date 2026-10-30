@@ -45,6 +45,8 @@ export interface SetupValues {
    * 기억하지 않는다(PREF_FIELDS 밖). 실제 값은 `lessonPartOf`(2차시가 아니면 'all')
    */
   lessonPart: LessonPart;
+  /** (작업 176) [고급 설정] 같은 거래 반복 폭풍·다양한 무역 보너스(기본 켬). 기억하지 않는다(PREF_FIELDS 밖) */
+  fairTrade: boolean;
 }
 
 export function defaultSetup(): SetupValues {
@@ -63,6 +65,7 @@ export function defaultSetup(): SetupValues {
     overrides: {},
     voyageMode: null,
     lessonPart: 'front',
+    fairTrade: true,
   };
 }
 

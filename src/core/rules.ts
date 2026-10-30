@@ -17,6 +17,7 @@ import { AVATAR_IDS, basicNameValidator, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, type N
 import { applyLetterAnswer } from './letters';
 import { isPortClosed, quote, tariffForLot, voyageCostFor } from './market';
 import { grantDex, isForeignRaw, onBuy, onProduce, onSell } from './progress';
+import { afterSale, type FairSaleLot } from './fairTrade';
 import { canTrade, clone, fareDueOf, isFreeVoyage, isTrading, LESSON_ORDER, sailsThisRoundOf, spendable } from './state';
 import { arrive } from './voyage';
 import type { Action, ActionResult, CargoLot, ClassState, GameEvent, Player, StampKind } from './types';
@@ -27,6 +28,8 @@ export interface ActionContext {
   validateName?: NameValidator;
   /** 다른 회사가 쓰는 이름 비교 키(호스트만 앎) */
   takenKeys?: readonly string[];
+  /** (작업 176) 호스트가 처리한다 — 같은 거래 반복 판정·다양한 무역 보너스는 호스트에서만(학생 기기 미리 계산은 하지 않음) */
+  host?: boolean;
 }
 
 // (작업 153 추가, 교사 결정 2026-10-21) 자유 항해 라운드당 항해 상한(옛 FREE_SAILS_PER_ROUND = 3)은 없앴다 — 횟수 제한 없음.
@@ -51,7 +54,8 @@ export function cargoCapacity(p: Player): number {
 /** 묶음 넣기(같은 상품·값·출처면 합침) */
 function addLot(list: CargoLot[], lot: CargoLot): void {
   const same = list.find(
-    (l) => l.good === lot.good && l.unitCost === lot.unitCost && l.origin === lot.origin && l.source === lot.source && l.boughtAt === lot.boughtAt,
+    (l) =>
+      l.good === lot.good && l.unitCost === lot.unitCost && l.origin === lot.origin && l.source === lot.source && l.boughtAt === lot.boughtAt && !l.start === !lot.start,
   );
   if (same) same.qty += lot.qty;
   else list.push(lot);
@@ -126,7 +130,7 @@ function buy(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameE
   return null;
 }
 
-function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameEvent[]): string | null {
+function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameEvent[], host = false): string | null {
   if (!canTrade(cs)) return 'NOT_TRADING';
   if (!isPosInt(qty)) return 'BAD_QTY';
   const port = p.game.port;
@@ -153,6 +157,8 @@ function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: Game
   let overQty = 0;
   let tariffRateShown = 0;
   const byStamp = new Map<StampKind, { qty: number; amount: number }>();
+  // (작업 176) 같은 거래 반복·다양한 무역: 묶음마다 산 곳·처음 화물·임무 첫 채움 여부
+  const fairLots: FairSaleLot[] = [];
   for (const lot of lots) {
     if (left === 0) break;
     const take = Math.min(left, lot.qty);
@@ -174,7 +180,10 @@ function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: Game
     fullLeft -= full;
     left -= take;
     lot.qty -= take;
+    const before = events.length;
     onSell(p, { good, port, stamp, origin: lot.origin, source: lot.source, boughtAt: lot.boughtAt }, events);
+    const mission = events.slice(before).some((e) => e.type === 'missionStep' || e.type === 'missionDone');
+    fairLots.push({ good, port, qty: take, lot: { source: lot.source, boughtAt: lot.boughtAt, start: lot.start }, mission });
   }
   if (service) p.game.contracts = p.game.contracts.filter((l) => l.qty > 0);
   else p.game.cargo = p.game.cargo.filter((l) => l.qty > 0);
@@ -205,6 +214,8 @@ function sell(cs: ClassState, p: Player, good: GoodId, qty: number, events: Game
   events.push({ type: 'profit', amount: profit });
   const last = p.game.log[p.game.log.length - 1];
   if (last && last.kind === 'sell') last.profit = profit;
+  // (작업 176) 거래한 나라·판 상품 기록 + (호스트만) 다양한 무역 보너스·같은 거래 반복 판정 — 이번 판매 값은 이미 정해졌다(폭풍은 다음 판매부터)
+  afterSale(cs, p, fairLots, events, host);
   return null;
 }
 
@@ -356,7 +367,7 @@ export function applyAction(cs: ClassState, player: Player, action: Action, ctx:
       error = buy(cs, p, action.good, action.qty, events);
       break;
     case 'sell':
-      error = sell(cs, p, action.good, action.qty, events);
+      error = sell(cs, p, action.good, action.qty, events, ctx.host === true);
       break;
     case 'resell':
       error = resell(cs, p, action.good, action.qty, events);

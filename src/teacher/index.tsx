@@ -178,6 +178,8 @@ function TeacherScreens() {
           voyageMode: voyageModeOf(v),
           // (작업 154) 2차시 나눠 고르기(2차시 차시 판이 아니면 'all')
           lessonPart: lessonPartOf(v),
+          // (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스(기본 켬)
+          fairTrade: v.fairTrade,
         },
         overrides: v.overrides,
         seed,

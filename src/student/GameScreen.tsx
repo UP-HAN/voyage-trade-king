@@ -2,7 +2,7 @@
  * 게임 화면 틀: 상태 띠 → HUD → (준비 단계 / 해도 S07 / 항구 자리 / 무역 끝) → 하단 바, 그 위에 끼워 넣기 층(slots.tsx).
  */
 import { useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { canTrade, nextRoundWait, predict, voyageCostFor, type PublicClass } from '../core';
+import { canTrade, fairTradeOn, nextRoundWait, predict, voyageCostFor, type PublicClass } from '../core';
 import { eventsById } from '../data/events';
 import { missionsById } from '../data/missions';
 import { portLabel } from '../data/ports';
@@ -11,6 +11,8 @@ import { flagHex } from '../ui/common/FlagIcon';
 import { WorldMap, type OtherShip } from '../ui/map/WorldMap';
 import { Dex } from './Dex';
 import { StoreContext, useDeviceNow, useServerNow, useSessionValue } from './hooks';
+import { fairTradeRules, fairTradeText } from '../data/fairTrade';
+import { FairTradeCard } from './FairTradeCard';
 import { GullHintAgain, GullHintCard, lastGullHint } from './GullHint';
 import { alongCardOn } from './worksheet/along';
 import { Ws6AlongCard } from './worksheet/AlongCard';
@@ -534,6 +536,9 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   // (작업 160b) 본 갈매기 힌트 ID(새로 고침해도 다시 뜨지 않게) + [다시 보기]
   const [hintSeen, setHintSeen] = useSessionValue<string>('voyage.student.gullHintSeen', '');
   const [hintAgain, setHintAgain] = useState(false);
+  // (작업 176) 본 예보·폭풍 카드(방 코드:n), 알린 보너스 수(방 코드|개수)
+  const [fairSeen, setFairSeen] = useSessionValue<string>('voyage.student.fairSeen', '');
+  const [bonusSeen, setBonusSeen] = useSessionValue<string>('voyage.student.fairBonusSeen', '');
   // (작업 165) '잠깐! 학습지 ⑥' 안내 카드를 닫은 판(방 코드) — 새로 고침해도 같은 판에서는 다시 안 뜸
   const [alongSeen, setAlongSeen] = useSessionValue<string>('voyage.student.ws6AlongSeen', '');
   // 처음 입항한 항구의 항구 카드(PRD 6.3.3) — 호스트 항해 처리 이벤트 portCard(작업 108)
@@ -607,6 +612,24 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   // (작업 165) ⑤를 마치고 다음 라운드가 열리면 '⑥을 게임하면서 함께 쓰기' 안내(막지 않음)
   const roomCode = st.peer.code || '-';
   const alongOn = Boolean(cls && founded && phase !== 'prep' && !tradeOver && alongCardOn(cls) && alongSeen !== roomCode);
+  // (작업 176) 같은 거래 반복 — 갈매기 예보·폭풍 카드(n이 바뀌면 한 번), 다양한 무역 보너스 토스트(받은 단계가 늘면)
+  const ft = me.game.fairTrade;
+  const fairNotice = ft?.notice ?? null;
+  const fairKey = fairNotice ? `${roomCode}:${fairNotice.n}` : '';
+  const fairOn = Boolean(fairNotice && cls && founded && phase !== 'prep' && !tradeOver && fairKey !== fairSeen);
+  const fairProgress = fairTradeText.progress(ft?.ports.length ?? 0, ft?.goods.length ?? 0);
+  const bonusList = ft?.bonus ?? [];
+  useEffect(() => {
+    const [code, n] = bonusSeen.split('|');
+    const seenN = code === roomCode ? Number(n) || 0 : 0;
+    if (bonusList.length <= seenN) return;
+    for (const id of bonusList.slice(seenN)) {
+      const [kind, step] = id.split(':');
+      store.toast(fairTradeText.bonus(kind === 'goods' ? 'goods' : 'ports', Number(step), fairTradeRules.bonusAmount), 'arrive', fairProgress);
+    }
+    setBonusSeen(`${roomCode}|${bonusList.length}`);
+  }, [bonusList.length, roomCode]);
+  const dockCount = (alongOn ? 1 : 0) + (hintOn && hint ? 1 : 0) + (fairOn ? 1 : 0);
   // 일시정지·이름 막힘 층이 떠 있으면 아래 화면 전체(HUD·도감·설정 메뉴 포함)를 키보드로도 못 건드리게
   const covered = topLayer(st) !== null;
 
@@ -616,9 +639,10 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
         <StatusBands st={st} now={now} />
         {(founded || phase !== 'prep') && <Hud store={store} st={st} now={now} onDex={() => setDex(true)} />}
         <div class="st-main">{main}</div>
-        {(alongOn || (hintOn && hint)) && (
-          <div class={`st-gull-dock${alongOn && hintOn ? ' st-gull-dock--stack' : ''}`}>
+        {dockCount > 0 && (
+          <div class={`st-gull-dock${dockCount > 1 ? ' st-gull-dock--stack' : ''}`}>
             {alongOn && <Ws6AlongCard onOk={() => setAlongSeen(roomCode)} />}
+            {fairOn && fairNotice && <FairTradeCard notice={fairNotice} progress={fairProgress} onOk={() => setFairSeen(fairKey)} />}
             {hintOn && hint && (
               <GullHintCard
                 id={hint.id}
@@ -631,7 +655,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
           </div>
         )}
         {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} onHintAgain={() => setHintAgain(true)} />}
-        {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} onClose={() => setDex(false)} />}
+        {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} fairTrade={fairTradeOn(cls?.settings)} onClose={() => setDex(false)} />}
         {/* (작업 134) 처음 입항 항구 카드: 라운드 중에는 아래 화면을 막지 않는 작은 카드(왼쪽 위) — 거래 버튼·결정 패널을 가리지 않게 */}
         {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round' || isTradingPhase(cls)} onClose={() => setPortCard(null)} />}
       </div>

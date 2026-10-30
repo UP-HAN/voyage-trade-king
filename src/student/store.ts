@@ -29,6 +29,8 @@ export interface Toast {
   id: number;
   text: string;
   kind: 'info' | 'warn' | 'arrive';
+  /** (작업 176) 아래 작은 줄(다양한 무역 보너스 진행 등) */
+  sub?: string;
 }
 
 export interface StudentState {
@@ -73,7 +75,7 @@ export interface StudentStore {
    */
   leaveForNewCode(): void;
   dismissToast(id: number): void;
-  toast(text: string, kind?: Toast['kind']): void;
+  toast(text: string, kind?: Toast['kind'], sub?: string): void;
   serverNow(): number;
   /** 연출용 게임 이벤트(도착·머무름 등) */
   onGameEvents(cb: (events: GameEvent[]) => void): Unsub;
@@ -192,9 +194,9 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
     if (!st.toasts.some((t) => t.id === id)) return;
     set({ toasts: st.toasts.filter((t) => t.id !== id) });
   };
-  const toast = (text: string, kind: Toast['kind'] = 'info') => {
+  const toast = (text: string, kind: Toast['kind'] = 'info', sub?: string) => {
     const id = ++toastSeq;
-    set({ toasts: [...st.toasts, { id, text, kind }].slice(-MAX_TOASTS) });
+    set({ toasts: [...st.toasts, { id, text, kind, ...(sub ? { sub } : {}) }].slice(-MAX_TOASTS) });
     if (timers) timers.setTimeout(() => dismissToast(id), o.toastMs ?? TOAST_MS);
   };
 

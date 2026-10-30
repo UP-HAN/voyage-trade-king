@@ -169,6 +169,8 @@ function sanitizeSettings(cur: ClassSettings, patch: Partial<ClassSettings>): Cl
   if (typeof patch.assetBoard === 'boolean') next.assetBoard = patch.assetBoard;
   if (typeof patch.nameReview === 'boolean') next.nameReview = patch.nameReview;
   if (typeof patch.comeback === 'boolean') next.comeback = patch.comeback;
+  // (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 켜기/끄기(판 중에도)
+  if (typeof patch.fairTrade === 'boolean') next.fairTrade = patch.fairTrade;
   if (typeof patch.showForecastOnScreen === 'boolean') next.showForecastOnScreen = patch.showForecastOnScreen;
   if (Array.isArray(patch.extraBannedWords)) next.extraBannedWords = patch.extraBannedWords.filter((w) => typeof w === 'string').map((w) => w.slice(0, 20)).slice(0, 200);
   if (Array.isArray(patch.incidentKindsOff)) next.incidentKindsOff = patch.incidentKindsOff.filter((w) => typeof w === 'string');

@@ -3,6 +3,7 @@
  * 라운드 번호(큰 글씨) + "출항 준비 21/27". (작업 159) 라운드·무역 남은 시간 숫자는 TV에 보이지 않는다.
  */
 import { useMemo } from 'preact/hooks';
+import { fairTradeText } from '../../data/fairTrade';
 import { flagHex } from '../../ui/common/FlagIcon';
 import type { OtherShip } from '../../ui/map/ships';
 import { WorldMap } from '../../ui/map/WorldMap';
@@ -40,6 +41,12 @@ export function MapScene({ d, now }: SceneProps) {
         ) : (
           <p class="scr-map__ready" data-testid="map-ready">
             출항 준비 <b>{pub.readyCount}</b>/{pub.joinedCount}
+          </p>
+        )}
+        {/* (작업 176) 이번 라운드에 폭풍이 하나라도 있었으면 이름 없이 한 줄 */}
+        {pub.stormNews && (
+          <p class="scr-map__news" data-testid="map-storm-news">
+            {fairTradeText.tvNews}
           </p>
         )}
       </div>

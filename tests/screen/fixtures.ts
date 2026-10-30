@@ -219,6 +219,8 @@ function withMetrics(g: TeacherGame, n: number, plain = false): TeacherGame {
           csr: 50 + (s % 4) * 5,
           visited: ['BUS', 'SHA', 'YOK', 'HCM', 'BKK', 'PHE'].slice(0, 1 + (s % 6)) as never,
         },
+        // (작업 176) 개척 = 실제로 사고판 항구 수 → 같은 분포를 거래 기록에
+        fairTrade: { ...p.game.fairTrade!, ports: ['SHA', 'YOK', 'HCM', 'BKK', 'PHE'].slice(0, s % 6) as never },
       },
     };
   }

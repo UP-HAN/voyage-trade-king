@@ -7,7 +7,9 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import { AVATARS, FLAG_COLORS, FLAG_EMBLEMS } from '../core';
+import { fairTradeOn } from '../core';
 import { ruleCards } from '../data/dex';
+import { fairTradeText } from '../data/fairTrade';
 import { FlagIcon } from '../ui/common/FlagIcon';
 import { Img } from '../ui/common/Img';
 import { RuleArt } from './icons';
@@ -19,8 +21,10 @@ export function visibleRuleCards(comeback: boolean) {
   return ruleCards.filter((c) => c.requires !== 'comeback' || comeback);
 }
 
-export function RuleCards({ comeback }: { comeback: boolean }) {
+/** (작업 176) fairTrade: 같은 거래 반복 폭풍·다양한 무역 보너스가 켜진 판이면 카드 아래 한 줄 */
+export function RuleCards({ comeback, fairTrade = false }: { comeback: boolean; fairTrade?: boolean }) {
   return (
+    <>
     <ol class="st-rules" data-testid="rule-cards">
       {visibleRuleCards(comeback).map((c) => (
         <li key={c.id} class="st-rule" data-rule={c.no}>
@@ -31,6 +35,12 @@ export function RuleCards({ comeback }: { comeback: boolean }) {
         </li>
       ))}
     </ol>
+    {fairTrade && (
+      <p class="st-rules__fair" data-testid="rule-fair">
+        <span class="st-tag">게임 규칙</span> {fairTradeText.ruleLine}
+      </p>
+    )}
+    </>
   );
 }
 
@@ -169,7 +179,7 @@ export function PrepWait({ store, st, onEdit }: { store: StudentStore; st: Stude
         </div>
       </div>
       <h2 class="st-prep__rules-title title-font">항해 규칙</h2>
-      <RuleCards comeback={comeback} />
+      <RuleCards comeback={comeback} fairTrade={fairTradeOn(st.peer.public?.class?.settings)} />
     </section>
   );
 }

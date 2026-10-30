@@ -21,6 +21,7 @@ export {
   type ActionContext,
 } from './rules';
 export { arrive, resolveRounds } from './voyage';
+export { fairOf, fairTips, fairTradeOn, fairView, parseRoute, routeKey, stormOn, tradedPortCount, type FairSaleLot } from './fairTrade';
 export {
   applyTeacherAction, catchUpQueue, CLOCK_TEACHER_ACTIONS, EVENT_RESULT_SHOW_SEC, hasResultView, HOST_TEACHER_ACTIONS, isBlocking, resultShowing, type SideEffect, type TeacherResult,
 } from './lesson';

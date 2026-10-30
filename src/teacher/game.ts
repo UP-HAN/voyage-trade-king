@@ -227,7 +227,8 @@ export function resultTableOf(g: TeacherGame): ResultTable {
       awardsBySeat.set(seat, [...(awardsBySeat.get(seat) ?? []), a.award]);
     }
   }
-  const metricList = METRICS.map((m) => ({ key: m.id, label: `${m.name}(${m.unit})` }));
+  // (작업 176) 개척 = 실제로 사고판 항구 수 — 지난 결과 파일(방문 항구 수)과 섞이지 않게 열 이름을 바꾼다
+  const metricList = METRICS.map((m) => ({ key: m.id, label: m.id === 'explore' ? `${m.name}-사고판 항구(${m.unit})` : `${m.name}(${m.unit})` }));
   return {
     playUnit: playUnitLabel(g.meta.playUnit),
     scope: scopeLabel(g.meta.scope),

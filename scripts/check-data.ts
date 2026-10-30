@@ -26,6 +26,7 @@ import * as byeokrandoMod from '../src/data/byeokrando';
 import * as checkQuizMod from '../src/data/checkQuiz';
 import * as containersMod from '../src/data/containers';
 import * as dexMod from '../src/data/dex';
+import * as fairTradeMod from '../src/data/fairTrade';
 import * as eventsMod from '../src/data/events';
 import * as goodsMod from '../src/data/goods';
 import * as lessonsMod from '../src/data/lessons';
@@ -55,6 +56,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'containers.ts': containersMod,
   'dex.ts': dexMod,
   'events.ts': eventsMod,
+  // (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 상수·문구
+  'fairTrade.ts': fairTradeMod,
   'goods.ts': goodsMod,
   'lessons.ts': lessonsMod,
   'lessonParts.ts': lessonPartsMod,

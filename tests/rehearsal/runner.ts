@@ -350,8 +350,10 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
     const bad = badName();
     const nameOf = (seat: number) => names[seat - 1]!;
     const lateSeats = new Set(sc.crowd.flatMap((c) => (c.do.op === 'lateJoin' ? c.do.seats : [])));
+    // (작업 176) REHEARSAL_GRIND=1: 봇 3명(5·9·13번)을 '같은 거래 반복' 봇으로 — 폭풍·보너스가 보고서에 나오는지, 카드가 조작을 가리지 않는지
+    const GRIND_SEATS = new Set(process.env.REHEARSAL_GRIND ? [5, 9, 13] : []);
     const botSpec = (seat: number): BotSpec => {
-      const profile = seat % 7 === 0 ? 'idle' : seat % 4 === 0 ? 'slow' : 'good';
+      const profile = GRIND_SEATS.has(seat) ? 'grind' : seat % 7 === 0 ? 'idle' : seat % 4 === 0 ? 'slow' : 'good';
       const first = seat === NAME_PLAN.botDup ? nameOf(NAME_PLAN.botDupOf) : seat === NAME_PLAN.botBad ? bad : nameOf(seat);
       return { seat, names: [first, nameOf(seat), `${nameOf(seat)}${seat}`], profile };
     };
@@ -1192,6 +1194,26 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
           return { seat: b.seat, profile: b.profile, money: b.money, startMoney: b.startMoney, loan: b.loan, ship: b.ship, missions: `${mDone}/${Object.keys(b.missions ?? {}).length}`, wsShown: ws.length, wsDone: done.length, wsSecAvg: secs.length ? Math.round(secs.reduce((a, c) => a + c, 0) / secs.length) : null, wsSecMax: secs.length ? Math.max(...secs) : null, letters: b.lettersAnswered, dropped: Boolean(b.preDrop), lost: b.lost ?? [], afterBackShown: b.backAt ? ws.filter(([, e]) => e.shown >= b.backAt!).length : null, afterBackDone: b.backAt ? ws.filter(([, e]) => e.shown >= b.backAt! && e.done !== null).length : null, wsList: ws.map(([k, e]) => `${k}:${e.done === null ? '미완' : fastSec(e.done - e.shown) + '초'}(팝업 ${e.closed ? fastSec(e.closed - e.shown) + '초 열림' : '안 닫힘'})`).join(' '), wsDetail: ws.map(([k, e]) => ({ id: k, openSec: e.closed ? fastSec(e.closed - e.shown) : null, doneSec: e.done === null ? null : fastSec(e.done - e.shown) })) };
         });
         metrics.botTable = rows.length;
+        // (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 요약(봇 자기 상태)
+        {
+          const fr = bsEnd.filter((b) => b.fair);
+          const grind = fr.filter((b) => b.profile === 'grind');
+          const other = fr.filter((b) => b.profile !== 'grind');
+          const sumOf = (xs: typeof fr, k: 'storms' | 'warned' | 'bonus') => xs.reduce((a, b) => a + (b.fair?.[k] ?? 0), 0);
+          const avgMoney = (xs: typeof fr) => Math.round(xs.reduce((a, b) => a + (b.money ?? 0), 0) / Math.max(1, xs.length));
+          metrics.fairTrade = {
+            grindBots: grind.length,
+            grindStorms: sumOf(grind, 'storms'),
+            grindForecastRoutes: sumOf(grind, 'warned'),
+            grindAvgMoney: avgMoney(grind),
+            otherStorms: sumOf(other, 'storms'),
+            otherStormBots: other.filter((b) => (b.fair?.storms ?? 0) > 0).map((b) => b.seat),
+            bonusTotal: sumOf(fr, 'bonus'),
+            bonusBots: fr.filter((b) => (b.fair?.bonus ?? 0) > 0).length,
+            otherAvgMoney: avgMoney(other),
+          };
+          step(`같은 거래 반복·다양한 무역: 반복 봇 ${grind.length}명 폭풍 ${sumOf(grind, 'storms')}번(예보 길 ${sumOf(grind, 'warned')}) · 다른 봇 폭풍 ${sumOf(other, 'storms')}번 · 보너스 ${sumOf(fr, 'bonus')}번(${fr.filter((b) => (b.fair?.bonus ?? 0) > 0).length}명) · 평균 자금 반복 ${avgMoney(grind)} / 다른 봇 ${avgMoney(other)}`);
+        }
         try { (await import('node:fs')).writeFileSync(join(o.outDir, `bots-${sc.id}.json`), JSON.stringify(rows, null, 1)); } catch { /* 보고서 본문에는 요약만 */ }
         const rich = rows.filter((r) => r.money !== null);
         const gain = rich.map((r) => (r.money as number) - (r.startMoney ?? 0));

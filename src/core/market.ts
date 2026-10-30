@@ -9,6 +9,7 @@
  */
 import { goodsById } from '../data/goods';
 import { marketByPort, marketTagLabels, priceMultipliers, PRICE_JITTER, tariffRate, tradeLimits } from '../data/market';
+import { fairTradeRules } from '../data/fairTrade';
 import { letterRewards } from '../data/letterSchedule';
 import { shipsById } from '../data/ships';
 import { voyageCost } from '../data/routes';
@@ -50,6 +51,8 @@ export interface Quote extends PortPrice {
   label: string;
   /** 팔 수 없는 까닭(특산 S) */
   cannotSell: string | null;
+  /** (작업 176) 같은 거래 반복 폭풍으로 이 학생의 이 항구·이 상품 판매 값이 줄었다 */
+  storm: boolean;
 }
 
 /** 항구·상품의 시장 꼬리표(사건 효과 포함) */
@@ -161,6 +164,10 @@ export function quote(cs: ClassState, player: Player, port: PortId, good: GoodId
   if (sell !== null && good === 'chip' && g.effects.chipPenaltyUntilRound !== null && cs.round <= g.effects.chipPenaltyUntilRound) {
     sell = toPrice(sell * CHIP_PENALTY_MULTIPLIER);
   }
+  // (작업 176) 같은 거래 반복 폭풍: 이 학생만, 이 항구에서 이 상품 판매 값 ×0.5(untilRound 라운드까지)
+  const st = g.effects.storm;
+  const storm = sell !== null && !!st && st.port === port && st.good === good && cs.round <= st.untilRound;
+  if (storm && sell !== null) sell = toPrice(sell * fairTradeRules.stormSellMul);
   const tag = base.tag;
   const labelOf = (t: QuoteTag | null): string => (t === null ? '' : t === 'domestic' ? marketTagLabels.domestic.text : marketTagLabels[t].text);
   return {
@@ -174,6 +181,7 @@ export function quote(cs: ClassState, player: Player, port: PortId, good: GoodId
     tariffRate: tariffFor(cs, port, good),
     label: labelOf(tag),
     cannotSell: tag === 'S' ? marketTagLabels.S.cannotSell : null,
+    storm,
   };
 }
 

@@ -10,6 +10,7 @@ import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import type { ClassSettings, TopN } from '../core';
 import { leaderboardRules } from '../data/awards';
+import { fairTradeText } from '../data/fairTrade';
 import { roundLength, worksheetWaitSecOptions } from '../data/schedule';
 import { ConnectionTest } from '../ui/common/ConnectionTest';
 import type { TeacherActions } from './actions';
@@ -70,6 +71,11 @@ export function SettingsModal({ game, actions, onClose, onSaveResult, onSaveMove
           <Row label="진행 방식">
             {pick(game.class.schedule.mode, 'auto', MODE_TEXT.auto, () => actions.dispatch({ type: 'setProgressMode', mode: 'auto' }), 'mode-auto')}
             {pick(game.class.schedule.mode, 'manual', MODE_TEXT.manual, () => actions.dispatch({ type: 'setProgressMode', mode: 'manual' }), 'mode-manual')}
+          </Row>
+          {/* (작업 176) 판 중에도 끌 수 있다(꺼지면 판정·보너스 멈춤, 이미 받은 보너스는 그대로) */}
+          <Row label={fairTradeText.setupLabel}>
+            {pick(s.fairTrade !== false, true, '켬', () => upd({ fairTrade: true }), 'set-fair-on')}
+            {pick(s.fairTrade !== false, false, '끔', () => upd({ fairTrade: false }), 'set-fair-off')}
           </Row>
           <Row label="최종 자산 탭">
             {pick(s.assetBoard, true, '보임', () => upd({ assetBoard: true }))}

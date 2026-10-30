@@ -16,7 +16,7 @@ import { hasBadWord } from '../sync/company-name';
 import { MAX_SEAT, MIN_SEAT, type HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
 import type { TeacherGame } from './game';
-import { moneyText } from './table';
+import { grindText, moneyText } from './table';
 import { trapTab, type ConfirmOptions } from './ui';
 import { teacherTitle } from './teacher-terms';
 
@@ -201,6 +201,13 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
             {g.loan ? ` · 대출 ${moneyText(g.loan)}만 원` : ''}
             {game?.class.settings.voyageMode === 'free' ? '' : ` · ${g.ready ? '출항 준비 끝냄' : '출항 준비 안 함'}`}
           </p>
+          {/* (작업 176) 같은 거래 반복(교사 화면만) */}
+          {p && grindText(p) && (
+            <p data-testid="drawer-grind">
+              {grindText(p)}
+              {g.effects.storm ? ` · 지금 폭풍: ${portsById[g.effects.storm.port]?.name ?? g.effects.storm.port}에서 ${goodsById[g.effects.storm.good]?.name ?? g.effects.storm.good} 반값(라운드 ${g.effects.storm.untilRound}까지)` : ''}
+            </p>
+          )}
           {/* (작업 151) 자유 항해: 라운드 끝에 낼 운항비 */}
           {game?.class.settings.voyageMode === 'free' && (g.fareDue ?? 0) > 0 && (
             <p data-testid="drawer-fare-due">낼 운항비 {moneyText(g.fareDue ?? 0)}만 원</p>

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Action, GameEvent, StampKind } from '../../core';
 import { canTrade, cargoCapacity, cargoUsed } from '../../core';
 import { conceptCards } from '../../data/dex';
+import { fairTradeText } from '../../data/fairTrade';
 import { goodsById, serviceRules } from '../../data/goods';
 import { factoryCycleCard } from '../../data/recipes';
 import { lessonPartRulesOf, SINGAPORE_PORT } from '../../data/lessonParts';
@@ -231,6 +232,11 @@ function SellCardView({
             {c.hot && (
               <span class="pt-hot" data-testid="hot-tag">
                 <FlameIcon /> 비싸게 팔 수 있어요
+              </span>
+            )}
+            {c.storm && (
+              <span class="pt-storm" data-testid="storm-tag">
+                {fairTradeText.marketTag}
               </span>
             )}
           </p>

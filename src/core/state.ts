@@ -2,6 +2,7 @@
  * 상태 만들기·읽기(기본값 채우기) — 작업 103.
  * `types.ts`가 `normalizePlayer`·`normalizeClass`·`normalizeSnapshot`을 다시 내보낸다.
  */
+import { fairTradeRules } from '../data/fairTrade';
 import { goodsUnlockedBy } from '../data/goods';
 import { isLessonPart, lessonPartRules, portsHeldBack } from '../data/lessonParts';
 import { incidentCountRule, roundLength, stageStartByLesson, tradeMinutes, WORKSHEET_WAIT_SEC_DEFAULT } from '../data/schedule';
@@ -15,6 +16,8 @@ import type {
   ClassSettings,
   ClassState,
   Company,
+  FairNotice,
+  FairTradeState,
   GullHintRecord,
   HostSnapshot,
   Json,
@@ -144,6 +147,8 @@ export function defaultSettings(playUnit: PlayUnit, scope: LessonId[], minutes: 
     awardsOff: [],
     voyageMode: 'round',
     lessonPart: 'all',
+    // (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 — 모든 판 기본 켬
+    fairTrade: true,
   };
 }
 
@@ -254,7 +259,7 @@ export function newGame(startMoney: number): PlayerGame {
     decisions: {},
     letters: { answered: [], slots: {}, assigned: {} },
     checkQuiz: {},
-    effects: { fastCustomsStage: null, tailwind: 0, reputationDown: false, chipPenaltyUntilRound: null },
+    effects: { fastCustomsStage: null, tailwind: 0, reputationDown: false, chipPenaltyUntilRound: null, storm: null },
     metrics: emptyMetrics(),
     worksheetDone: [],
     responses: {},
@@ -265,7 +270,13 @@ export function newGame(startMoney: number): PlayerGame {
     log: [],
     fareDue: 0,
     sailsThisRound: 0,
+    fairTrade: emptyFairTrade(),
   };
+}
+
+/** (작업 176) 빈 같은 거래 반복·다양한 무역 기록 */
+export function emptyFairTrade(): FairTradeState {
+  return { recent: [], streak: null, counts: {}, warned: [], storms: 0, lastStormRound: null, ports: [], goods: [], bonus: [], notice: null, lastVisit: null };
 }
 
 export interface NewPlayerInput {
@@ -287,7 +298,8 @@ export function createPlayer(meta: SessionMeta, cs: ClassState, input: NewPlayer
   // (작업 154) 2차시 뒤 시간 판은 처음 화물을 싣지 않는다(공장 임무가 없음). 돈은 그대로
   const cargoOn = lessonPartRules(meta.playUnit, meta.scope, cs.settings.lessonPart)?.startCargo ?? true;
   for (const c of cargoOn ? (start.startCargo ?? []) : []) {
-    game.cargo.push({ good: c.good, qty: c.qty, unitCost: c.unitCost, origin: 'foreign', source: 'specialty', boughtAt: c.boughtAt });
+    // (작업 176) start: 같은 거래 반복·다양한 무역 셈에서 뺀다
+    game.cargo.push({ good: c.good, qty: c.qty, unitCost: c.unitCost, origin: 'foreign', source: 'specialty', boughtAt: c.boughtAt, start: true });
     game.log.push({ round: 0, stage: start.lesson, kind: 'buy', good: c.good, qty: c.qty, port: c.boughtAt, amount: 0, ref: 'startCargo' });
   }
   // 늦게 와도 이미 끝난 라운드의 항해는 처리할 것이 없다
@@ -361,6 +373,8 @@ export function normalizePlayer(raw: unknown): Player {
       tailwind: num(eff.tailwind, 0),
       reputationDown: bool(eff.reputationDown, false),
       chipPenaltyUntilRound: numOrNull(eff.chipPenaltyUntilRound),
+      // (작업 176) 옛 상태에는 없음 → null
+      storm: normalizeStorm(eff.storm),
     },
     metrics: {
       exports: num(m.exports, 0),
@@ -388,6 +402,8 @@ export function normalizePlayer(raw: unknown): Player {
     sailsThisRound: Math.max(0, num(g.sailsThisRound, 0)),
     // (작업 160b) 받은 갈매기 힌트 — 없으면 넣지 않는다(duringDone 방식)
     ...(Array.isArray(g.gullHints) ? { gullHints: normalizeGullHints(g.gullHints) } : {}),
+    // (작업 176) 같은 거래 반복·다양한 무역 기록 — 옛 상태에는 없음 → 빈 기록
+    fairTrade: normalizeFairTrade(g.fairTrade, arr(g.log)),
   };
   // 옛 필드(name: 실명·별명 등)는 옮기지 않는다
   return {
@@ -434,6 +450,8 @@ export function normalizeClass(raw: unknown, meta?: Pick<SessionMeta, 'playUnit'
     voyageMode: s.voyageMode === 'free' ? 'free' : 'round',
     // (작업 154) 옛 판에는 없음·틀린 값 → 두 시간 모두
     lessonPart: isLessonPart(s.lessonPart) ? s.lessonPart : 'all',
+    // (작업 176) 옛 판에는 없음 → 켬
+    fairTrade: bool(s.fairTrade, true),
   };
   const stage = isLesson(r.stage) ? r.stage : settings.scope[0];
   const start = stageStartByLesson[settings.scope[0]];
@@ -533,7 +551,63 @@ export function normalizeSnapshot(raw: unknown): HostSnapshot | null {
   };
 }
 
-const withStuck = (s: StuckState | null): { stuck?: StuckState } => (s ? { stuck: s } : {});
+const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+/** (작업 176) 폭풍 효과: 모양이 맞으면 옮기고, 아니면 null */
+function normalizeStorm(v: unknown): PlayerGame['effects']['storm'] {
+  if (!isObj(v) || typeof v.port !== 'string' || typeof v.good !== 'string' || typeof v.untilRound !== 'number' || !Number.isFinite(v.untilRound)) return null;
+  return { port: v.port as PortId, good: v.good as GoodId, untilRound: v.untilRound };
+}
+
+/** (작업 176) 같은 거래 반복·다양한 무역 기록 읽기(모양이 틀린 칸은 기본값) */
+export function normalizeFairTrade(v: unknown, log: readonly unknown[] = []): FairTradeState {
+  const e = emptyFairTrade();
+  if (!isObj(v)) {
+    // 옛 저장본: 판매 기록(되팔기 제외)에서 거래한 항구·판 상품만 되살린다(개척 지표가 1로 떨어지지 않게). 판정 기록은 새로 시작
+    for (const l of log) {
+      if (!isObj(l) || l.kind !== 'sell' || typeof l.good !== 'string') continue;
+      if (!e.goods.includes(l.good as GoodId)) e.goods.push(l.good as GoodId);
+      if (typeof l.port === 'string' && l.port !== 'BUS' && !e.ports.includes(l.port as PortId)) e.ports.push(l.port as PortId);
+    }
+    // 되살린 만큼의 보너스 단계는 받은 것으로 둔다(규칙이 없던 판에서 한꺼번에 돈이 들어오지 않게)
+    for (const step of fairTradeRules.bonusSteps) {
+      if (e.ports.length >= step) e.bonus.push(`ports:${step}`);
+      if (e.goods.length >= step) e.bonus.push(`goods:${step}`);
+    }
+    return e;
+  }
+  const counts: Record<string, number> = {};
+  if (isObj(v.counts)) for (const [k, n] of Object.entries(v.counts)) if (typeof n === 'number' && Number.isFinite(n) && n > 0) counts[k] = n;
+  const st = isObj(v.streak) && typeof v.streak.route === 'string' && typeof v.streak.n === 'number' ? { route: v.streak.route, n: Math.max(0, v.streak.n) } : null;
+  const nt = isObj(v.notice) ? v.notice : null;
+  const notice: FairNotice | null =
+    nt && (nt.kind === 'forecast' || nt.kind === 'storm') && typeof nt.from === 'string' && typeof nt.good === 'string' && typeof nt.to === 'string'
+      ? {
+          n: num(nt.n, 0),
+          kind: nt.kind,
+          from: nt.from,
+          good: nt.good as GoodId,
+          to: nt.to as PortId,
+          round: num(nt.round, 0),
+          tips: arr<FairNotice['tips'][number]>(nt.tips).filter((t) => isObj(t)).slice(0, 2),
+        }
+      : null;
+  return {
+    recent: strArr(v.recent),
+    streak: st,
+    counts,
+    warned: strArr(v.warned),
+    storms: Math.max(0, num(v.storms, 0)),
+    lastStormRound: numOrNull(v.lastStormRound),
+    ports: strArr(v.ports) as PortId[],
+    goods: strArr(v.goods) as GoodId[],
+    bonus: strArr(v.bonus),
+    notice,
+    lastVisit: typeof v.lastVisit === 'string' ? v.lastVisit : null,
+  };
+}
+
+const withStuck =(s: StuckState | null): { stuck?: StuckState } => (s ? { stuck: s } : {});
 
 /** (작업 160b) 갈매기 힌트 기록: {id, mission, at}만 옮긴다 */
 function normalizeGullHints(v: unknown[]): GullHintRecord[] {

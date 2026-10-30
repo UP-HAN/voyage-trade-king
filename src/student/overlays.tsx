@@ -109,7 +109,10 @@ export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id:
               <path d="M15 9V20M11 12H19M10 16Q11 21 15 21Q19 21 20 16" fill="none" stroke="#C0623F" stroke-width="1.8" stroke-linecap="round" />
             </svg>
           )}
-          <span>{t.text}</span>
+          <span>
+            {t.text}
+            {t.sub && <small class="st-toast__sub">{t.sub}</small>}
+          </span>
         </button>
       ))}
     </div>

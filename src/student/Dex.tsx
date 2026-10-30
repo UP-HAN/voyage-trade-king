@@ -65,7 +65,7 @@ export function myExportTypeGoods(player: HelperPlayer | null | undefined): Part
   return out;
 }
 
-export function Dex({ collected, comeback, onClose, player }: { collected: readonly string[]; comeback: boolean; onClose: () => void; player?: HelperPlayer | null }) {
+export function Dex({ collected, comeback, onClose, player, fairTrade = false }: { collected: readonly string[]; comeback: boolean; onClose: () => void; player?: HelperPlayer | null; fairTrade?: boolean }) {
   const [tab, setTab] = useState<DexTab>('goods');
   const [open, setOpen] = useState<DexCardView | null>(null);
   const have = new Set(collected);
@@ -97,7 +97,7 @@ export function Dex({ collected, comeback, onClose, player }: { collected: reado
         ))}
       </div>
       {tab === 'rules' ? (
-        <RuleCards comeback={comeback} />
+        <RuleCards comeback={comeback} fairTrade={fairTrade} />
       ) : (
         <ul class="st-dex-grid" data-testid="dex-grid">
           {dexCards(tab).map((c) => {

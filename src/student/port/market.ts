@@ -45,6 +45,8 @@ export interface SellCard {
   /** "여기서 78만 원"의 값. 팔 수 없으면 null */
   price: number | null;
   hot: boolean;
+  /** (작업 176) 같은 거래 반복 폭풍으로 이 항구에서 이 상품 판매 값이 줄었다(팔기 전에 보이게) */
+  storm: boolean;
   /** 작은 글씨 "산 값 36" — 먼저 팔리는 묶음의 산 값 */
   boughtFor: number;
   /** 관세율(해외 상품을 이 항구에 팔 때, 0이면 없음) */
@@ -125,7 +127,8 @@ export function sellCards(cs: ClassState, p: Player): SellCard[] {
       have,
       max,
       price: canSell ? q.sell : null,
-      hot: canSell && q.tag === 'H',
+      hot: canSell && q.tag === 'H' && !q.storm,
+      storm: canSell && q.storm,
       boughtFor: first.unitCost,
       tariffRate: canSell ? tariffForLot(cs, port, good, first.origin) : 0,
       fullLeft: q.sellFullLeft,

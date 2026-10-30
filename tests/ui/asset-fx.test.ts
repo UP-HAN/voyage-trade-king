@@ -10,8 +10,8 @@ describe('img()', () => {
   });
   it('(작업 134) 빌드에 없는 그림은 요청하지 않고 바로 대체 표시(data:,)', () => {
     expect(hasImage('ports/busan.png')).toBe(true);
-    expect(hasImage('lessons/l1.png')).toBe(false);
-    expect(img('lessons/l1.png')).toBe(MISSING_IMAGE);
+    expect(hasImage('lessons/_none-for-test.png')).toBe(false);
+    expect(img('lessons/_none-for-test.png')).toBe(MISSING_IMAGE);
     expect(img('a b/c.png')).toBe(MISSING_IMAGE);
   });
 });

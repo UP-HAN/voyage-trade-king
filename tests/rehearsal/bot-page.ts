@@ -12,6 +12,7 @@
  * - 기록: 거절 코드별 수(입장·행동 되돌림), 상태 변화 시각(빠른 시계), 행동 수, '할 수 있는 행동 없음' 시간
  */
 import { botAction, rng } from '../sim/bot';
+import { newTraderMemory, traderAction, type TraderMemory } from '../sim/fair-bots';
 import { isBlocking, marketView, type PublicPayload } from '../../src/core';
 import { eventsById } from '../../src/data/events';
 import { mailbox } from '../../src/core/letters';
@@ -40,7 +41,8 @@ class Mem {
   }
 }
 
-export type BotProfile = 'good' | 'slow' | 'idle';
+/** (작업 176) grind = 같은 거래 반복 봇(REHEARSAL_GRIND=1) — 가장 이익인 길 하나만 되풀이 */
+export type BotProfile = 'good' | 'slow' | 'idle' | 'grind';
 
 export interface BotSpec {
   seat: number;
@@ -79,6 +81,8 @@ interface Bot {
   postBack: Snap | null;
   lost: string[];
   unsub: (() => void) | null;
+  /** (작업 176) 같은 거래 반복 봇의 길 기억 */
+  trader: TraderMemory;
 }
 
 export interface Snap {
@@ -131,6 +135,8 @@ export interface BotStatus {
   inAfterBackAt: number | null;
   versionMismatch: boolean;
   statusLog: { at: number; status: string; code: string | null }[];
+  /** (작업 176) 같은 거래 반복·다양한 무역 */
+  fair: { storms: number; warned: number; bonus: number; ports: number; goods: number } | null;
 }
 
 /** 공개 상태 요약(오케스트레이터·탐지기가 씀) */
@@ -338,7 +344,8 @@ function tick() {
     } else b.noActionSince = null;
     if (rand() >= 0.5) continue;
     try {
-      const a = botAction({ store }, rand);
+      // (작업 176) 같은 거래 반복 봇: 처음 고른 가장 이익인 길 하나만(사건·학습지는 바로 답함)
+      const a = b.spec.profile === 'grind' ? traderAction({ store }, b.trader, 'grind') : botAction({ store }, rand);
       if (!a) continue;
       // 성격: 사건·학습지·퀴즈·편지 응답을 미루거나 안 함
       const isTask = a.type === 'respondEvent' || a.type === 'markWorksheetDone' || a.type === 'answerCheckQuiz' || a.type === 'answerLetter';
@@ -397,6 +404,7 @@ window.__rb = {
       postBack: null,
       lost: [],
       unsub: null,
+      trader: newTraderMemory(),
     };
     bots.set(spec.seat, b);
     b.store = makeStore(b);
@@ -476,6 +484,8 @@ window.__rb = {
         ship: me ? String(me.game.ship) : null,
         missions: me ? JSON.parse(JSON.stringify(me.game.missions ?? {})) : {},
         cargo: me ? JSON.stringify(me.game.cargo) : '',
+        // (작업 176) 같은 거래 반복·다양한 무역(봇 자기 상태 — 리허설 보고서용)
+        fair: me?.game.fairTrade ? { storms: me.game.fairTrade.storms, warned: me.game.fairTrade.warned.length, bonus: me.game.fairTrade.bonus.length, ports: me.game.fairTrade.ports.length, goods: me.game.fairTrade.goods.length } : null,
       };
     });
   },

@@ -4,6 +4,7 @@
  */
 import { FLAG_COLORS, respondedTo, seatKey, type ClassState, type Player } from '../core';
 import { eventsById } from '../data/events';
+import { fairTradeText } from '../data/fairTrade';
 import type { NameStatus } from '../sync/app-messages';
 import type { HostView } from '../sync/host-session';
 import { portsById } from '../data/ports';
@@ -35,6 +36,8 @@ export interface StudentRow {
   rejoinRequested: boolean;
   /** (작업 148) '지금 할 일' 한 칸 — done=false 면 '도움이 필요해요'에 든다, null 이면 할 일 없음 */
   now: NowTask;
+  /** (작업 176) 같은 거래 반복 표시(교사 화면만) — "같은 거래 반복 — 폭풍 n번" / 예보만 받았으면 "… 갈매기 예보", 없으면 null */
+  grind: string | null;
 }
 
 /** '지금 할 일' 칸(작업 148, PRD 7.5.2.2) */
@@ -186,8 +189,18 @@ export function buildRows(
       lettersRight: pg ? Object.values(pg.letters.slots).filter((x) => x === 'right').length : 0,
       rejoinRequested: requests.has(s.seat),
       now: g ? nowTaskOf(g, p) : { text: '·', done: null },
+      grind: p ? grindText(p) : null,
     };
   });
+}
+
+/** (작업 176) 교사 화면 같은 거래 반복 표시 */
+export function grindText(p: Player): string | null {
+  const ft = p.game.fairTrade;
+  if (!ft) return null;
+  if (ft.storms > 0) return fairTradeText.teacher(ft.storms);
+  if (ft.warned.length > 0) return fairTradeText.teacherForecast;
+  return null;
 }
 
 export function matchesFilter(r: StudentRow, f: FilterId): boolean {

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { syncMode } from '../config/deploy';
 import { tradeWorksheets, type ItemForm, type SchedulePreview } from '../core';
 import { leaderboardRules } from '../data/awards';
+import { fairTradeText } from '../data/fairTrade';
 import { LESSON_PART_TEXT, LESSON_PARTS, lessonPartRules, type LessonPart } from '../data/lessonParts';
 import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes, type WorksheetMode } from '../data/schedule';
 import type { LessonId } from '../data/types';
@@ -421,6 +422,17 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
           { value: 'round', label: VOYAGE_MODE_TEXT.round },
         ]}
         onPick={(v) => set({ voyageMode: v })}
+      />
+      {/* (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 — 모든 판, 기본 켬(기억하지 않음) */}
+      <Seg
+        label={fairTradeText.setupLabel}
+        testId="fair-trade"
+        value={values.fairTrade}
+        options={[
+          { value: true, label: '켬' },
+          { value: false, label: '끔' },
+        ]}
+        onPick={(v) => set({ fairTrade: v })}
       />
     </>
   );

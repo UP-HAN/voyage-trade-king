@@ -405,3 +405,7 @@
 .scr-ws__strip-title { margin: 0; font-family: var(--font-title); font-size: calc(var(--u) * 3.2); }
 .scr-ws__strip-hint { font-size: calc(var(--u) * 2); }
 .scr-ws__strip-done { display: inline-flex; align-items: center; gap: calc(var(--u) * 0.8); }
+
+/* (작업 176) 같은 거래 반복 — TV 해도 띠(이름 없음), 항해 규칙 아래 한 줄 */
+.scr-map__news { margin: calc(var(--u) * 0.4) 0 0; padding: calc(var(--u) * 0.3) calc(var(--u) * 0.8); border-radius: calc(var(--u) * 0.5); background: rgba(31, 78, 107, 0.85); color: #f6efdc; font-size: calc(var(--u) * 1.4); }
+.scr-rules__fair { margin: calc(var(--u) * 1) 0 0; font-size: calc(var(--u) * 1.6); text-align: center; }

@@ -3,6 +3,8 @@
  * 시상(기본 목록 — 시상식 차례 공개·애니메이션은 118·203), 판 끝, 호스트 기다림.
  */
 import { AWARD_ORDER, metrics } from '../../data/awards';
+import { fairTradeOn } from '../../core';
+import { fairTradeText } from '../../data/fairTrade';
 import { afterWorksheets, awardsWithWinners, rulesFor } from '../model';
 import { ArtImg, CompanyTag } from '../parts';
 import type { SceneProps } from './types';
@@ -37,6 +39,12 @@ export function RulesScene({ d }: SceneProps) {
           </li>
         ))}
       </ol>
+      {/* (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스가 켜진 판이면 한 줄 */}
+      {fairTradeOn(d.cls.settings) && (
+        <p class="scr-rules__fair" data-testid="rule-fair">
+          {fairTradeText.ruleLine}
+        </p>
+      )}
     </div>
   );
 }

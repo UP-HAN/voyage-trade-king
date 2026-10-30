@@ -8,6 +8,7 @@
  * - 저장·전송 뒤 읽을 때는 `normalizeSnapshot()` 등으로 기본값을 채운다(옛 필드 무시, 버전 `v: 3` 확인).
  */
 import type { MetricId } from '../data/awards';
+import type { FairTip } from '../data/fairTrade';
 import type { LessonPart } from '../data/lessonParts';
 import type {
   Difficulty,
@@ -266,6 +267,11 @@ export interface ClassSettings {
    * 차시 한 판 + 범위 ['L2']일 때만 효과(`lessonPartRules`). 판을 만들 때만 정한다(`updateSettings`로 못 바꿈). 규칙 엔진 기본 'all'
    */
   lessonPart: LessonPart;
+  /**
+   * (작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스(기본 켬). 꺼지면 판정·보너스 모두 멈춤(이미 받은 보너스는 그대로).
+   * 옛 판에는 없음(= 켬)
+   */
+  fairTrade?: boolean;
 }
 
 /** 항해 방식(PRD 4.3.7.1) */
@@ -345,6 +351,8 @@ export interface CargoLot {
   origin: Origin;
   source: LotSource;
   boughtAt: PortId;
+  /** (작업 176) 처음 화물(startCargo)로 시작한 묶음 — 같은 거래 반복·다양한 무역 셈에서 뺀다. 옛 상태에는 없음 */
+  start?: boolean;
 }
 
 /** 이번 입항에서 사고판 양(입항할 때마다 초기화 — 한도 계산) */
@@ -377,6 +385,56 @@ export interface PlayerEffects {
   reputationDown: boolean;
   /** L3-E3 기술 경쟁에서 밀림: 이 라운드까지 반도체 판매가 −10% */
   chipPenaltyUntilRound: number | null;
+  /** (작업 176) 같은 거래 반복 폭풍: 이 학생만, 이 항구에서 이 상품 판매 값 절반(이 라운드까지). 옛 상태에는 없음(= null) */
+  storm?: StormEffect | null;
+}
+
+/** (작업 176) 개인 폭풍 효과 */
+export interface StormEffect {
+  port: PortId;
+  good: GoodId;
+  /** 이 라운드가 끝날 때까지 */
+  untilRound: number;
+}
+
+/** (작업 176) 학생에게 띄우는 예보·폭풍 카드(n이 바뀌면 새 카드) */
+export interface FairNotice {
+  n: number;
+  kind: 'forecast' | 'storm';
+  /** 산 곳(항구 ID 또는 'BUS:factory') */
+  from: string;
+  good: GoodId;
+  to: PortId;
+  round: number;
+  /** 피하는 길 추천(최대 2개) */
+  tips: FairTip[];
+}
+
+/**
+ * (작업 176) 같은 거래 반복·다양한 무역 기록 — 학생 회사 상태(본인·교사만 봄, 공개 상태에 싣지 않음).
+ * 길 키 = '산 곳>상품>판 항구'
+ */
+export interface FairTradeState {
+  /** 최근 센 판매 길(오래된 것부터, 최대 windowSize개) */
+  recent: string[];
+  /** 지금 이어지는 같은 길 연속 수 */
+  streak: { route: string; n: number } | null;
+  /** 길별 센 횟수(처음 freeTimes번은 괜찮음) */
+  counts: Record<string, number>;
+  /** 예보를 받은 길 */
+  warned: string[];
+  /** 받은 폭풍 수 */
+  storms: number;
+  lastStormRound: number | null;
+  /** 실제로 거래한 해외 항구(부산 제외 — 판매 또는 산 상품을 다른 곳에 판매) */
+  ports: PortId[];
+  /** 판 상품 종류(부산 국내 판매 포함, 되팔기 제외) */
+  goods: GoodId[];
+  /** 받은 보너스 단계('ports:3'·'goods:5'…) */
+  bonus: string[];
+  notice: FairNotice | null;
+  /** 마지막으로 센 '길@입항 번호'(같은 입항에서 나눠 판 것은 한 번만 셈). 옛 상태에는 없음 */
+  lastVisit?: string | null;
 }
 
 export interface Metrics {
@@ -469,6 +527,8 @@ export interface PlayerGame {
   sailsThisRound?: number;
   /** (작업 160b) 받은 갈매기 힌트(막힌 학생 자동 힌트, 받은 순). 옛 상태에는 없음(= []) */
   gullHints?: GullHintRecord[];
+  /** (작업 176) 같은 거래 반복·다양한 무역 기록. 옛 상태에는 없음(normalizePlayer 가 채움) */
+  fairTrade?: FairTradeState;
 }
 
 /** (작업 160b) 학생이 받은 갈매기 힌트 한 개 */
@@ -585,6 +645,8 @@ export interface PublicState {
    * 판 범위에 2차시가 있을 때만(없거나 거래 전이면 null). 학습지 ⑤ 도우미도 이 값을 읽는다
    */
   customsBoard?: { imports: Partial<Record<GoodId, number>>; exports: Partial<Record<GoodId, number>> } | null;
+  /** (작업 176) 이번 라운드에 누군가에게 폭풍이 지나갔다(TV 띠용 한 비트 — 누구인지·길·상품은 싣지 않음). 없으면 싣지 않음 */
+  stormNews?: true;
 }
 
 /** 방 전체에 보내는 학급 상태(교사 전용 필드 제외) */
@@ -721,7 +783,11 @@ export type GameEvent =
   | { type: 'companyFounded' }
   | { type: 'worksheetDone'; ids: WorksheetId[]; during?: boolean }
   /** (작업 160b) 막힌 학생에게 간 갈매기 힌트 */
-  | { type: 'gullHint'; id: string; mission: string };
+  | { type: 'gullHint'; id: string; mission: string }
+  /** (작업 176) 같은 거래 반복: 갈매기 예보·폭풍, 다양한 무역 보너스 */
+  | { type: 'fairForecast'; route: string }
+  | { type: 'fairStorm'; route: string; port: PortId; good: GoodId; untilRound: number }
+  | { type: 'fairBonus'; kind: 'ports' | 'goods'; step: number; amount: number };
 
 export interface ActionResult {
   player: Player;

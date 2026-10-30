@@ -378,3 +378,6 @@
   .t-now__line { font-size: 24px; }
   .t-now { padding-bottom: 6px; }
 }
+
+/* (작업 176) 학생 표 같은 거래 반복 표시(교사 화면만) */
+.t-grind { display: block; color: #8a4a2a; }

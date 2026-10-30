@@ -240,7 +240,7 @@ function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentS
       <Tutorial me={me} cls={cls} pid={pid} code={code} />
       {panel}
       {modal}
-      {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} onClose={() => setDexOpen(false)} />}
+      {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} fairTrade={cls.settings.fairTrade !== false} onClose={() => setDexOpen(false)} />}
     </>
   );
 }

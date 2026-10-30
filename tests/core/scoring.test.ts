@@ -27,6 +27,8 @@ function fakeClass(n: number, seed = 7): Player[] {
       p.game.metrics.coop = (top ? n : co[i]) + 1;
       p.game.metrics.quizRight = (top ? n : qz[i]) + 1;
       p.game.metrics.visited = Array.from({ length: (top ? n : vs[i]) + 1 }, (_, k) => `X${k}`) as never;
+      // (작업 176) 개척 = 실제로 사고판 항구 수(거래 기록 + 부산)
+      p.game.fairTrade = { ...p.game.fairTrade!, ports: Array.from({ length: top ? n : vs[i] }, (_, k) => `X${k}`) as never };
     });
   }
   return Object.values(s.players);

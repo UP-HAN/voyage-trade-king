@@ -142,6 +142,11 @@ export function StudentTable({ rows, filter, sort, onFilter, onSort, onOpen, sel
                 </td>
                 <td data-testid="cell-now" data-v={r.now.done === null ? 'na' : r.now.done ? 'yes' : 'no'}>
                   <NowCell now={r.now} />
+                  {r.grind && (
+                    <span class="t-small t-grind" data-testid="cell-grind">
+                      {r.grind}
+                    </span>
+                  )}
                 </td>
                 <td>
                   {r.portName}

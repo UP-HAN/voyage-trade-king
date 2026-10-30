@@ -13,6 +13,7 @@ import { lessonPartRulesOf } from '../data/lessonParts';
 import { portsById } from '../data/ports';
 import type { PortId } from '../data/types';
 import { applyFiredEventToPlayer } from './activities';
+import { expireStorm } from './fairTrade';
 import { isPortClosed, voyageCostFor } from './market';
 import { grantDex } from './progress';
 import { canTakeLoan, takeLoan } from './rules';
@@ -80,6 +81,8 @@ export function resolveRounds(cs: ClassState, player: Player): { player: Player;
   const freeMode = cs.settings?.voyageMode === 'free';
   for (let r = p.game.resolvedRound + 1; r <= upTo; r++) {
     const g = p.game;
+    // (작업 176) 폭풍은 untilRound 라운드가 끝나면 저절로 사라진다
+    expireStorm(p, r);
     if (freeMode) {
       // (작업 151, PRD 4.3.7.1) 자유 항해: 배는 이미 라운드 중에 옮겼다 → 라운드 끝에 낼 운항비를 한꺼번에 정산
       settleFare(cs, p, r, events);

@@ -22,7 +22,7 @@ export const metrics: readonly Metric[] = [
   { id: 'csr', name: '사회적 책임', formula: '기본 50 + 결정 효과(6.10) + 협력 활동 참여 + 잡지 표지에 목표·노력 작성(+10)', award: '착한 기업상', unit: '점', mayBeFlat: true },
   { id: 'coop', name: '협력', formula: '광물 협력 참여, 스마트폰 부품 운반, 다른 팀 도와준 운반', award: '협력상', unit: '점', mayBeFlat: true },
   { id: 'quiz', name: '무역 박사', formula: '편지 퀴즈 정답 수 + 확인 퀴즈 정답 수', award: '무역 박사상', unit: '개', mayBeFlat: false },
-  { id: 'explore', name: '개척', formula: '방문 항구 수', award: '개척상', unit: '곳', mayBeFlat: false },
+  { id: 'explore', name: '개척', formula: '실제로 사고판 항구 수(부산 포함, 들르기만 한 항구는 세지 않음)', award: '개척상', unit: '곳', mayBeFlat: false },
   {
     id: 'leap', name: '도약(성장률)', award: '도약상', unit: '배', mayBeFlat: false,
     formula: '최종 자산 ÷ 기준 자산. 기준 자산 = 무역 시간 25% 지점(첫 구간이 끝날 때와 25% 중 먼저 오는 때)의 자산, 시작 자금보다 작으면 시작 자금',

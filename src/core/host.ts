@@ -283,7 +283,7 @@ export function hostReduce(snapshot: HostSnapshot, input: HostInput, now: number
         ackFor = { seat: input.seat, seq: input.seq, ok: false, error: 'NOT_SEATED', events: [] };
         break;
       }
-      const ctx: ActionContext = { validateName: hooks.validateName, takenKeys: otherNameKeys(w.snap.players, input.seat) };
+      const ctx: ActionContext = { validateName: hooks.validateName, takenKeys: otherNameKeys(w.snap.players, input.seat), host: true };
       const r = applyAction(w.snap.class, p, input.action, ctx);
       if (r.error) {
         ackFor = { seat: input.seat, seq: input.seq, ok: false, error: r.error, events: [] };

@@ -1490,3 +1490,53 @@
   line-height: 1.35;
   color: var(--ink-soft);
 }
+
+/* ---------- (작업 176) 같은 거래 반복 — 갈매기 예보·폭풍 카드(.st-gull 틀 그대로, 같은 자리) ---------- */
+.st-fair__face {
+  border-radius: 10px;
+}
+.st-fair--storm {
+  border-color: #6f8fa8;
+}
+.st-fair__tips {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: 1.35;
+}
+.st-fair__tips li::before {
+  content: '· ';
+}
+.st-fair__tips .st-fair__tips-head::before {
+  content: '';
+}
+.st-fair__tips-head {
+  font-weight: 700;
+}
+.st-fair__lesson,
+.st-fair__progress {
+  color: var(--ink-soft);
+  font-size: var(--text-small);
+}
+/* 시장 카드: 폭풍 꼬리표 */
+.pt-storm {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(111, 143, 168, 0.2);
+  color: #2f4a5f;
+  font-size: var(--text-small);
+}
+/* 토스트 둘째 줄(다양한 무역 보너스 진행) */
+.st-toast__sub {
+  display: block;
+  font-size: var(--text-small);
+  opacity: 0.85;
+}
+/* 항해 규칙 카드 아래 한 줄 */
+.st-rules__fair {
+  margin: 8px 0 0;
+  font-size: var(--text-body);
+}
