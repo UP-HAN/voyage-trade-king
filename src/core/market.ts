@@ -164,9 +164,10 @@ export function quote(cs: ClassState, player: Player, port: PortId, good: GoodId
   if (sell !== null && good === 'chip' && g.effects.chipPenaltyUntilRound !== null && cs.round <= g.effects.chipPenaltyUntilRound) {
     sell = toPrice(sell * CHIP_PENALTY_MULTIPLIER);
   }
-  // (작업 176) 같은 거래 반복 폭풍: 이 학생만, 이 항구에서 이 상품 판매 값 ×0.5(untilRound 라운드까지)
+  // (작업 176) 같은 거래 반복 폭풍: 이 학생만, 이 항구에서 이 상품 판매 값 ×0.5(untilRound 라운드까지).
+  // 교사가 규칙을 끄면(판 중 포함) 이미 온 폭풍도 바로 풀린다(끄기 = 되돌리기). 다시 켜면 아직 untilRound 전인 폭풍은 다시 적용된다
   const st = g.effects.storm;
-  const storm = sell !== null && !!st && st.port === port && st.good === good && cs.round <= st.untilRound;
+  const storm = cs.settings?.fairTrade !== false && sell !== null && !!st && st.port === port && st.good === good && cs.round <= st.untilRound;
   if (storm && sell !== null) sell = toPrice(sell * fairTradeRules.stormSellMul);
   const tag = base.tag;
   const labelOf = (t: QuoteTag | null): string => (t === null ? '' : t === 'domestic' ? marketTagLabels.domestic.text : marketTagLabels[t].text);

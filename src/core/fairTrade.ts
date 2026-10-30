@@ -62,9 +62,9 @@ export interface FairSaleLot {
 }
 
 /** 지금 이 학생·이 항구·이 상품에 폭풍이 있는가 */
-export function stormOn(cs: Pick<ClassState, 'round'>, p: Pick<Player, 'game'>, port: PortId, good: GoodId): boolean {
+export function stormOn(cs: Pick<ClassState, 'round' | 'settings'>, p: Pick<Player, 'game'>, port: PortId, good: GoodId): boolean {
   const s = p.game.effects.storm;
-  return !!s && s.port === port && s.good === good && cs.round <= s.untilRound;
+  return fairTradeOn(cs.settings) && !!s && s.port === port && s.good === good && cs.round <= s.untilRound;
 }
 
 /** 라운드 처리(voyage.ts): untilRound 가 지난 폭풍은 사라진다 */
@@ -90,19 +90,29 @@ export function afterSale(cs: ClassState, p: Player, sales: readonly FairSaleLot
   if (!host || !fairTradeOn(cs.settings)) return;
   // ② 보너스 단계
   grantBonus(p, ft, events);
-  // ③ 반복 판정: 처음 화물·임무 첫 채움은 빼고, 길별로 모아 minQty 이상인 길만 '한 번 거래'
+  // ③ 반복 판정 — 입항(arrival) 단위: 한 입항에서 같은 길은 한 번만 센다(상품이 섞이거나 5+5로 나눠 팔아도).
+  //    처음 화물은 빼고, 이번 입항에서 임무를 처음 채운 길은 그 입항 동안 세지 않는다.
+  const a = p.game.visit.arrival;
+  if (ft.skip?.a !== a) ft.skip = { a, routes: [] };
   const byRoute = new Map<string, number>();
   for (const s of sales) {
-    if (s.lot.start || s.mission) continue;
+    if (s.lot.start) continue;
     const key = routeKey(fromKey(s.lot), s.good, s.port);
+    if (s.mission) {
+      if (!ft.skip.routes.includes(key)) ft.skip.routes.push(key);
+      continue;
+    }
     byRoute.set(key, (byRoute.get(key) ?? 0) + s.qty);
   }
   for (const [route, qty] of byRoute) {
-    if (qty < R.minQty) continue;
-    // 같은 입항에서 같은 길로 나눠 판 것(5+5+5…)은 한 번 거래로 센다 — 한 번 들러 여러 번 누른 학생이 바로 폭풍을 맞지 않게
-    const visitKey = `${route}@${p.game.visit.arrival}`;
-    if (ft.lastVisit === visitKey) continue;
-    ft.lastVisit = visitKey;
+    if (qty < R.minQty || ft.skip.routes.includes(route)) continue;
+    const last = ft.visits[ft.visits.length - 1];
+    if (last && last.a === a) {
+      if (last.routes.includes(route)) continue; // 이 입항에서 이미 셈
+      last.routes.push(route);
+    } else {
+      ft.visits = [...ft.visits, { a, routes: [route] }].slice(-R.windowSize);
+    }
     judge(cs, p, ft, route, events);
   }
 }
@@ -120,19 +130,29 @@ function grantBonus(p: Player, ft: FairTradeState, events: GameEvent[]): void {
   }
 }
 
+/** 같은 길이 끝에서부터 몇 입항 이어졌나(최근 입항 기록 안에서) */
+function streakOf(ft: FairTradeState, route: string): number {
+  let n = 0;
+  for (let i = ft.visits.length - 1; i >= 0 && ft.visits[i]!.routes.includes(route); i--) n++;
+  return n;
+}
+
 function judge(cs: ClassState, p: Player, ft: FairTradeState, route: string, events: GameEvent[]): void {
   ft.counts[route] = (ft.counts[route] ?? 0) + 1;
-  ft.recent = [...ft.recent, route].slice(-R.windowSize);
-  ft.streak = ft.streak?.route === route ? { route, n: ft.streak.n + 1 } : { route, n: 1 };
   // 처음 freeTimes 번은 언제나 괜찮다
   if ((ft.counts[route] ?? 0) <= R.freeTimes) return;
-  const hits = ft.recent.filter((r) => r === route).length;
-  const repeating = ft.streak.n >= R.forecastStreak || hits >= R.windowHits;
+  // 연속 = 이어진 입항 수(같은 길로 두 상품을 함께 실어 다녀도 길마다 이어짐), 주기 = 최근 windowSize 입항 중 이 길이 있던 입항 수
+  const streak = streakOf(ft, route);
+  const hits = ft.visits.filter((v) => v.routes.includes(route)).length;
+  const repeating = streak >= R.forecastStreak || hits >= R.windowHits;
   if (!repeating) return;
   // 폭풍 뒤 cooldownRounds 라운드가 지나기 전에는 예보·폭풍 없음(폭풍이 온 라운드 포함 = 한 라운드 1번)
   if (ft.lastStormRound !== null && cs.round <= ft.lastStormRound + R.cooldownRounds) return;
   const { from, good, to } = parseRoute(route);
-  const canStorm = ft.warned.includes(route) && ft.storms < R.maxStormsPerGame;
+  const warned = ft.warned.includes(route);
+  const canStorm = warned && ft.storms < R.maxStormsPerGame;
+  // 이미 예보한 길인데 폭풍 상한(한 판 3번)에 닿았으면 예보 카드를 다시 띄우지 않는다(손해 없음)
+  if (!canStorm && warned) return;
   const n = (ft.notice?.n ?? 0) + 1;
   const tips = fairTips(cs, p, { from, good, to });
   if (canStorm) {
@@ -141,15 +161,14 @@ function judge(cs: ClassState, p: Player, ft: FairTradeState, route: string, eve
     ft.storms += 1;
     ft.lastStormRound = cs.round;
     // 폭풍이 지나가면 그 길 기록을 비운다
-    ft.recent = ft.recent.filter((r) => r !== route);
+    ft.visits = ft.visits.map((v) => ({ a: v.a, routes: v.routes.filter((r) => r !== route) }));
     delete ft.counts[route];
-    ft.streak = null;
     ft.warned = ft.warned.filter((r) => r !== route);
     ft.notice = { n, kind: 'storm', from, good, to, round: cs.round, tips };
     events.push({ type: 'fairStorm', route, port: to, good, untilRound });
     return;
   }
-  if (!ft.warned.includes(route)) ft.warned.push(route);
+  ft.warned.push(route);
   ft.notice = { n, kind: 'forecast', from, good, to, round: cs.round, tips };
   events.push({ type: 'fairForecast', route });
 }

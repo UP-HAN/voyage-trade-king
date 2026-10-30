@@ -205,7 +205,7 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
           {p && grindText(p) && (
             <p data-testid="drawer-grind">
               {grindText(p)}
-              {g.effects.storm ? ` · 지금 폭풍: ${portsById[g.effects.storm.port]?.name ?? g.effects.storm.port}에서 ${goodsById[g.effects.storm.good]?.name ?? g.effects.storm.good} 반값(라운드 ${g.effects.storm.untilRound}까지)` : ''}
+              {g.effects.storm && game?.class.settings.fairTrade !== false ? ` · 지금 폭풍: ${portsById[g.effects.storm.port]?.name ?? g.effects.storm.port}에서 ${goodsById[g.effects.storm.good]?.name ?? g.effects.storm.good} 반값(라운드 ${g.effects.storm.untilRound}까지)` : ''}
             </p>
           )}
           {/* (작업 151) 자유 항해: 라운드 끝에 낼 운항비 */}

@@ -415,10 +415,10 @@ export interface FairNotice {
  * 길 키 = '산 곳>상품>판 항구'
  */
 export interface FairTradeState {
-  /** 최근 센 판매 길(오래된 것부터, 최대 windowSize개) */
-  recent: string[];
-  /** 지금 이어지는 같은 길 연속 수 */
-  streak: { route: string; n: number } | null;
+  /** 최근 센 입항(오래된 것부터, 최대 windowSize개) — 입항 번호와 그 입항에서 센 길(한 입항에 같은 길은 한 번) */
+  visits: { a: number; routes: string[] }[];
+  /** 이번 입항에서 임무를 처음 채워 그 입항 동안 세지 않는 길 */
+  skip: { a: number; routes: string[] } | null;
   /** 길별 센 횟수(처음 freeTimes번은 괜찮음) */
   counts: Record<string, number>;
   /** 예보를 받은 길 */
@@ -433,8 +433,6 @@ export interface FairTradeState {
   /** 받은 보너스 단계('ports:3'·'goods:5'…) */
   bonus: string[];
   notice: FairNotice | null;
-  /** 마지막으로 센 '길@입항 번호'(같은 입항에서 나눠 판 것은 한 번만 셈). 옛 상태에는 없음 */
-  lastVisit?: string | null;
 }
 
 export interface Metrics {

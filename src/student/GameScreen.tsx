@@ -616,7 +616,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   const ft = me.game.fairTrade;
   const fairNotice = ft?.notice ?? null;
   const fairKey = fairNotice ? `${roomCode}:${fairNotice.n}` : '';
-  const fairOn = Boolean(fairNotice && cls && founded && phase !== 'prep' && !tradeOver && fairKey !== fairSeen);
+  const fairOn = Boolean(fairNotice && cls && fairTradeOn(cls.settings) && founded && phase !== 'prep' && !tradeOver && fairKey !== fairSeen);
   const fairProgress = fairTradeText.progress(ft?.ports.length ?? 0, ft?.goods.length ?? 0);
   const bonusList = ft?.bonus ?? [];
   useEffect(() => {

@@ -317,7 +317,7 @@ const L4_EVENTS: readonly GameEvent[] = [
   skeleton({
     id: 'L4-E7', lesson: 'L4', kind: 'screen', required: true, trigger: { type: 'wrapup' }, title: '결산·시상식', pages: [111, 112, 113], worksheetAfter: null,
     gameRule: true, wrapRule: 'always',
-    body: '항해가 끝났어요. 배에 남은 화물은 산 값의 절반으로 계산해 최종 자산을 정해요. 상은 최종 자산 하나로만 주지 않아요. 수출액, 도감, 편지·확인 퀴즈, 방문한 항구처럼 여러 기록을 보고 서로 다른 친구에게 상을 줘요. 공용 화면의 시상식을 보고, 내 화면에서 내 기록을 확인해요.',
+    body: '항해가 끝났어요. 배에 남은 화물은 산 값의 절반으로 계산해 최종 자산을 정해요. 상은 최종 자산 하나로만 주지 않아요. 수출액, 도감, 편지·확인 퀴즈, 사고판 항구처럼 여러 기록을 보고 서로 다른 친구에게 상을 줘요. 공용 화면의 시상식을 보고, 내 화면에서 내 기록을 확인해요.',
     textbook: [
       { pages: [111], note: '무역이 이루어지는 사례에 관심을 갖고 무역의 필요성을 존중하는 태도를 기를 수 있습니다.' },
     ],

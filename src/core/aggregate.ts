@@ -161,7 +161,7 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
       : null,
     customsBoard: cs.settings.scope.includes('L2') ? boardFrom(list) : null,
     // (작업 176) TV 띠용 한 비트: 이번 라운드에 누군가에게 폭풍이 지나갔다(누구인지·길·상품은 싣지 않음)
-    ...(cs.round > 0 && !tradeOver && list.some((p) => p.game.fairTrade?.lastStormRound === cs.round) ? { stormNews: true as const } : {}),
+    ...(cs.settings.fairTrade !== false && cs.round > 0 && !tradeOver && list.some((p) => p.game.fairTrade?.lastStormRound === cs.round) ? { stormNews: true as const } : {}),
   };
 }
 

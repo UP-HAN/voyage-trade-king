@@ -276,7 +276,7 @@ export function newGame(startMoney: number): PlayerGame {
 
 /** (작업 176) 빈 같은 거래 반복·다양한 무역 기록 */
 export function emptyFairTrade(): FairTradeState {
-  return { recent: [], streak: null, counts: {}, warned: [], storms: 0, lastStormRound: null, ports: [], goods: [], bonus: [], notice: null, lastVisit: null };
+  return { visits: [], skip: null, counts: {}, warned: [], storms: 0, lastStormRound: null, ports: [], goods: [], bonus: [], notice: null };
 }
 
 export interface NewPlayerInput {
@@ -578,7 +578,8 @@ export function normalizeFairTrade(v: unknown, log: readonly unknown[] = []): Fa
   }
   const counts: Record<string, number> = {};
   if (isObj(v.counts)) for (const [k, n] of Object.entries(v.counts)) if (typeof n === 'number' && Number.isFinite(n) && n > 0) counts[k] = n;
-  const st = isObj(v.streak) && typeof v.streak.route === 'string' && typeof v.streak.n === 'number' ? { route: v.streak.route, n: Math.max(0, v.streak.n) } : null;
+  const visitOf = (x: unknown): { a: number; routes: string[] } | null => (isObj(x) && typeof x.a === 'number' && Number.isFinite(x.a) ? { a: x.a, routes: strArr(x.routes) } : null);
+  const visits = (Array.isArray(v.visits) ? v.visits : []).map(visitOf).filter((x): x is { a: number; routes: string[] } => x !== null).slice(-fairTradeRules.windowSize);
   const nt = isObj(v.notice) ? v.notice : null;
   const notice: FairNotice | null =
     nt && (nt.kind === 'forecast' || nt.kind === 'storm') && typeof nt.from === 'string' && typeof nt.good === 'string' && typeof nt.to === 'string'
@@ -593,8 +594,8 @@ export function normalizeFairTrade(v: unknown, log: readonly unknown[] = []): Fa
         }
       : null;
   return {
-    recent: strArr(v.recent),
-    streak: st,
+    visits,
+    skip: visitOf(v.skip),
     counts,
     warned: strArr(v.warned),
     storms: Math.max(0, num(v.storms, 0)),
@@ -603,7 +604,6 @@ export function normalizeFairTrade(v: unknown, log: readonly unknown[] = []): Fa
     goods: strArr(v.goods) as GoodId[],
     bonus: strArr(v.bonus),
     notice,
-    lastVisit: typeof v.lastVisit === 'string' ? v.lastVisit : null,
   };
 }
 
