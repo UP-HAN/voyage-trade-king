@@ -6,6 +6,7 @@
  * - 누가 어디에 투표했는지는 어디에도 보이지 않는다(학생은 자기 표만 안다).
  */
 import type { ComponentChildren } from 'preact';
+import { steelResultLine } from '../../data/steel1970';
 import type { GameEvent } from '../../data/types';
 import { BAND_TEXT, bandOf, splitSentences } from './model';
 import { CardBandLine, CardFrame, type CardSize } from './parts';
@@ -33,6 +34,7 @@ export function voteParts(def: Pick<GameEvent, 'body' | 'title'>): { news: strin
 export function voteResultLine(def: Pick<GameEvent, 'id' | 'options'>, result: string | null | undefined): string | null {
   if (!result) return null;
   const yes = def.options?.[0]?.id;
+  if (def.id === 'L4-E1') return steelResultLine(result);
   if (def.id === 'L3-E4') return result === yes ? '찬성이 더 많아요 — 모두 50만 원씩 모아 부산에 자동화 항만을 만들어요' : '찬성이 더 많지 않아요 — 자동화 항만을 만들지 않아요';
   const label = def.options?.find((o) => o.id === result)?.label ?? result;
   return `우리 반 결과: ${label}`;

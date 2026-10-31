@@ -37,6 +37,7 @@ import {
   lessonPartAvailable,
   phoneFullMinutes,
   phoneMinMinutes,
+  lesson4Hint,
   lessonPartOf,
   VOYAGE_MODE_SHORT,
   VOYAGE_MODE_TEXT,
@@ -534,6 +535,12 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
               {values.lesson === 'L3' && phoneHint !== null && values.tradeMinutes < phoneHint && (
                 <p class="t-note" data-testid="lesson3-time-hint">
                   3차시{values.lessonPart === 'front' ? ' 앞 시간' : ''}은 무역 {phoneHint}분 이상을 권해요. 라운드가 2개 이상이어야 '우리 반 스마트폰' 활동이 들어가요.
+                </p>
+              )}
+              {/* (작업 173) 4차시: 시간마다 마무리 구성이 달라 예상 수업 시간이 달라진다(실제 계산값) */}
+              {values.lesson === 'L4' && preview && preview.ok && (
+                <p class="t-note" data-testid="lesson4-time-hint" data-part={values.lessonPart}>
+                  {lesson4Hint(values.lessonPart, preview.expected)}
                 </p>
               )}
               {values.lesson === 'L3' && values.lessonPart === 'all' && phoneFull !== null && values.tradeMinutes < phoneFull && (

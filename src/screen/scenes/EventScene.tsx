@@ -15,6 +15,7 @@ import { textbookArticles } from '../../data/text';
 import { TECH_RACE } from '../../core';
 import { Bar } from '../parts';
 import { ConceptSlides, isConceptSlideEvent } from './ConceptSlides';
+import { VNBars } from './SteelScene';
 import type { SceneProps } from './types';
 
 export function EventScene({ d, now }: SceneProps) {
@@ -52,6 +53,18 @@ export function EventScene({ d, now }: SceneProps) {
       <VoteCard def={def} size="screen">
         {count}
       </VoteCard>
+    );
+  } else if (def.id === 'L4-E2') {
+    // (작업 173) 베트남 기사(p.109, 밑줄 대상 표시) → 마감·결과 공개 뒤 학급 공장 결정 분포(이름 없음)
+    card = revealed ? (
+      <div class="scr-vn-wrap" data-testid="screen-vn-result">
+        <p class="scr-kicker">{def.title}</p>
+        <VNBars d={d} />
+      </div>
+    ) : (
+      <ArticleCard article={textbookArticles.vietnamFactory} size="screen" showTargets testId="screen-article">
+        {count}
+      </ArticleCard>
     );
   } else if (def.kind === 'article' && def.options?.length && !revealed) {
     // (작업 172) 교과서 속 기사(L3-E1): 기사 원문 → 결과 공개 뒤 결정 분포 막대
@@ -102,8 +115,10 @@ export function EventScene({ d, now }: SceneProps) {
     );
   } else {
     card = (
-      <EventCard size="screen" model={eventCardModel(def, { short: ce.short, scope })}>
+      <EventCard size="screen" model={def.id === 'L4-E3' ? { ...eventCardModel(def, { short: ce.short, scope }), quotes: [] } : eventCardModel(def, { short: ce.short, scope })}>
         {count}
+        {/* (작업 173 검증 반영: 교과서 인용 상자는 빼고 막대 세 줄이 한 화면에 들어오게) 근로 환경 보도 동안 우리 반 공장 결정 분포(이름 없음) — 짧은 형태 결정 패널은 다음 라운드가 바로 이어져 결과 막대를 볼 틈이 없다 */}
+        {def.id === 'L4-E3' && <VNBars d={d} />}
       </EventCard>
     );
   }

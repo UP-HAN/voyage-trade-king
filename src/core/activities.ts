@@ -17,7 +17,7 @@ import { tariffs } from '../data/market';
 import { scoringConstants } from '../data/awards';
 import { afterExchange, isSuccess, produce, twoIslands } from '../data/twoIslands';
 import type { GameEvent as EventDef } from '../data/types';
-import { applyVNDecision, applyVNImprove, applyVNReport, parseVNDecision, type VNDecision } from './factoryVN';
+import { applyVNDecision, applyVNImprove, applyVNReport, parseVNDecision, vnUpfrontCost, type VNDecision } from './factoryVN';
 import { isRightAnswer } from './letters';
 import { activateMission, applyPersonalEffects, grantDex } from './progress';
 import { clone, seatKey, spendable } from './state';
@@ -69,6 +69,8 @@ export function canRespond(cs: ClassState, p: Player, eventId: string): string |
   const live = cs.currentEvent?.id === eventId && !cs.currentEvent.closed;
   // 투표·마감이 있는 비공개 결정은 열려 있을 때만(늦은 표는 집계에 넣지 않음)
   if ((def.kind === 'vote' || eventId === 'L3-E3') && !live) return 'CLOSED';
+  // (작업 173) 단계 활동(L4-E1)은 투표 단계(0)에서만 표를 받는다 — 결과를 보인 뒤에는 늦은 표를 넣지 않는다
+  if (live && (cs.currentEvent?.step ?? 0) >= 1) return 'CLOSED';
   if (eventId !== 'L4-E3' && p.game.responses[eventId] !== undefined) return 'ANSWERED';
   return null;
 }
@@ -164,8 +166,12 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
     case 'L4-E2': {
       const d = parseVNDecision(r);
       if (!d) return 'BAD_RESPONSE';
+      // (작업 173) 짓는 비용(건설비 + 설비 설치비)은 쓸 수 있는 돈(자유 항해 = 자금 − 낼 운항비) 안에서만 — 모자라면 다시 고른다
+      if (vnUpfrontCost(d) > spendable(cs, p)) return 'NO_MONEY';
       applyVNDecision(p, d, events);
       grantDex(p, 'overseas-production', events);
+      // (작업 173 검증 반영) 근로 환경 보도(L4-E3)가 이미 나온 뒤 따라잡기로 정한 학생도 같은 규칙 — 낮은 임금·미설치면 그 자리에서 보도를 적용
+      if (cs.firedEvents.includes('L4-E3')) applyVNReport(p, d, events);
       p.game.responses[eventId] = clone(d) as unknown as Json;
       return null;
     }
@@ -321,6 +327,20 @@ export function closeEventForAll(cs: ClassState, players: Record<string, Player>
       }
       const eff: ActiveEffect = { id: 'autoPort', source: eventId, effect: { type: 'limitMul', port: AUTO_PORT.port, mul: AUTO_PORT.limitMul }, until: null };
       cls = { ...cls, activeEffects: [...cls.activeEffects.filter((e) => e.id !== eff.id), eff] };
+    }
+    if (eventId === 'L4-E1') {
+      // (작업 173) 실제 사례 카드의 개념(1970년대 철강·수입의 좋은 점과 문제점)은 투표하지 않은 학생도 받는다
+      for (const p of list) {
+        const key = seatKey(p.seat);
+        const np = clone(out[key] ?? p);
+        const evs: GameEvent[] = [];
+        grantDex(np, 'steel-1970', evs);
+        grantDex(np, 'import-pros-cons', evs);
+        if (!evs.length) continue;
+        np.rev += 1;
+        out[key] = np;
+        for (const e of evs) push(key, e);
+      }
     }
     if (eventId === 'L4-E1' && result === 'tariff') {
       const o = tariffs.eventOverrides.steel1970Busan;

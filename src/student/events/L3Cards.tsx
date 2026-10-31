@@ -7,21 +7,20 @@ import type { PublicClass, PublicState } from '../../core';
 import { goodsById } from '../../data/goods';
 import { econGaugeOf, lessonPartRulesOf } from '../../data/lessonParts';
 import { econGaugeLine, PHONE_PART_WHERE, PHONE_TEXT } from '../../data/phone';
-import { textbookArticles } from '../../data/text';
+import { textbookArticles, type TextbookArticle } from '../../data/text';
 import type { GoodId } from '../../data/types';
 import { ArticleCard } from '../../ui/cards';
 import type { MeView } from '../predict';
 
-/** 기사 밑줄 단계(L3-E1 전체 형태): 문장을 눌러 밑줄 → [다 찾았어요] → 결정 카드 */
-export function ArticleRead({ onDone }: { onDone: () => void }) {
-  const article = textbookArticles.mineralCoop;
+/** 기사 밑줄 단계(L3-E1 전체 형태): 문장을 눌러 밑줄 → [다 찾았어요] → 결정 카드. (작업 173) 4차시 베트남 기사(L4-E2)도 같은 틀 */
+export function ArticleRead({ onDone, article = textbookArticles.mineralCoop, help = '두 나라가 기대하는 이익을 찾아 문장을 눌러 밑줄을 그어요.', doneLabel = '다 읽었어요 · 고르러 가기' }: { onDone: () => void; article?: TextbookArticle; help?: string; doneLabel?: string }) {
   const [marks, setMarks] = useState<string[]>([]);
   const [show, setShow] = useState(false);
   const toggle = (s: string) => setMarks((m) => (m.includes(s) ? m.filter((x) => x !== s) : [...m, s]));
   return (
     <ArticleCard article={article} underlined={marks} onToggle={toggle} showTargets={show} testId="article-card">
       <p class="vc__article-help" data-testid="article-help">
-        두 나라가 기대하는 이익을 찾아 문장을 눌러 밑줄을 그어요.
+        {help}
       </p>
       <ul class="vc__targets">
         {article.underlineTargets.map((t) => (
@@ -35,7 +34,7 @@ export function ArticleRead({ onDone }: { onDone: () => void }) {
           </button>
         )}
         <button type="button" class="btn btn--primary" data-testid="article-done" onClick={onDone}>
-          다 읽었어요 · 고르러 가기
+          {doneLabel}
         </button>
       </div>
     </ArticleCard>

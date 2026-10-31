@@ -9,6 +9,7 @@ export { DecisionCard, type DecisionCardProps } from './DecisionCard';
 export { ArticleCard, isTargetSentence, type ArticleCardProps } from './ArticleCard';
 export { VoteCard, voteParts, voteResultLine, type VoteCardProps } from './VoteCard';
 export { AiGraph } from './AiGraph';
+export { SteelCard, type SteelCardProps } from './SteelCard';
 export { CheckQuizCard, answerLabel, explainText, type CheckQuizCardProps } from './CheckQuizCard';
 export { CardArt, CardBandLine, CardQuoteBox, type CardSize } from './parts';
 export * from './model';

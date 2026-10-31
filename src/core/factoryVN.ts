@@ -41,6 +41,12 @@ export function vnFactoryOutcome(d: VNDecision): { money: number; csr: number } 
   return { money: -VN_FACTORY.buildCost + w.profit - e.cost, csr: w.csr + e.csr };
 }
 
+/** (작업 173) 짓는 순간 내는 돈(건설비 + 설비 설치비) — 쓸 수 있는 돈과 비교한다 */
+export function vnUpfrontCost(d: VNDecision): number {
+  if (!d.build) return 0;
+  return VN_FACTORY.buildCost + VN_FACTORY.env[d.env ?? 'install'].cost;
+}
+
 export function isBadChoice(d: VNDecision): boolean {
   return d.build && (d.wage === 'low' || d.env === 'skip');
 }

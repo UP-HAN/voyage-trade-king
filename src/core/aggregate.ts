@@ -14,7 +14,8 @@ import { VOTE_OPTIONS, voteCounts } from './activities';
 import { boardFrom } from './worksheet-helpers';
 import { econGauge, publicPhone } from './phone';
 import { awards, hasCertificate, leaderboard, publicCompanyName } from './scoring';
-import type { ClassState, HostSnapshot, LeaderEntry, Player, PublicClass, PublicPayload, PublicState, SessionMeta } from './types';
+import { parseVNDecision } from './factoryVN';
+import type { ClassState, HostSnapshot, LeaderEntry, Player, PublicClass, PublicPayload, PublicState, SessionMeta, VNFactoryCounts } from './types';
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -133,6 +134,23 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
     vote = { id: voteId, counts: voteCounts(list, voteId), revealed: v?.revealed ?? false, result: v?.result ?? null };
   }
 
+  // (작업 173) 호찌민 공장 결정 분포(수만)
+  let vnFactory: VNFactoryCounts | null = null;
+  if (cs.firedEvents.includes('L4-E2')) {
+    vnFactory = { built: 0, notBuilt: 0, fair: 0, low: 0, install: 0, skip: 0 };
+    for (const p of list) {
+      const d = parseVNDecision(p.game.responses['L4-E2']);
+      if (!d) continue;
+      if (!d.build) {
+        vnFactory.notBuilt += 1;
+        continue;
+      }
+      vnFactory.built += 1;
+      vnFactory[d.wage === 'low' ? 'low' : 'fair'] += 1;
+      vnFactory[d.env === 'skip' ? 'skip' : 'install'] += 1;
+    }
+  }
+
   const tradeOver = cs.phase === 'wrapup' || cs.phase === 'ended';
   return {
     joinedCount: list.length,
@@ -164,6 +182,7 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
     // (작업 172) 학급 스마트폰 프로젝트(회사 이름만)·경제 게이지(평균만) — 없으면 싣지 않는다
     ...(cs.phone ? { phone: publicPhone(cs, list, (p) => publicCompanyName(p, nameReview)) } : {}),
     ...(econGauge(cs, list) ? { econGauge: econGauge(cs, list)! } : {}),
+    ...(vnFactory ? { vnFactory } : {}),
     // (작업 176) TV 띠용 한 비트: 이번 라운드에 누군가에게 폭풍이 지나갔다(누구인지·길·상품은 싣지 않음)
     ...(cs.settings.fairTrade !== false && cs.round > 0 && !tradeOver && list.some((p) => p.game.fairTrade?.lastStormRound === cs.round) ? { stormNews: true as const } : {}),
   };

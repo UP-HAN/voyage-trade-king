@@ -28,6 +28,8 @@ import * as containersMod from '../src/data/containers';
 import * as dexMod from '../src/data/dex';
 import * as fairTradeMod from '../src/data/fairTrade';
 import * as phoneMod from '../src/data/phone';
+import * as steel1970Mod from '../src/data/steel1970';
+import * as vnFactoryMod from '../src/data/vnFactory';
 import * as eventsMod from '../src/data/events';
 import * as goodsMod from '../src/data/goods';
 import * as lessonsMod from '../src/data/lessons';
@@ -73,6 +75,9 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'routes.ts': routesMod,
   'schedule.ts': scheduleMod,
   'ships.ts': shipsMod,
+  // (작업 173) 4차시 1970년대 철강 회상 단계 글·호찌민 공장 결정 화면 글
+  'steel1970.ts': steel1970Mod,
+  'vnFactory.ts': vnFactoryMod,
   // (작업 160b) 막힌 학생 갈매기 힌트 문구(stuckHintCatalog 로 쪽수·금지어 검사)
   'stuckHints.ts': stuckHintsMod,
   'terms.ts': termsMod,

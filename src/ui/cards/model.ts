@@ -118,6 +118,8 @@ export function effectLines(def: Pick<GameEvent, 'effects' | 'needsResponse'>, s
 }
 
 const SITUATION_MARK = /[①②③④⑤]/;
+/** (작업 173) 직업 카드(관세사 도윤의 편지, p.110) — 꼬리표 '직업 카드', 짧은 형태도 네 줄 모두 */
+const JOB_CARDS: ReadonlySet<string> = new Set(['L4-E4']);
 
 /** "… ① 천연가스를 생산할 수 없다면 ② 비행기를 …" → 앞 문장 + 상황 제목들 */
 function splitSituations(body: string): { lead: string; items: string[] } | null {
@@ -154,7 +156,8 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
     // 상황 카드: 상황마다 같은 순서의 교과서 인용을 붙인다(L1-E4 p.97). 짧은 형태는 1장
     situations = sit.items.map((title, i) => ({ title, quote: quotesAll[i] ?? null }));
     // 짧은 형태 상황 카드 1장은 개념 사건(L1-E4)만 — (작업 172) 3차시 경쟁 세 가지(L3-E6 '카드만')는 세 장 모두
-    if (short && def.kind === 'concept') situations = situations.slice(0, 1);
+    // (작업 173) 관세사 직업 카드(L4-E4)는 짧은 형태('카드만')도 하는 일·필요한 것 네 줄을 모두 보인다
+    if (short && def.kind === 'concept' && !JOB_CARDS.has(def.id)) situations = situations.slice(0, 1);
     paragraphs = sit.lead ? [sit.lead] : [];
     quotes = [];
   } else if (short && def.id === 'L1-E2') {
@@ -174,7 +177,7 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
     band,
     bandText: BAND_TEXT[band],
     // (작업 172) 짧은 형태 확인 퀴즈(3차시 '카드만')는 문항이 없다 — '개념 카드'
-    kindLabel: def.kind === 'checkQuiz' && short ? '개념 카드' : sit ? '상황 카드' : (KIND_LABEL[def.kind] ?? null),
+    kindLabel: def.kind === 'checkQuiz' && short ? '개념 카드' : JOB_CARDS.has(def.id) ? '직업 카드' : sit ? '상황 카드' : (KIND_LABEL[def.kind] ?? null),
     title: cover.title,
     paragraphs,
     situations,

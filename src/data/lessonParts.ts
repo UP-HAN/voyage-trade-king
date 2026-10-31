@@ -1,13 +1,15 @@
 /**
  * (v0.3.9, 작업 154, PRD 4.1.1 '2차시 나눠 고르기'·4.4 L2·16.1 결정 38)
  * 차시 한 판 2차시를 '앞 시간 / 뒤 시간 / 두 시간 모두'로 나눠 고르는 규칙 — 한 곳에 둔다.
- * (작업 172) 차시별 규칙표로 넓혔다: 2차시(값은 그대로)·3차시(교사 결정 2026-10-30 — 앞 = 106쪽, 뒤 = 107쪽). 173이 4차시를 더한다.
+ * (작업 172) 차시별 규칙표로 넓혔다: 2차시(값은 그대로)·3차시(교사 결정 2026-10-30 — 앞 = 106쪽, 뒤 = 107쪽).
+ * (작업 173) 4차시(교사 결정 2026-10-30 — 앞 = 108~110쪽 철강·베트남·관세사, 뒤 = 111~113쪽 마무리 중심). 마무리 구성도 시간마다 다르다(`wrap`).
  *
  * - 규칙은 **차시 한 판 + 범위가 정확히 차시 하나 + 그 차시에 규칙이 있을 때**만 쓴다(`lessonPartRules`). 그 밖(단원 한 판·연속 구간·1·4차시)은 null.
  * - 빠지는 사건·학습지·편지는 배치 후보·은행에서 아예 뺀다(데이터 항목 자체는 지우지 않는다 — 단원 한 판이 그대로 쓴다).
  * - 확인 퀴즈(L2-E7)는 세 가지 모두 뺀다(수업 정리는 교사의 외부 퀴즈).
  */
-import type { GoodId, LessonId, PortId, WorksheetId } from './types';
+import { wrapupByUnit } from './schedule';
+import type { GoodId, LessonId, PortId, WorksheetId, WrapStep } from './types';
 
 export type LessonPart = 'all' | 'front' | 'back';
 
@@ -84,6 +86,23 @@ export interface LessonPartRule {
   titles?: Readonly<Record<string, string>>;
   /** (작업 172) 이 판 도감에 보이지 않는 카드(상품 'good:x'·개념 카드 ID) — 다른 시간 활동이 주는 카드 */
   hideDex?: readonly string[];
+  /**
+   * (작업 173) 마지막 라운드 앞으로 옮기는 구간 끝 활동(`customsBeforeLastRounds`와 함께). 없으면 2차시 세관 게시판(L2-E6).
+   * 4차시: 관세사 카드(L4-E4) — ⑮까지 쓰고 '마지막 항해'를 한다
+   */
+  midTailEvent?: string;
+  /**
+   * (작업 173 검증 반영) 무역 시간(분)이 이 값보다 짧으면 교사가 정하지 않은 한 짧은 형태로 고정(사건 ID → 분).
+   * 4차시 앞 시간·두 시간 모두: 1970년대 철강(L4-E1) 30분 — 회상 3단계를 먼저 빼고 베트남 기사·공장 결정을 전체 형태로(순서표 '시간이 모자랄 때 버리는 순서')
+   */
+  shortBelowMinutes?: Readonly<Record<string, number>>;
+  /** (작업 173) 옮기는 활동은 이 활동들이 붙은 라운드보다 뒤에(4차시: 근로 환경 보도 L4-E3 — ⑭가 보도 앞에 뜨지 않게) */
+  midTailAfter?: readonly string[];
+  /**
+   * (작업 173) 마무리 구성(null·없음 = `wrapupByUnit.lesson[차시]` 그대로). 4차시 앞 시간: 컨테이너 OX·잡지 표지 없이 되돌아보기 2문항(⑱ 없음),
+   * 뒤 시간: 4차시 마무리 전체(컨테이너 OX → 결산·시상 → 되돌아보기 3문항 → 잡지 표지)
+   */
+  wrap?: readonly WrapStep[] | null;
 }
 
 /** (작업 172) 이 판 도감에서 숨기는 카드 */
@@ -158,10 +177,30 @@ export const LESSON_PART_TEXT_L3: Record<LessonPart, LessonPartText> = {
   },
 };
 
+/** (작업 173) 4차시 판 설정 버튼 문구(화면에는 차시 번호 대신 교과서 쪽) */
+export const LESSON_PART_TEXT_L4: Record<LessonPart, LessonPartText> = {
+  front: {
+    title: '앞 시간 — 수입과 기업의 결정',
+    sub: '교과서 108~110쪽 · 1970년대 철강 투표, 베트남 공장 결정, 관세사 · 학습지 ⑬⑭⑮',
+    preview: '4차시 앞 시간: 수입과 기업의 결정 (교과서 108~110쪽)',
+  },
+  back: {
+    title: '뒤 시간 — 항해를 마치며',
+    sub: '교과서 111~113쪽 · 마지막 항해, 컨테이너 OX, 시상, 되돌아보기, 잡지 표지 · 학습지 ⑯⑰⑱',
+    preview: '4차시 뒤 시간: 항해를 마치며 (교과서 111~113쪽)',
+  },
+  all: {
+    title: '두 시간 내용 모두 한 판에',
+    sub: '교과서 108~113쪽 · 학습지 ⑬~⑱',
+    preview: '4차시 두 시간 모두 (교과서 108~113쪽)',
+  },
+};
+
 /** (작업 172) 차시별 판 설정 버튼 문구 */
 export const LESSON_PART_TEXTS: Readonly<Partial<Record<LessonId, Record<LessonPart, LessonPartText>>>> = {
   L2: LESSON_PART_TEXT,
   L3: LESSON_PART_TEXT_L3,
+  L4: LESSON_PART_TEXT_L4,
 };
 
 /** 차시의 판 설정 버튼 문구(규칙이 없는 차시면 2차시 문구 — 부르는 쪽이 `hasLessonParts`로 먼저 거른다) */
@@ -169,8 +208,8 @@ export function lessonPartText(lesson: LessonId | null | undefined, part: Lesson
   return (lesson ? LESSON_PART_TEXTS[lesson] : undefined)?.[part] ?? LESSON_PART_TEXT[part];
 }
 
-/** (작업 172) 나눠 고르기가 있는 차시(173이 L4를 더한다) */
-export const LESSON_PART_LESSONS: readonly LessonId[] = ['L2', 'L3'];
+/** (작업 172) 나눠 고르기가 있는 차시(작업 173이 L4를 더했다) */
+export const LESSON_PART_LESSONS: readonly LessonId[] = ['L2', 'L3', 'L4'];
 /** (옛 이름, 작업 154) 2차시 — 새 코드는 `LESSON_PART_LESSONS`·`hasLessonParts`를 쓴다 */
 export const LESSON_PART_LESSON: LessonId = 'L2';
 /** (옛 이름) 2차시 표지 사건 — 새 코드는 `LESSON_PART_COVER_EVENTS` */
@@ -334,7 +373,102 @@ const L3_RULES: Record<LessonPart, LessonPartRule> = {
   },
 };
 
-const RULES: Readonly<Partial<Record<LessonId, Record<LessonPart, LessonPartRule>>>> = { L2: L2_RULES, L3: L3_RULES };
+/** (작업 173) 4차시 고유 편지(모두 108~110쪽 — 뒤 시간 판은 공통 문항만, 2차시 선례) */
+export const L4_FRONT_LETTERS: readonly string[] = ['L4-01', 'L4-02', 'L4-03', 'L4-04', 'L4-05', 'L4-06'];
+/** (작업 173) 4차시 앞 시간 활동(108~110쪽) — 뒤 시간 판에서 뺀다 */
+export const L4_FRONT_EVENTS: readonly string[] = ['L4-E1', 'L4-E2', 'L4-E3', 'L4-E4'];
+/** (작업 173) 4차시 앞 시간 활동이 주는 도감 카드 — 뒤 시간 판 도감에서 숨긴다(관세 카드는 판매 관세로도 얻으므로 그대로) */
+export const L4_FRONT_DEX: readonly string[] = ['import-pros-cons', 'steel-1970', 'overseas-production', 'customs-broker'];
+
+const L4_WRAP = wrapupByUnit.lesson.L4;
+/** (작업 173) 4차시 앞 시간 마무리: 정산 → 결산·시상 → 되돌아보기 2문항(⑱ 없음) → 끝나고 쓰기 */
+const L4_FRONT_WRAP: readonly WrapStep[] = L4_WRAP.filter((s) => s.id !== 'containers' && s.id !== 'magazine').map((s) => (s.id === 'reflect' ? { ...s, questions: 2 } : s));
+
+/**
+ * (작업 173, 교사 결정 2026-10-30) 4차시 나눠 고르기.
+ * - 앞 시간(108~110쪽): 표지, 1970년대 철강 투표(L4-E1), 베트남 기사·공장 결정(L4-E2), 근로 환경 보도(L4-E3), 관세사(L4-E4), ⑬⑭⑮.
+ *   마무리는 결산·시상·되돌아보기 2문항만(컨테이너 OX·잡지 표지·⑯⑰⑱ 없음).
+ * - 뒤 시간(111~113쪽): 표지만 → '마지막 항해' 라운드(남은 화물 정리·자유 무역) → 4차시 마무리 전체.
+ * - 두 시간 모두: 앞 시간 활동 전부 + 4차시 마무리 전체(`wrapupByUnit.lesson.L4`).
+ * - 관세사 카드는 구간 끝 활동으로 돌려 '마지막 라운드 앞'에 둔다(보도 라운드 뒤) — ⑬⑭⑮를 다 쓰고 마지막 항해.
+ */
+const L4_RULES: Record<LessonPart, LessonPartRule> = {
+  front: {
+    part: 'front',
+    lesson: 'L4',
+    dropEvents: [],
+    dropWorksheets: ['W16', 'W17', 'W18'],
+    dropLetters: [],
+    startCargo: false,
+    hideRelay: false,
+    cover: {
+      title: 'L4. 수입과 기업의 결정',
+      body: '수입이 늘면 무엇이 좋고 무엇이 걱정될까요? 1970년대 부산으로 시간 여행을 떠나고, 베트남에 공장을 지을지도 결정해 봐요.',
+      teacherPrompts: ['우리나라가 수입 철강 제품에 높은 관세를 부과했던 까닭은 무엇일까요?'],
+      pages: '108~110',
+      question: '우리나라가 수입 철강 제품에 높은 관세를 부과했던 까닭은 무엇일까요?',
+    },
+    missionFirst: null,
+    optionalTag: true,
+    customsBeforeLastRounds: 1,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: { 'L4-E4': 'stageEnd' },
+    midTailEvent: 'L4-E4',
+    midTailAfter: ['L4-E3'],
+    shortBelowMinutes: { 'L4-E1': 30 },
+    wrap: L4_FRONT_WRAP,
+  },
+  back: {
+    part: 'back',
+    lesson: 'L4',
+    dropEvents: L4_FRONT_EVENTS,
+    dropWorksheets: ['W13', 'W14', 'W15'],
+    dropLetters: L4_FRONT_LETTERS,
+    startCargo: false,
+    hideRelay: false,
+    cover: {
+      title: 'L4. 항해를 마치며',
+      body: '마지막 항해예요. 남은 화물을 정리하며 자유롭게 무역해요. 항해가 끝나면 공부한 내용을 되돌아보고 우리 회사를 소개해요.',
+      teacherPrompts: ['무역을 하며 여러 나라는 서로 어떻게 기대고 겨뤘나요?'],
+      pages: '111~113',
+      question: '무역을 하며 세계 여러 나라는 어떤 관계를 맺었을까요?',
+    },
+    missionFirst: null,
+    optionalTag: true,
+    customsBeforeLastRounds: null,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: {},
+    hideDex: L4_FRONT_DEX,
+    wrap: L4_WRAP,
+  },
+  all: {
+    part: 'all',
+    lesson: 'L4',
+    dropEvents: [],
+    dropWorksheets: [],
+    dropLetters: [],
+    startCargo: false,
+    hideRelay: false,
+    cover: null,
+    missionFirst: null,
+    optionalTag: true,
+    customsBeforeLastRounds: 1,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: { 'L4-E4': 'stageEnd' },
+    midTailEvent: 'L4-E4',
+    midTailAfter: ['L4-E3'],
+    shortBelowMinutes: { 'L4-E1': 30 },
+    wrap: null,
+  },
+};
+
+const RULES: Readonly<Partial<Record<LessonId, Record<LessonPart, LessonPartRule>>>> = { L2: L2_RULES, L3: L3_RULES, L4: L4_RULES };
 
 /** (작업 172) 이 차시에 나눠 고르기가 있는가 */
 export function hasLessonParts(lesson: LessonId | null | undefined): boolean {

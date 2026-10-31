@@ -50,6 +50,8 @@ export interface StudentState {
   bootingSince: number | null;
   /** (작업 145) [새 방 코드로 들어가기]로 입장 화면에 옴 → 맨 위 안내. 입장 성공·코드 바뀜·다른 입장 시도 때 꺼짐 */
   newCodeHint: boolean;
+  /** (작업 173 검증 반영) 호스트가 마지막으로 되돌린 행동의 오류 코드와 시각(기기 시각) — 결정 카드에 안내 한 줄 */
+  lastRollback?: { error: string | null; at: number } | null;
 }
 
 export type StudentActResult = ActResult | 'blocked';
@@ -266,7 +268,12 @@ export function createStudentStore(o: StudentStoreOptions): StudentStore {
   };
 
   unsubs.push(session.subscribe(onPeer));
-  unsubs.push(session.onRollback((message) => toast(message, 'warn')));
+  unsubs.push(
+    session.onRollback((message, error) => {
+      toast(message, 'warn');
+      set({ lastRollback: { error, at: Date.now() } });
+    }),
+  );
   unsubs.push(
     session.onEvent((e) => {
       if (e.type === 'queueFull') toast(e.message, 'warn');

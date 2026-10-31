@@ -18,8 +18,10 @@ import { checkQuizFor } from '../../data/checkQuiz';
 import { eventsById } from '../../data/events';
 import { coverTextFor, dexHeldBack, lessonPartRulesOf, type LessonPartRule } from '../../data/lessonParts';
 import { MinigameLayer } from '../../minigames/MinigameLayer';
-import { AiGraph, CheckQuizCard, DecisionCard, EventCard, VoteCard, decisionModel, eventCardModel, linkPages, splitSentences, voteResultLine } from '../../ui/cards';
+import { AiGraph, CheckQuizCard, DecisionCard, EventCard, SteelCard, VoteCard, decisionModel, eventCardModel, linkPages, splitSentences, voteResultLine } from '../../ui/cards';
+import { STEEL_EVENT, steelStepAt } from '../../data/steel1970';
 import { ArticleRead, PhoneResultBody, PhoneTeamLine, phoneResultPages, techResultLine } from './L3Cards';
+import { VNErrorContext, VNFlow, VNReportBody, isReportTarget, fixable } from './L4Cards';
 import { Dex } from '../Dex';
 import { toggleAllowed } from '../guard';
 import { LayerFrame } from '../layer';
@@ -43,7 +45,7 @@ export function EventLayer({ store, st }: EventLayerProps) {
   const me = st.peer.me;
   const cls = st.peer.public?.class ?? null;
   if (!me || !cls) return null;
-  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} board={st.peer.public?.public?.customsBoard ?? null} pub={st.peer.public?.public ?? null} />;
+  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} board={st.peer.public?.public?.customsBoard ?? null} pub={st.peer.public?.public ?? null} rollback={st.lastRollback ?? null} />;
 }
 
 const WAIT_TEXT = '선생님이 다음으로 넘어갈 때까지 기다려요';
@@ -62,7 +64,7 @@ function decisionChoice(me: MeView, id: string): { choice: string | null; noResp
   return { choice: typeof r.choice === 'string' ? r.choice : null, noResponse: r.noResponse === true };
 }
 
-function EventLayerInner({ store, me, cls, pid, code, board, pub }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null; board: PublicState['customsBoard']; pub: PublicState | null }) {
+function EventLayerInner({ store, me, cls, pid, code, board, pub, rollback }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null; board: PublicState['customsBoard']; pub: PublicState | null; rollback?: { error: string | null; at: number } | null }) {
   const [queue, setQueue] = useState<CatchUpItem[]>([]);
   const [queueTotal, setQueueTotal] = useState(0);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -128,7 +130,13 @@ function EventLayerInner({ store, me, cls, pid, code, board, pub }: { store: Stu
     const r = store.act(action);
     return r === 'sent' || r === 'queued';
   };
-  const respond = (id: string, response: Record<string, unknown>) => send({ type: 'respondEvent', eventId: id, response: response as never });
+  // (작업 173 검증 반영) 공장 결정·보도 고치기를 보낸 뒤 호스트가 되돌리면(돈이 모자람 등) 그 카드에 안내 한 줄(20초 동안)
+  const vnSentAt = useRef(0);
+  const respond = (id: string, response: Record<string, unknown>) => {
+    if (id === 'L4-E2' || id === 'L4-E3') vnSentAt.current = Date.now();
+    return send({ type: 'respondEvent', eventId: id, response: response as never });
+  };
+  const vnErr = rollback && vnSentAt.current > 0 && rollback.at >= vnSentAt.current && Date.now() - rollback.at < 20_000 ? rollback.error ?? 'REJECTED' : null;
   const dismiss = (id: string) => setDismissed((d) => new Set(d).add(id));
   const popQueue = () => setQueue((q) => q.slice(1));
 
@@ -210,6 +218,8 @@ function EventLayerInner({ store, me, cls, pid, code, board, pub }: { store: Stu
         <LayerFrame name="event">
           <div class="ev-center ev-center--scroll">
             <VoteCard def={result.def} voted={typeof r?.vote === 'string' ? r.vote : null} result={voteResultLine(result.def, cls.votes[result.id]?.result) ?? '투표를 마감했어요. TV에서 결과를 봐요.'}>
+              {/* (작업 173) 1970년대 철강: 단계 없이 마감했으면 결과 아래 실제 사례 카드 */}
+              {result.id === STEEL_EVENT && <SteelCard step="real" result={cls.votes[result.id]?.result ?? null} />}
               <div class="vc__foot">
                 <button type="button" class="btn btn--secondary" data-testid="event-result-close" onClick={() => dismiss('result:' + result.id)}>
                   닫기
@@ -265,12 +275,12 @@ function EventLayerInner({ store, me, cls, pid, code, board, pub }: { store: Stu
   }
 
   return (
-    <>
+    <VNErrorContext.Provider value={vnErr}>
       <Tutorial me={me} cls={cls} pid={pid} code={code} />
       {panel}
       {modal}
       {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} fairTrade={cls.settings.fairTrade !== false} hide={dexHeldBack(lessonPartRulesOf(cls.settings))} onClose={() => setDexOpen(false)} />}
-    </>
+    </VNErrorContext.Provider>
   );
 }
 
@@ -355,6 +365,21 @@ function LiveBlocking({
   if (live.shape === 'vote') {
     // (작업 172) 투표 공통 카드: 질문·두 버튼 → "투표했어요 · 결과를 기다려요"
     const r = me.game.responses[live.id] as Record<string, unknown> | undefined;
+    // (작업 173) 1970년대 철강: 투표 뒤 단계(결과 → 회상 → 실제 사례)는 TV와 같은 장면 — 넘김은 선생님
+    const step = cls.currentEvent?.id === live.id ? (cls.currentEvent.step ?? 0) : 0;
+    if (live.id === STEEL_EVENT && step >= 1) {
+      return (
+        <LayerFrame name="event">
+          <div class="ev-center ev-center--scroll">
+            <SteelCard step={steelStepAt(live.short, step)} result={cls.votes[live.id]?.result ?? null} myVote={typeof r?.vote === 'string' ? r.vote : null}>
+              <div class="ev-inline-wait" data-testid="event-waiting">
+                <span>TV 화면을 함께 봐요. 선생님이 다음으로 넘기면 이어서 봐요.</span>
+              </div>
+            </SteelCard>
+          </div>
+        </LayerFrame>
+      );
+    }
     return (
       <LayerFrame name="event">
         <div class="ev-center ev-center--scroll">
@@ -394,6 +419,23 @@ function LiveBlocking({
               </div>
             )}
           </DecisionCard>
+        </div>
+      </LayerFrame>
+    );
+  }
+  // (작업 173) 호찌민 공장 결정(전체 형태): 기사 밑줄 → 결정 3단계 → 정산 한 줄 + 기다리기
+  if (def.id === 'L4-E2') {
+    return (
+      <LayerFrame name="event">
+        <div class="ev-center ev-center--scroll" data-testid="vn-flow" data-event={live.id}>
+          <VNFlow key={live.id} me={me} free={cls.settings.voyageMode === 'free'} onDecide={(d) => respond(live.id, { ...d })}>
+            <div class="ev-inline-wait" data-testid="event-waiting">
+              <span>{WAIT_TEXT}</span>
+              <button type="button" class="btn btn--secondary" data-testid="event-dex" onClick={onDex}>
+                도감 보기
+              </button>
+            </div>
+          </VNFlow>
         </div>
       </LayerFrame>
     );
@@ -518,7 +560,9 @@ function LivePanel({
 }) {
   const { def } = live;
   const done = hasDone(me, live.id);
-  if (live.shape === 'card' && done) return null;
+  // (작업 173) 4차시 공장 결정 패널(짧은 형태)·근로 환경 보도는 응답 뒤에도 패널을 둔다(결과·고치기)
+  const l4 = live.id === 'L4-E2' || live.id === 'L4-E3';
+  if (live.shape === 'card' && done && !l4) return null;
   if (folded) {
     return (
       <div class="ev-panel ev-panel--folded" data-testid="event-panel-folded" data-event={live.id} style={{ zIndex: 55 }}>
@@ -533,6 +577,54 @@ function LivePanel({
       접기
     </button>
   );
+  if (live.id === 'L4-E2') {
+    return (
+      <aside class="ev-panel ev-panel--vn" aria-label={def.title} data-testid="event-panel" data-event={live.id} style={{ zIndex: 55 }}>
+        {fold}
+        <VNFlow key={live.id} me={me} free={cls.settings.voyageMode === 'free'} panel onDecide={(d) => respond(live.id, { ...d })}>
+          <p class="ev-panel__note">공장 수익은 바로 자금에 들어왔어요. 계속 사고팔아요.</p>
+          <div class="vc__foot">
+            <button type="button" class="btn btn--secondary" data-testid="event-panel-close" onClick={() => dismiss(live.id)}>
+              닫기
+            </button>
+          </div>
+        </VNFlow>
+      </aside>
+    );
+  }
+  if (live.id === 'L4-E3') {
+    // 보도 대상: 우리 회사 보도 + 고치기(고칠 것만). [나중에 고치기]는 접기(이번 라운드 동안 다시 펼칠 수 있음). 대상이 아니면 '다른 회사 공장 이야기'
+    const target = isReportTarget(me);
+    const left = fixable(me);
+    return (
+      <aside class="ev-panel ev-panel--vn" aria-label={def.title} data-testid="event-panel" data-event={live.id} data-target={target ? '1' : '0'} style={{ zIndex: 55 }}>
+        {fold}
+        <article class="vc vc--student vc--news vc--panel" data-testid="vn-report-card">
+          <div class="vc__band vc__band--news" data-testid="card-band" data-band="news">
+            <span class="vc__band-text">가상 뉴스</span>
+            <span class="vc__band-pages">{linkPages(def.pages)}</span>
+          </div>
+          <div class="vc__text">
+            <h2 class="vc__title" data-testid="card-title">
+              {def.title}
+            </h2>
+            <VNReportBody me={me} free={cls.settings.voyageMode === 'free'} onImprove={(w) => respond(live.id, { improve: w })} />
+            <div class="vc__foot">
+              {target && left.length > 0 ? (
+                <button type="button" class="btn btn--secondary" data-testid="vn-report-later" onClick={() => setFolded(true)}>
+                  나중에 고치기
+                </button>
+              ) : (
+                <button type="button" class="btn btn--primary" data-testid="card-confirm" onClick={() => dismiss(live.id)}>
+                  확인
+                </button>
+              )}
+            </div>
+          </div>
+        </article>
+      </aside>
+    );
+  }
   if (live.shape === 'decision') {
     const { choice, noResponse } = decisionChoice(me, live.id);
     return (
@@ -751,6 +843,27 @@ function CatchUp({
           <section class="ev-catchup" data-testid="catchup" data-mode={item.mode} data-event={id}>
             {kicker}
             <MinigameLayer eventId={id} classState={cls} player={me} act={(a) => store.act(a)} onDone={onNext} catchUp />
+          </section>
+        </div>
+      </LayerFrame>
+    );
+  }
+  if (id === 'L4-E2') {
+    // (작업 173) 늦게 온 학생도 공장 결정을 직접 한다(기사 밑줄 → 3단계)
+    return (
+      <LayerFrame name="event">
+        <div class="ev-center ev-center--scroll">
+          <section class="ev-catchup" data-testid="catchup" data-mode={item.mode} data-event={id}>
+            {kicker}
+            <VNFlow key={id} me={me} free={cls.settings.voyageMode === 'free'} onDecide={(d) => respond(id, { ...d })}>
+              {/* (검증 반영) 보도가 이미 나온 뒤 낮은 임금·미설치를 고르면 그 자리에서 보도 + 고치기 */}
+              {cls.firedEvents.includes('L4-E3') && isReportTarget(me) && <VNReportBody me={me} free={cls.settings.voyageMode === 'free'} onImprove={(w) => respond('L4-E3', { improve: w })} />}
+              <div class="vc__foot">
+                <button type="button" class="btn btn--primary" data-testid="catchup-next" onClick={onNext}>
+                  {index < total ? '다음' : '닫기'}
+                </button>
+              </div>
+            </VNFlow>
           </section>
         </div>
       </LayerFrame>

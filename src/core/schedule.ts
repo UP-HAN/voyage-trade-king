@@ -67,6 +67,9 @@ export const RAISE_WARNING = '이번 판은 활동이 많아 거래 시간이 �
 /** 결과가 같이 움직이는 활동(학급 스마트폰 프로젝트: 시작 L3-E2 는 결과 L3-E5 를 따른다) */
 export const LINKED_EVENTS: Readonly<Record<string, string>> = { 'L3-E2': 'L3-E5' };
 
+/** (작업 173) [뒤 활동, 앞 활동]: 같은 라운드에 붙으면 뒤 활동을 라운드 중간으로(차시 한 판만) */
+const MID_IF_SAME_ROUND: readonly (readonly [string, string])[] = [['L4-E3', 'L4-E2']];
+
 const LESSON_ORDER: Readonly<Record<LessonId, number>> = { L1: 0, L2: 1, L3: 2, L4: 3 };
 
 // ─── 타입 ─────────────────────────────────────────────────
@@ -403,8 +406,11 @@ interface StageParams {
    * (작업 165, PRD 4.1.1) 구간 끝 차단형 활동 `id`를 '뒤에 라운드 `keep`개를 남기고' 그 앞에 둔다.
    * '활동마다 바로'이고 그 활동 뒤 학습지가 남아 있을 때만. 없으면 지금처럼 구간 끝
    */
-  midTail?: { id: string; keep: number };
-  /** (작업 168) 고정 라운드 바꾸기(사건 ID → 'round:N', 2차시 뒤 시간 L2-E4 = 라운드 3) */
+  midTail?: { id: string; keep: number; after?: readonly string[] };
+  /**
+   * (작업 168) 고정 라운드 바꾸기(사건 ID → 'round:N', 2차시 뒤 시간 L2-E4 = 라운드 3).
+   * (작업 173) 'stageEnd'도 받는다 — 4차시 관세사 카드(L4-E4)를 구간 끝 활동으로 돌려 midTail(마지막 항해 앞)로 옮긴다
+   */
   anchorOverride?: Readonly<Record<string, string>>;
   /** (작업 172) 교사가 정하지 않았으면 늘 짧은 형태로 넣는 활동(3차시 경쟁 세 가지 카드 L3-E6 등) */
   forceShort?: readonly string[];
@@ -790,24 +796,13 @@ function planStage(p: StageParams): StagePlan {
   for (const c of cands) if (c.form === 'dropped') items.push(evItem(c, p.startSec, 0));
 
   const live = cands.filter((c) => c.form !== 'dropped');
-  const flow = live.filter((c) => c.def.anchor === 'afterPrev');
-  const tail = live.filter((c) => c.def.anchor === 'stageEnd' && blockingIn(c.def, c.form));
-  const anchored = live.filter((c) => c.def.anchor.startsWith('round:') || (c.def.anchor === 'stageEnd' && !blockingIn(c.def, c.form)));
+  // (작업 173) 나눠 고르기 규칙이 'stageEnd'로 바꾼 활동(4차시 관세사 카드)은 구간 끝 활동으로 센다. 'round:N' 바꾸기는 예전처럼 아래 anchored에서
+  const anchorOf = (c: Cand): string => (p.anchorOverride?.[c.id] === 'stageEnd' ? 'stageEnd' : c.def.anchor);
+  const flow = live.filter((c) => anchorOf(c) === 'afterPrev');
+  const tail = live.filter((c) => anchorOf(c) === 'stageEnd' && blockingIn(c.def, c.form));
+  const anchored = live.filter((c) => anchorOf(c).startsWith('round:') || (anchorOf(c) === 'stageEnd' && !blockingIn(c.def, c.form)));
   const blockingFlow = flow.filter((c) => blockingIn(c.def, c.form));
   const k2 = roundSecs.length;
-  // (작업 165) 구간 끝 활동 하나를 마지막 라운드 keep개 앞으로(라운드 1개 이하면 그대로 구간 끝)
-  let midTail: Cand | null = null;
-  let midTailBefore = 0;
-  if (p.midTail && wsMode === 'each') {
-    const { id, keep } = p.midTail;
-    const c = tail.find((x) => x.id === id);
-    const j = Math.max(2, k2 - keep + 1);
-    if (c && j <= k2 && p.pendingWs.some((w) => worksheetById[w].afterEvent === id)) {
-      midTail = c;
-      midTailBefore = j;
-      tail.splice(tail.indexOf(c), 1);
-    }
-  }
   const counts = distribute(blockingFlow.length, k2);
   const slotOf = new Map<string, number>();
   /** 비차단 활동이 붙는 라운드(구간 안 새 라운드 번호 1..k) + 라운드 중간 여부 */
@@ -848,6 +843,29 @@ function planStage(p: StageParams): StagePlan {
         if (idx > k2) idx = k2;
       }
       attach.set(c.id, { idx: Math.max(0, idx), mid });
+    }
+  }
+  // (작업 173) 차시 한 판: 근로 환경 보도(L4-E3)가 공장 결정 패널(L4-E2 짧게)과 같은 라운드에 붙으면(라운드 1개 판) 라운드 중간에 —
+  // 같은 순간 열리면 보도가 결정 패널을 바로 닫는다(단원 한 판 배치는 그대로)
+  if (p.noDuring) {
+    for (const [late, early] of MID_IF_SAME_ROUND) {
+      const a = attach.get(late);
+      const b = attach.get(early);
+      if (a && b && a.idx === b.idx && !b.mid) a.mid = true;
+    }
+  }
+  // (작업 165) 구간 끝 활동 하나를 마지막 라운드 keep개 앞으로(라운드 1개 이하면 그대로 구간 끝).
+  // (작업 173) after: 이 활동들이 붙은 라운드보다 뒤에만(4차시 관세사 카드는 근로 환경 보도 라운드 뒤 — ⑭가 보도 앞에 뜨지 않게)
+  let midTail: Cand | null = null;
+  let midTailBefore = 0;
+  if (p.midTail && wsMode === 'each') {
+    const { id, keep, after = [] } = p.midTail;
+    const c = tail.find((x) => x.id === id);
+    const j = Math.max(2, k2 - keep + 1, ...after.map((x) => (attach.get(x)?.idx ?? 0) + 1));
+    if (c && j <= k2 && p.pendingWs.some((w) => worksheetById[w].afterEvent === id)) {
+      midTail = c;
+      midTailBefore = j;
+      tail.splice(tail.indexOf(c), 1);
     }
   }
   const followerForm = (lead: string): ItemForm => byId.get(lead)?.form ?? 'dropped';
@@ -1061,10 +1079,13 @@ function placeLetters(
 // ─── 마무리 ───────────────────────────────────────────────
 
 /** 마무리 항목(PRD 4.1.1, 4.2.1). afterWs = 끝나고 쓰기 번호 */
-export function buildWrapup(playUnit: PlayUnit, scope: readonly LessonId[], afterWs: readonly WorksheetId[]): WrapItem[] {
+export function buildWrapup(playUnit: PlayUnit, scope: readonly LessonId[], afterWs: readonly WorksheetId[], rule?: LessonPartRule | null): WrapItem[] {
   const hasL4 = scope.includes('L4');
   let steps: readonly WrapStep[];
-  if (playUnit === 'lesson') steps = wrapupByUnit.lesson[scope[0]];
+  // (작업 173) 4차시 나눠 고르기: 앞 시간은 컨테이너 OX·잡지 표지·⑱ 없이(되돌아보기 2문항), 뒤 시간은 4차시 마무리 전체
+  const ruleWrap = playUnit === 'lesson' && rule?.wrap ? rule.wrap : null;
+  if (ruleWrap) steps = ruleWrap;
+  else if (playUnit === 'lesson') steps = wrapupByUnit.lesson[scope[0]];
   else if (playUnit === 'unit' || hasL4) steps = wrapupByUnit.unit;
   else steps = wrapupByUnit.lesson.L1; // 연속 구간(L4 없음): 차시 판 L1~L3 구성(되돌아보기 축약)
   return steps.map((s): WrapItem => {
@@ -1075,14 +1096,15 @@ export function buildWrapup(playUnit: PlayUnit, scope: readonly LessonId[], afte
       worksheetIds.push('W16');
       minutes += worksheetById.W16.minutes;
     }
-    if (s.id === 'reflect' && hasL4) worksheetIds.push('W18');
+    const reflectN = ruleWrap ? (s.questions ?? 2) : hasL4 ? 3 : 2;
+    if (s.id === 'reflect' && reflectN === 3) worksheetIds.push('W18');
     if (s.id === 'magazine') worksheetIds.push('W17');
     if (s.id === 'afterWorksheet') worksheetIds.push(...afterWs);
     const item: WrapItem = { id: s.id, label: s.label, minutes, worksheetIds };
     if (s.eventId) item.eventId = s.eventId;
     if (s.optional) item.optional = true;
     if (s.id === 'awards') item.hideFlatMetrics = playUnit === 'lesson';
-    if (s.id === 'reflect') item.questions = hasL4 ? 3 : 2;
+    if (s.id === 'reflect') item.questions = reflectN;
     return item;
   });
 }
@@ -1136,11 +1158,15 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
   let nextRound = firstRound;
   const lessonGame = input.playUnit === 'lesson';
   const keep = lessonPartRuleOf(input)?.customsBeforeLastRounds ?? null;
-  const midTail = keep !== null ? { id: CUSTOMS_BOARD_EVENT, keep } : undefined;
+  // (작업 173) 옮길 활동은 규칙이 정한다(없으면 2차시 세관 게시판). 4차시: 관세사 카드를 마지막 항해 앞, 보도 라운드 뒤로
+  const midRule = lessonPartRuleOf(input);
+  const midTail = keep !== null ? { id: midRule?.midTailEvent ?? CUSTOMS_BOARD_EVENT, keep, ...(midRule?.midTailAfter?.length ? { after: midRule.midTailAfter } : {}) } : undefined;
   const anchorOverride = lessonPartRuleOf(input)?.anchorOverride;
   const hasOverride = !!anchorOverride && Object.keys(anchorOverride).length > 0;
   // (작업 172) 3차시: 경쟁 세 가지 카드 늘 짧게, 뒤 시간 경제 게이지는 라운드 수와 상관없이
-  const forceShort = lessonPartRuleOf(input)?.forceShort ?? [];
+  // (작업 173 검증 반영) 무역 시간이 짧으면 짧게 고정하는 활동(4차시: 30분 미만이면 철강 회상 3단계를 빼고 베트남 결정을 먼저 넓힌다 — 순서표 '버리는 순서')
+  const shortBelow = Object.entries(lessonPartRuleOf(input)?.shortBelowMinutes ?? {}).filter(([, m]) => input.tradeMinutes < m).map(([id]) => id);
+  const forceShort = [...(lessonPartRuleOf(input)?.forceShort ?? []), ...shortBelow];
   const needsRoundsOverride = lessonPartRuleOf(input)?.needsRoundsOverride;
   const titles = lessonPartRuleOf(input)?.titles;
   for (const s of specs) {
@@ -1265,7 +1291,7 @@ export function buildSchedule(raw: ScheduleInput): Schedule {
   for (const placer of placers) items.push(...placer({ input, rounds: plan.rounds, items, incidentCount, totalRounds }));
   items = sortItems(items);
   const where: Partial<Record<WorksheetId, WorksheetWhere>> = { ...plan.where };
-  const wrapup = buildWrapup(input.playUnit, input.scope, plan.afterWs);
+  const wrapup = buildWrapup(input.playUnit, input.scope, plan.afterWs, part);
   for (const w of wrapup) for (const id of w.worksheetIds) if (!where[id]) where[id] = 'wrap';
   const activities = activitiesOf(plan.cands, scheduleDropOf(part), part?.titles);
   return {
@@ -1529,7 +1555,7 @@ export function reschedule(
   const placedWs = new Set<string>();
   for (const it of out) if (it.kind === 'worksheet' && it.status !== 'skipped' && it.placement !== 'during') (it.refIds ?? [it.refId]).forEach((w) => placedWs.add(w));
   const afterWs = input.worksheetMode === 'off' ? [] : scope.flatMap((st) => tradeWorksheets(st, part?.dropWorksheets)).filter((w) => !placedWs.has(w) && !shownSkipped(items, w));
-  const wrapup = buildWrapup(playUnit, scope, afterWs);
+  const wrapup = buildWrapup(playUnit, scope, afterWs, part);
   const stageModes = { ...(schedule.stageModes ?? {}), ...plan.stageModes };
   return {
     schedule: {

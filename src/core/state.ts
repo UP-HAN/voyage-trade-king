@@ -501,6 +501,8 @@ export function normalizeClass(raw: unknown, meta?: Pick<SessionMeta, 'playUnit'
           short: bool(ce.short, false),
           ...(ce.revealed === true ? { revealed: true } : {}),
           ...(typeof ce.resultUntil === 'number' && Number.isFinite(ce.resultUntil) ? { resultUntil: ce.resultUntil } : {}),
+          ...(typeof ce.step === 'number' && Number.isInteger(ce.step) && ce.step >= 0 ? { step: ce.step } : {}),
+          ...(typeof ce.stepAt === 'number' && Number.isFinite(ce.stepAt) ? { stepAt: ce.stepAt } : {}),
         }
       : null,
     worksheet: {

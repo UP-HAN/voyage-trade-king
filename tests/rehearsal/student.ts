@@ -31,6 +31,10 @@ export interface StudentProbe {
   article: boolean;
   /** (작업 172) 투표 공통 카드 버튼 */
   vote: boolean;
+  /** (작업 173) 호찌민 공장 결정 3단계 카드의 고르기 버튼·[이대로 정해요] */
+  vn: boolean;
+  /** (작업 173) 근로 환경 보도 [임금 올리기]·[환경 설비 설치] 버튼(눌림) */
+  vnFix: boolean;
   quiz: boolean;
   worksheet: boolean;
   worksheetDuring: boolean;
@@ -155,6 +159,8 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
         quiz: Boolean([...document.querySelectorAll('[data-testid="quiz-q"]')].find((e) => vis(e) && !e.getAttribute('data-result'))),
         article: v('article-done'),
         vote: Boolean([...document.querySelectorAll('[data-testid="vote-card"] button[data-testid^="vote-"]')].find((e) => vis(e) && !(e as HTMLButtonElement).disabled)),
+        vn: Boolean([...document.querySelectorAll('[data-testid="vn-card"] button[data-testid^="vn-build-"],[data-testid="vn-card"] button[data-testid^="vn-wage-"],[data-testid="vn-card"] button[data-testid^="vn-env-"],[data-testid="vn-submit"]')].find((e) => vis(e) && !(e as HTMLButtonElement).disabled)),
+        vnFix: Boolean([...document.querySelectorAll('button[data-testid^="vn-fix-"]')].find((e) => vis(e) && !(e as HTMLButtonElement).disabled)),
         worksheet: vis(ws),
         worksheetDuring: ws?.getAttribute('data-during') === '1',
         worksheetDone: v('worksheet-done'),
@@ -194,7 +200,7 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
 /** 지금 학생이 '할 일'이 화면에 떠 있는가(활동·카드·팝업·편지·따라잡기) */
 export function hasTask(pr: StudentProbe): boolean {
   // 편지는 아이콘이 실제로 눌릴 때만 할 일(수정 1)
-  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.article || pr.vote || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable));
+  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.article || pr.vote || pr.vn || pr.vnFix || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable));
 }
 
 /** 라운드 중 거래·출항에 쓸 수 있는 조작이 '보이고 실제로 눌리는가'(수정 1: 투명 층·남은 층·pointer-events:none이 덮으면 아님). readyNote = 이미 출항 준비함 */
@@ -388,6 +394,35 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
       if (n > 0) {
         await clickLoc('vote', btns.nth(Math.floor(o.rand() * n)));
         return 'vote';
+      }
+    }
+    // (작업 173) 호찌민 공장 결정: 단계마다 하나씩 고르고 [이대로 정해요]
+    if (pr.vn) {
+      if (later('vn', 20_000)) return null;
+      const submit = p.locator('[data-testid="vn-submit"]:visible');
+      if ((await submit.count()) > 0 && (await submit.first().isEnabled().catch(() => false))) {
+        await clickLoc('vn-submit', submit.first());
+        return 'vn-submit';
+      }
+      const opts = p.locator('[data-testid="vn-card"] button[data-testid^="vn-build-"]:visible, [data-testid="vn-card"] button[data-testid^="vn-wage-"]:visible, [data-testid="vn-card"] button[data-testid^="vn-env-"]:visible');
+      const n = await opts.count();
+      if (n > 0) {
+        await clickLoc('vn-opt', opts.nth(Math.floor(o.rand() * n)));
+        return 'vn-opt';
+      }
+      // 돈이 모자라 [이대로 정해요]가 막혔으면 앞으로 돌아가 다시 고른다
+      if (await p.getByTestId('vn-back').isVisible().catch(() => false)) {
+        await click('vn-back');
+        return 'vn-back';
+      }
+    }
+    // (작업 173) 근로 환경 보도: 고칠 수 있는 것 하나(돈이 되면)
+    if (pr.vnFix && o.rand() < 0.6) {
+      if (later('vnfix', 20_000)) return null;
+      const fix = p.locator('button[data-testid^="vn-fix-"]:visible');
+      if ((await fix.count()) > 0) {
+        await clickLoc('vn-fix', fix.first());
+        return 'vn-fix';
       }
     }
     if (pr.decision) {

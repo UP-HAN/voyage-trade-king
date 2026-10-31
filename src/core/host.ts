@@ -109,7 +109,8 @@ function applySideEffects(w: Work, side: readonly SideEffect[]): void {
       // (작업 172) 학급 스마트폰 프로젝트 시작: 지금 들어온 학생을 출석번호 순으로 부품 팀에 배정(임무는 위에서 시작)
       if (s.id === PHONE_EVENT_START) w.snap = startPhoneProject(w.snap);
     }
-    if (s.type === 'eventClosed') {
+    // (작업 173) L4-E1 투표를 끝내고 결과 단계로: 집계·관세 효과는 마감 때와 같은 처리(마감 때 다시 불러도 결과가 같다)
+    if (s.type === 'eventClosed' || s.type === 'eventTallied') {
       const r = closeEventForAll(w.snap.class, w.snap.players, s.id);
       w.snap = { ...w.snap, class: r.class, players: r.players };
       for (const [key, evs] of Object.entries(r.events)) addEvents(w, key, evs);

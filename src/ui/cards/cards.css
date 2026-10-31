@@ -577,3 +577,22 @@ button.vc__q-choice {
 .vc__sentence.is-target { outline: 2px dashed rgba(200, 120, 20, 0.7); outline-offset: 2px; }
 .vc__article-help { margin: 8px 0; font-size: 0.95em; }
 .vc__targets { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; }
+
+/* ─── (작업 173) 1970년대 철강 회상 카드(세피아 틀) ─── */
+.vc__art--sepia {
+  background:
+    radial-gradient(circle at 40% 30%, rgba(255, 240, 210, 0.5), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(110, 80, 40, 0.12) 0 2px, transparent 2px 9px),
+    #c9ab7c;
+}
+.vc__art--sepia .vc__art-img { filter: sepia(0.55) contrast(0.95); }
+.vc--steel { background: #f3e6cc; }
+.vc__steel-steps { margin: 6px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.vc__steel-step { padding: 8px 12px; border-radius: 8px; border: 2px solid rgba(110, 80, 40, 0.35); background: rgba(255, 250, 238, 0.8); }
+.vc__steel-step.is-now { border-color: #7a5a2a; font-weight: 700; }
+.vc__steel-step.is-later { opacity: 0.5; }
+.vc__steel-step.is-up.is-now { background: #e3efe2; }
+.vc__steel-step.is-down.is-now { background: #f4e2d8; }
+.vc__steel-why { font-size: 0.92em; opacity: 0.85; }
+.vc__steel-term { margin: 8px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff8e6; border: 2px solid var(--brass); font-weight: 700; }
+.vc__steel-compare { margin: 8px 0 0; }

@@ -18,6 +18,7 @@ import { LeaderboardScene } from './LeaderboardScene';
 import { MapScene } from './MapScene';
 import { MinigameResultScene, minigameResultPicker } from './MinigameResultScene';
 import { PhoneScene, phonePicker } from './PhoneScene';
+import { SteelScene, steelPicker } from './SteelScene';
 import { AwardsScene, BlackScene, EndedScene, PauseScene, RulesScene } from './MiscScenes';
 import type { SceneProps } from './types';
 import { AfterWorksheetScene, pickAfterWorksheetScene, WorksheetScene } from './WorksheetScene';
@@ -76,3 +77,7 @@ addScenePicker(customsPicker);
 // (작업 172) L3-E5 우리 반 스마트폰 결과 + 경제 게이지: 열려 있는 동안 사건 카드 대신 부품 막대·게이지
 SCENES.phone = PhoneScene;
 addScenePicker(phonePicker);
+
+// (작업 173) L4-E1 1970년대 철강: 투표 뒤 단계(결과 막대 → 회상 3단계 → 실제 사례 카드)
+SCENES.steel = SteelScene;
+addScenePicker(steelPicker);

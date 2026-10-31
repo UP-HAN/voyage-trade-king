@@ -177,7 +177,8 @@ const EXPECTED: [string, ScheduleInput, Partial<Record<LessonId, StageExp>>][] =
     L3: { forms: { 'L3-E1': 's', 'L3-E3': 'F', 'L3-E2': 's', 'L3-E5': 's', 'L3-E4': 'F', 'L3-E6': 's' }, ws: 'each', during: [], used: 900, rounds: 3, len: [186, 187] },
   }],
   ['차시 L4 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, {
-    L4: { forms: { 'L4-E1': 'F', 'L4-E2': 's', 'L4-E4': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
+    // (작업 173 검증 반영) 무역 30분 미만 4차시: 철강 회상을 빼고(짧게) 베트남을 전체 형태로
+    L4: { forms: { 'L4-E1': 's', 'L4-E2': 'F', 'L4-E4': 'F' }, ws: 'each', during: [], used: 810, rounds: 4, len: [162, 163] },
   }],
 ];
 /** PRD 4.3.6 판 전체 표(v0.3.4) */
@@ -720,7 +721,9 @@ describe('세관 게시판·⑤를 마지막 라운드 2개 앞으로(v0.3.10, �
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 40 }, '4819425a'],
     // (작업 172) 차시 한 판 3차시는 나눠 고르기 규칙(기본 '두 시간 모두' — L3-E6 카드만 늘 짧게)을 탄다: 2fe5b8c0 → ad9db268
     [{ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, 'ad9db268'],
-    [{ playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, '957f1a24'],
+    // (작업 173) 차시 한 판 4차시는 나눠 고르기 규칙(기본 '두 시간 모두' — 관세사 카드를 마지막 항해 앞, 보도 라운드 뒤)을 탄다: 957f1a24 → daa08198
+    // (작업 173 검증 반영) 무역 30분 미만은 철강 짧게·베트남 전체: daa08198 → 67c3e6ac
+    [{ playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, '67c3e6ac'],
     [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 25 }, 'd6be36b7'],
     [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 40 }, 'c5490fee'],
     [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 80 }, 'db9c6093'],

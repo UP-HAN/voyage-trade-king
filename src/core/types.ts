@@ -141,6 +141,16 @@ export interface ScheduleState {
   roundSecAuto?: boolean;
 }
 
+/** (작업 173) 호찌민 공장 결정 분포(이름 없음) */
+export interface VNFactoryCounts {
+  built: number;
+  notBuilt: number;
+  fair: number;
+  low: number;
+  install: number;
+  skip: number;
+}
+
 export interface CurrentEvent {
   id: string;
   openedAt: number;
@@ -152,6 +162,13 @@ export interface CurrentEvent {
   revealed?: boolean;
   /** (작업 111) 결과가 있는 사건(확인 퀴즈·결정·투표)을 마감한 뒤 결과를 보여 주는 끝 시각(서버 시각 ms). 이때까지 공용 화면·학생 화면에 결과 */
   resultUntil?: number;
+  /**
+   * (작업 173) 투표 뒤 단계가 있는 학급 활동(L4-E1 1970년대 철강: 투표 → 결과 → 회상 3단계 → 실제 사례)의 지금 단계 번호(0 = 투표 중).
+   * 단계 이름은 data/steel1970.ts `steelStepAt`. 1 이상이면 이미 집계했다(투표 받지 않음, 마감 때 결과 시간을 다시 두지 않음)
+   */
+  step?: number;
+  /** (작업 173) 지금 단계를 시작한 서버 시각(ms) — '저절로' 진행에서 다음 단계로 넘길 때 */
+  stepAt?: number;
 }
 
 /** 학습지 배치 방식(교사 설정 'auto'는 스케줄러가 구간마다 정한 실제 방식으로 바꿔 둔다) */
@@ -681,6 +698,10 @@ export interface PublicState {
   phone?: PublicPhone;
   /** (작업 172) 경제 게이지: 3차시 학급 [수출] 판매액 ÷ 회사 수(만 원)와 칸 수(0~4). 범위에 3차시가 있고 게이지가 있는 판만 */
   econGauge?: { avg: number; step: number };
+  /**
+   * (작업 173) 호찌민 공장 결정(L4-E2) 학급 분포 — 수만(누가 낮은 임금·미설치를 골랐는지는 없음). L4-E2가 발동한 판에만
+   */
+  vnFactory?: VNFactoryCounts;
 }
 
 /** (작업 172) 공개 스마트폰 프로젝트(출석번호·개인 자금 없음 — 회사 이름만) */
@@ -737,6 +758,8 @@ export type TeacherAction =
   | { type: 'revealEvent' }
   /** (작업 111) 결과 보여 주기 [다음]: 마감한 사건의 결과 표시를 지금 끝낸다 */
   | { type: 'endResult' }
+  /** (작업 173) 학급 활동 다음 단계(L4-E1: 투표 끝내고 결과 → 회상 → 실제 사례). 마지막 단계면 마감 */
+  | { type: 'eventStep' }
   /** (작업 111) [이 학생만 사건 다시 보내기]: 그 학생 기기의 따라잡기 큐에 사건을 넣는다 */
   | { type: 'resendEvent'; seat: number; id: string }
   /** (작업 112) [이 학생에게 학습지 다시 보내기]: 그 학생 기록에 '다시 받은 학습지'를 남긴다(학생 기기가 개인 팝업으로 띄움) */

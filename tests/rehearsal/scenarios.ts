@@ -27,11 +27,11 @@ export interface Timed<T> {
 }
 
 export interface Scenario {
-  id: 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'g2';
+  id: 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'g2' | 'h' | 'h2';
   title: string;
   unit: boolean;
   /** (작업 115) 차시 한 판의 차시(없으면 1차시) */
-  lesson?: 'L1' | 'L2' | 'L3';
+  lesson?: 'L1' | 'L2' | 'L3' | 'L4';
   /** (작업 172) 나눠 고르기가 있는 차시의 [앞 시간/뒤 시간/두 시간 모두](없으면 판 설정 기본 '앞 시간') */
   lessonPart?: 'front' | 'back' | 'all';
   /**
@@ -195,6 +195,43 @@ export const SCENARIOS: Scenario[] = [
       { at: 0.25, phase: 'round', do: { op: 'refresh', student: 3 } },
       { at: 0.45, do: { op: 'botDrop', seat: 10, backAfterSec: 40 } },
       { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
+    ],
+  },
+  {
+    // (작업 173) 4차시 앞 시간 — 1970년대 철강 투표·회상·실제 사례, 베트남 기사·공장 결정, 근로 환경 보도·개선, 관세사 카드, 학습지 ⑬⑭⑮
+    // 174 뒤 LESSON_READY.L4가 켜지면 열쇠(unlock)를 뺀다
+    id: 'h',
+    title: '차시 4차시 앞 시간 25분 자동(늦은 입장·새로 고침·라운드 끝)',
+    unit: false,
+    lesson: 'L4',
+    lessonPart: 'front',
+    unlock: { devKey: 'voyage.dev.fullUnit', why: '4차시는 174까지 끝나기 전까지 LESSON_READY.L4=false(src/data/schedule.ts)' },
+    minutes: 25,
+    manual: false,
+    teacher: [{ at: 0.55, phase: 'round', do: { op: 'endRound' } }],
+    crowd: [
+      { at: 0.15, do: { op: 'lateJoin', seats: [24] } },
+      { at: 0.25, phase: 'round', do: { op: 'refresh', student: 2 } },
+      { at: 0.4, do: { op: 'botDrop', seat: 9, backAfterSec: 40 } },
+      { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
+      { at: 0.35, do: { op: 'refresh', student: 1 } },
+    ],
+  },
+  {
+    // (작업 173) 4차시 뒤 시간 15분 — 표지 → '마지막 항해' 라운드 → 마무리 목록(컨테이너 OX·잡지 표지 화면은 174가 넓힌다)
+    id: 'h2',
+    title: '차시 4차시 뒤 시간 15분 자동(늦은 입장·새로 고침)',
+    unit: false,
+    lesson: 'L4',
+    lessonPart: 'back',
+    unlock: { devKey: 'voyage.dev.fullUnit', why: '4차시는 174까지 끝나기 전까지 LESSON_READY.L4=false(src/data/schedule.ts)' },
+    minutes: 15,
+    manual: false,
+    teacher: [],
+    crowd: [
+      { at: 0.2, do: { op: 'lateJoin', seats: [24] } },
+      { at: 0.3, phase: 'round', do: { op: 'refresh', student: 3 } },
+      { at: 0.5, do: { op: 'botDrop', seat: 10, backAfterSec: 40 } },
     ],
   },
 ];

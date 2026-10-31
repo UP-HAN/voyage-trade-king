@@ -4,6 +4,7 @@
  */
 import { FLAG_COLORS, respondedTo, seatKey, type ClassState, type Player } from '../core';
 import { eventsById } from '../data/events';
+import { isBadChoice, parseVNDecision } from '../core/factoryVN';
 import { fairTradeText } from '../data/fairTrade';
 import type { NameStatus } from '../sync/app-messages';
 import type { HostView } from '../sync/host-session';
@@ -129,6 +130,10 @@ export function nowTaskOf(g: TeacherGame, p: Player | undefined): NowTask {
   const ce = c.currentEvent;
   if (ce && !ce.closed && c.phase !== 'round') {
     const resp = respondedToCurrent(c, p);
+    // (작업 173) 4차시: 투표·공장 결정은 쉬운 말로(1970년대 철강 투표 뒤 단계는 TV를 함께 보는 중)
+    if (ce.id === 'L4-E1' && (ce.step ?? 0) >= 1) return { text: 'TV 보는 중', done: null };
+    if (ce.id === 'L4-E1' && resp !== null) return { text: resp ? '투표함' : '투표하는 중', done: resp };
+    if (ce.id === 'L4-E2' && resp !== null) return { text: resp ? vnTaskText(p) : '공장 결정하는 중', done: resp };
     if (resp !== null) return { text: resp ? '응답함' : '응답하는 중', done: resp };
     const read = p.game.responses[ce.id] !== undefined;
     return { text: read ? '카드 읽음' : '카드 읽는 중', done: read };
@@ -150,8 +155,32 @@ export function phoneTaskText(c: Pick<ClassState, 'phone'>, p: Player): string |
 }
 
 function withPhone(c: ClassState, p: Player, t: NowTask): NowTask {
-  const extra = phoneTaskText(c, p);
+  const extra = phoneTaskText(c, p) ?? vnRoundText(c, p);
   return extra ? { ...t, text: `${t.text} · ${extra}` } : t;
+}
+
+/** (작업 173) 교사 학생 표 — 공장 결정 내용(교사만 본다. TV·다른 학생 화면에는 없음) */
+export function vnTaskText(p: Player): string {
+  const d = parseVNDecision(p.game.responses['L4-E2']);
+  if (!d) return '공장 결정 아직';
+  if (!d.build) return '공장 안 지음';
+  return `공장 지음(${d.wage === 'low' ? '낮은 임금' : '정당한 임금'}·설비 ${d.env === 'skip' ? '안 함' : '설치'})`;
+}
+
+/** (작업 173) 라운드 중 4차시 할 일 덧붙이기: 공장 결정 패널(짧은 형태)·근로 환경 보도 */
+export function vnRoundText(c: Pick<ClassState, 'currentEvent'>, p: Player): string | null {
+  const ce = c.currentEvent;
+  if (!ce || ce.closed) return null;
+  if (ce.id === 'L4-E2') return p.game.responses['L4-E2'] === undefined ? '공장 결정 아직' : vnTaskText(p);
+  if (ce.id === 'L4-E3') {
+    const d = parseVNDecision(p.game.responses['L4-E2']);
+    if (!d || !isBadChoice(d)) return null;
+    const r = p.game.responses['L4-E3'] as Record<string, unknown> | undefined;
+    const done = r && Array.isArray(r.improved) ? (r.improved as string[]) : [];
+    const left = (d.wage === 'low' && !done.includes('wage') ? 1 : 0) + (d.env === 'skip' && !done.includes('env') ? 1 : 0);
+    return left ? '근로 환경 보도 · 고칠 수 있음' : '근로 환경 보도 · 모두 고침';
+  }
+  return null;
 }
 
 /** (작업 151, PRD 4.3.7.1) 자유 항해 라운드: 이번 라운드 사고팔기 했는가 + 항해 횟수 */

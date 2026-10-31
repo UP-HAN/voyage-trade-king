@@ -55,9 +55,9 @@ describe('설정 lessonPart(v0.3.9)', () => {
     expect(lessonPartRules('lesson', ['L2'], undefined)?.part).toBe('all');
     expect(lessonPartRules('unit', ['L1', 'L2', 'L3', 'L4'], 'front')).toBeNull();
     expect(lessonPartRules('custom', ['L2'], 'front')).toBeNull();
-    // (작업 172) 3차시도 나눠 고르기가 있다(lesson3 시험). 1·4차시는 규칙 없음
+    // (작업 172) 3차시도 나눠 고르기가 있다(lesson3 시험). (작업 173) 4차시도 있다(lesson4 시험). 1차시는 규칙 없음
     expect(lessonPartRules('lesson', ['L1'], 'front')).toBeNull();
-    expect(lessonPartRules('lesson', ['L4'], 'back')).toBeNull();
+    expect(lessonPartRules('lesson', ['L4'], 'back')?.lesson).toBe('L4');
   });
 
   it('표지 덮어쓰기: 앞 시간·뒤 시간 제목, 두 시간 모두·단원 한 판은 그대로', () => {
@@ -434,6 +434,35 @@ describe('3차시 나눠 고르기(작업 172)', () => {
       expect(r.forceShort ?? []).toEqual([]);
       expect(r.hideGoods).toBeUndefined();
       expect(r.titles).toBeUndefined();
+    }
+  });
+});
+
+describe('4차시 나눠 고르기(작업 173)', () => {
+  const L4_ONLY = ['L4-01', 'L4-02', 'L4-03', 'L4-04', 'L4-05', 'L4-06'];
+
+  it('규칙: 앞 시간 = ⑯⑰⑱ 뺌·관세사 카드 마지막 항해 앞, 뒤 시간 = 앞 시간 활동·학습지·편지 뺌, 두 시간 모두 = 빼는 것 없음', () => {
+    expect(lessonPartRules('lesson', ['L4'], 'front')).toMatchObject({ lesson: 'L4', dropEvents: [], dropWorksheets: ['W16', 'W17', 'W18'], dropLetters: [], startCargo: false, midTailEvent: 'L4-E4', midTailAfter: ['L4-E3'], customsBeforeLastRounds: 1 });
+    expect(lessonPartRules('lesson', ['L4'], 'back')).toMatchObject({ dropEvents: ['L4-E1', 'L4-E2', 'L4-E3', 'L4-E4'], dropWorksheets: ['W13', 'W14', 'W15'], dropLetters: L4_ONLY, startCargo: false });
+    expect(lessonPartRules('lesson', ['L4'], 'all')).toMatchObject({ dropEvents: [], dropWorksheets: [], dropLetters: [], wrap: null });
+    expect(lessonPartRules('lesson', ['L4'], undefined)?.part).toBe('all');
+  });
+
+  it('표지: 앞 시간 "수입과 기업의 결정", 뒤 시간 "항해를 마치며", 두 시간 모두는 데이터 그대로', () => {
+    const def = eventsById['L4-COVER']!;
+    const base = { playUnit: 'lesson', scope: ['L4'] as const };
+    expect(coverTextFor(def, { ...base, lessonPart: 'front' }).title).toBe('L4. 수입과 기업의 결정');
+    expect(coverTextFor(def, { ...base, lessonPart: 'back' }).title).toBe('L4. 항해를 마치며');
+    expect(coverTextFor(def, { ...base, lessonPart: 'all' }).title).toBe(def.title);
+  });
+
+  it('2·3차시 규칙 값은 그대로(4차시 칸이 붙지 않음)', () => {
+    for (const lesson of ['L2', 'L3'] as const) {
+      for (const part of ['front', 'back', 'all'] as const) {
+        const r = lessonPartRules('lesson', [lesson], part)!;
+        expect(r.wrap).toBeUndefined();
+        expect(r.midTailEvent).toBeUndefined();
+      }
     }
   });
 });

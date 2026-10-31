@@ -399,6 +399,8 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
         return actions.dispatch({ type: 'endResult' });
       case 'closeEvent':
         return actions.dispatch({ type: 'closeEvent', reveal: true });
+      case 'eventStep':
+        return actions.dispatch({ type: 'eventStep' });
       case 'reveal':
         return actions.dispatch({ type: 'revealEvent' });
       case 'next': {

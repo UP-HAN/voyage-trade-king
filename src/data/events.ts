@@ -331,29 +331,62 @@ const L3_EVENTS: readonly GameEvent[] = [
 const L4_EVENTS: readonly GameEvent[] = [
   skeleton({
     id: 'L4-COVER', lesson: 'L4', kind: 'screen', required: true, trigger: { type: 'lessonStart' },
-    title: 'L4. 수입의 빛과 그림자, 기업의 선택, 항해를 마치며', pages: [108], worksheetAfter: null,
-    body: '수입이 늘면 무엇이 좋고 무엇이 걱정될까요? 기업의 선택도 함께 생각해 봐요.',
+    // (작업 173) 학생 화면 '선택' 낱말 금지 — 차시 제목 '기업의 결정'(학습지 v1.2와 같게)
+    title: 'L4. 수입의 빛과 그림자, 기업의 결정, 항해를 마치며', pages: [108], worksheetAfter: null,
+    body: '수입이 늘면 무엇이 좋고 무엇이 걱정될까요? 기업의 결정도 함께 생각해 봐요.',
+    textbook: [{ pages: [108], note: '우리나라가 수입 철강 제품에 높은 관세를 부과했던 까닭을 써 봅시다.' }],
+    teacherPrompts: ['우리나라가 수입 철강 제품에 높은 관세를 부과했던 까닭은 무엇일까요?'],
     image: 'lessons/l4.png', isCover: true,
     tier: 1, blocking: true, minutes: { full: 0.3, short: 0.3 }, shortForm: null, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
+    // (작업 173) 투표 공통 카드(VoteCard) + 투표 뒤 단계(결과 → 회상 3단계 → 실제 사례 카드, 짧은 형태는 결과 → 실제 사례). 단계 글은 data/steel1970.ts
     id: 'L4-E1', lesson: 'L4', kind: 'vote', required: true, title: '시간 여행: 1970년대 부산', pages: [108], worksheetAfter: 'W13',
-    effects: [{ type: 'dexCard', card: 'steel-1970' }], needsResponse: true,
+    body: '1970년대 부산 항구로 시간 여행을 왔어요. 우리나라는 제철소를 짓고 철강을 만들기 시작했어요. 그런데 다른 나라 철강이 더 싸게 들어오고 있어요. 수입 철강에 높은 관세를 매길까요?',
+    textbook: [
+      { pages: [108], note: '수입이 늘어나서 국내 기업이 피해를 입거나 관련 산업이 성장하기 어려울 수도 있습니다.' },
+      { pages: [108], note: '1970년대 우리나라는 수입 철강 제품에는 높은 관세를 부과했습니다.' },
+    ],
+    options: [
+      { id: 'tariff', label: '관세를 매겨요' },
+      { id: 'noTariff', label: '매기지 않아요' },
+    ],
+    effects: [{ type: 'dexCard', card: 'steel-1970' }], needsResponse: true, image: 'scenes/busan-1970s.png',
+    teacherPrompts: ['다른 나라 철강이 싸게 들어오면 누가 좋고 누가 걱정할까요?', '철강은 왜 중요한 물자일까요?'],
     tier: 1, blocking: true, minutes: { full: 6, short: 1.5 }, shortForm: { blocking: true, note: '투표(30초) → 실제 사례 카드(3단계 시뮬레이션 생략)' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
+    // (작업 173) 기사 밑줄(3곳) → 공장 결정 3단계(짓기 → 임금 → 환경 설비) → 까닭(쓰고 싶으면). 응답 { build, wage, env, reason } (factoryVN.ts)
     id: 'L4-E2', lesson: 'L4', kind: 'article', required: true, title: '교과서 속 기사: 베트남으로 향하는 생산 시설 + 호찌민 공장 결정', pages: [109], worksheetAfter: null,
-    needsResponse: true, catchUp: 'replay',
+    body: '외국 기업들이 베트남으로 생산 시설을 옮기고 있대요. 기사에서 그 까닭 세 가지를 찾아 밑줄을 그어요. 그다음 우리 회사도 호찌민에 공장을 지을지 정해요.',
+    textbook: [
+      { pages: [109], note: '세계 여러 나라 간에 무역이 활발해지면서, 기업들은 물자를 생산하는 데 유리한 환경을 갖춘 나라에서 경제활동을 하기도 합니다.' },
+      { pages: [109], note: '기업이 얻는 이익에 비해 근로자들이 정당한 임금을 받지 못하거나, 생산 과정에서 환경 오염과 같은 문제가 발생하기도 합니다.' },
+    ],
+    effects: [{ type: 'dexCard', card: 'overseas-production' }],
+    needsResponse: true, catchUp: 'replay', image: 'events/vietnam-factory.png',
+    teacherPrompts: ['외국 기업이 베트남에 공장을 짓는 까닭은 무엇일까요?', '공장을 지은 회사가 생각해야 할 것은 무엇일까요?'],
     tier: 1, blocking: true, minutes: { full: 5, short: 0 }, shortForm: { blocking: false, note: '기사 요약 + 결정 패널(비차단)' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
+    // (작업 173) 낮은 임금 또는 설비 미설치를 고른 학생에게만 보도·사회적 책임 −10·평판 하락 + 고치기 버튼. 나머지는 '다른 회사 공장 이야기'(읽기만)
     id: 'L4-E3', lesson: 'L4', kind: 'news', required: true, fake: true, title: '해외 공장 근로 환경 보도', pages: [109], worksheetAfter: 'W14',
+    body: '호찌민의 한 공장 이야기가 뉴스에 나왔어요. 근로자가 일한 만큼 정당한 임금을 받아야 하고, 공장이 강과 공기를 더럽히지 않아야 한다는 목소리가 커지고 있어요. 회사는 이익만이 아니라 근로자와 환경도 함께 생각해야 해요.',
+    textbook: [{ pages: [109], note: '기업이 얻는 이익에 비해 근로자들이 정당한 임금을 받지 못하거나, 생산 과정에서 환경 오염과 같은 문제가 발생하기도 합니다.' }],
     conditional: true,
+    teacherPrompts: ['보도가 나온 회사는 무엇을 고칠 수 있을까요?'],
     tier: 1, blocking: false, minutes: { full: 0, short: 0 }, shortForm: null, needsRounds: 1, anchor: 'afterPrev',
   }),
   skeleton({
+    // (작업 173) 관세사 '도윤'의 편지 형식 직업 카드 — 하는 일 2가지·필요한 것 2가지(p.110). TV는 개념 슬라이드
     id: 'L4-E4', lesson: 'L4', kind: 'concept', required: false, title: '관세사 직업 카드', pages: [110], worksheetAfter: 'W15',
+    body: '안녕하세요, 관세사 도윤이에요. 관세사는 세관 공무원이 아니라, 무역하는 사람과 회사를 돕는 전문가예요. ① 하는 일: 수출입과 관련한 법 지식으로 개인이나 기업이 원활하게 무역하도록 도와요 ② 하는 일: 회사를 대신해 정해진 절차에 따라 업무를 처리하고, 나라에 수출입 물품을 신고해요 ③ 필요한 것: 무역·관세에 관한 법 지식과 업무 처리 과정 ④ 필요한 것: 영어를 비롯한 외국어 능력',
+    textbook: [
+      { pages: [110], note: '수출입과 관련한 법 지식을 바탕으로 개인이나 기업이 원활하게 무역 활동을 할 수 있도록 도와주는 일을 합니다.' },
+      { pages: [110], note: '관세사가 되려면 무역, 관세 등에 관한 법 지식과 업무 처리 과정을 잘 알아야 합니다.' },
+    ],
     effects: [{ type: 'dexCard', card: 'customs-broker' }], image: 'characters/customs-doyun.png',
+    teacherPrompts: ['관세사가 없다면 무역하는 회사는 무엇이 어려울까요?'],
     tier: 2, priority: 1, blocking: true, minutes: { full: 2, short: 1 }, shortForm: { blocking: true, note: '카드만' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   // ── 마무리 단계 ──

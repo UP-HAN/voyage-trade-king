@@ -11,7 +11,9 @@ import {
   firstRoundPreview, hasResultView, inputFromClass, lateSecOf, resultShowing, roundNowPlan, tradeClock, tryBuildSchedule,
   type ClassState, type RoundNowBlock, type ScheduleItem, type WrapItem,
 } from '../core';
+import { isBadChoice, parseVNDecision } from '../core/factoryVN';
 import { eventsById } from '../data/events';
+import { STEEL_EVENT, steelStepAt, steelSteps, type SteelStep } from '../data/steel1970';
 import type { LessonId, WorksheetId } from '../data/types';
 import { worksheetById } from '../data/worksheet';
 import { parseScreenData, pickScene, type SceneId } from '../screen/model';
@@ -71,7 +73,8 @@ export type NowActionKind =
   | 'autoScene' // TV 장면 '알아서 바꾸기'로
   | 'showNoWorksheet' // 학생 표를 '학습지 안 씀'으로
   | 'showFold' // 접힘 영역 펼치기([보기])
-  | 'oneMoreRound'; // (작업 172) 스마트폰이 덜 모였을 때 [라운드 하나 더](무역 시간을 라운드 하나만큼 늘림)
+  | 'oneMoreRound' // (작업 172) 스마트폰이 덜 모였을 때 [라운드 하나 더](무역 시간을 라운드 하나만큼 늘림)
+  | 'eventStep'; // (작업 173) 1970년대 철강: 투표 끝내고 결과 → 회상 → 실제 사례(eventStep)
 
 export type FoldId = 'time' | 'order' | 'entry' | 'worksheet' | 'more';
 
@@ -258,7 +261,41 @@ export const RESPOND_LINE: Readonly<Record<string, string>> = {
   'L3-E1': '학생들이 광물 협력 기사를 읽고 있어요',
   'L3-E3': '학생들이 기술 연구비를 정하고 있어요(다른 회사는 볼 수 없어요)',
   'L3-E4': '자동화 항만 투표',
+  // (작업 173) 4차시
+  'L4-E1': '1970년대 철강 투표',
+  'L4-E2': '베트남 공장 결정',
 };
+
+/** (작업 173) 1970년대 철강 단계별 교사 카드 한 줄·다음 버튼 이름 */
+const STEEL_STEP_LINE: Readonly<Record<SteelStep, string>> = {
+  vote: '1970년대 철강 투표',
+  result: '1970년대 철강 — 우리 반 투표 결과를 TV에 보여 주는 중',
+  s1: '1970년대 철강 — 회상 1단계를 TV에 보여 주는 중',
+  s2: '1970년대 철강 — 회상 2단계를 TV에 보여 주는 중',
+  s3: '1970년대 철강 — 회상 3단계를 TV에 보여 주는 중',
+  real: '1970년대 철강 — 실제 사례 카드를 TV에 보여 주는 중',
+};
+const STEEL_NEXT_LABEL: Readonly<Record<SteelStep, string>> = {
+  vote: '투표 끝내고 결과 보기',
+  result: '다음',
+  s1: '다음',
+  s2: '다음',
+  s3: '다음: 실제 사례',
+  real: '다음으로',
+};
+
+/** (작업 173) 근로 환경 보도 대상 중 아직 고칠 수 있는 회사 수(교사만 — 이름 없이 수) */
+export function fixableCompanies(players: Iterable<{ game: { responses: Record<string, unknown> } }>): number {
+  let n = 0;
+  for (const p of players) {
+    const d = parseVNDecision(p.game.responses['L4-E2']);
+    if (!d || !isBadChoice(d)) continue;
+    const r = p.game.responses['L4-E3'] as Record<string, unknown> | undefined;
+    const done = r && Array.isArray(r.improved) ? (r.improved as string[]) : [];
+    if ((d.wage === 'low' && !done.includes('wage')) || (d.env === 'skip' && !done.includes('env'))) n += 1;
+  }
+  return n;
+}
 
 /** (작업 172) 응답 받는 활동의 큰 버튼 이름(투표는 '마감하고 결과 보기') */
 function closeLabel(id: string): string {
@@ -583,6 +620,26 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
   }
   if (started) {
     // 8. 응답을 받는 활동 / 9. 응답 없는 카드·표지(라운드 중의 비차단 소식 패널은 라운드 카드로)
+    // (작업 173) 1970년대 철강 투표 뒤 단계(결과 → 회상 → 실제 사례): 큰 버튼 하나로 넘긴다
+    if (ce && !ce.closed && ce.id === STEEL_EVENT && typeof ce.step === 'number' && ce.step >= 1 && c.phase !== 'round') {
+      const steps = steelSteps(ce.short);
+      const name = steelStepAt(ce.short, ce.step);
+      const last = ce.step >= steps.length - 1;
+      const live = liveItemOf(c, ce.id);
+      const sub: NowSub[] = [];
+      if (name === 'result') sub.push({ text: '학생 화면에도 같은 장면이 떠요. 누가 어디에 투표했는지는 보이지 않아요.' });
+      if (name === 'real') sub.push({ text: '우리 반 결과가 실제와 달라도 괜찮아요 — 왜 달랐는지 이야기해요.' });
+      sub.push(autoNext(c, live ? live.at + live.durSec : null, next, now));
+      return {
+        state: 'card', tag: stageTag(c, live ?? null), line: STEEL_STEP_LINE[name], lineTestId: 'tl-steel-step',
+        sub,
+        primary: last
+          ? next ? { label: '다음으로', kind: 'next', testId: 'now-next', itemId: next.id, tone: 'primary' } : { label: '다음으로', kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' }
+          : { label: STEEL_NEXT_LABEL[name], kind: 'eventStep', testId: 'btn-event-step', tone: 'primary' },
+        secondary: null,
+        keyExtra: `${ce.id}:${ce.step}`, eventId: ce.id,
+      };
+    }
     if (ce && !ce.closed && needsResponse(ce.id) && c.phase !== 'round') {
       const title = eventTitle(c, ce.id);
       const players = Object.values(g.players);
@@ -600,13 +657,17 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       }
       const withResult = hasResultView(eventsById[ce.id], ce.short);
       const isVote = eventsById[ce.id]?.kind === 'vote';
-      const line = RESPOND_LINE[ce.id] ? (isVote ? `${RESPOND_LINE[ce.id]} ${responded}/${total}` : `${RESPOND_LINE[ce.id]} · 응답 ${responded}/${total}`) : `${title} 하는 중`;
+      const line = RESPOND_LINE[ce.id] ? (isVote || ce.id === 'L4-E2' ? `${RESPOND_LINE[ce.id]} ${responded}/${total}` : `${RESPOND_LINE[ce.id]} · 응답 ${responded}/${total}`) : `${title} 하는 중`;
+      // (작업 173) 1970년대 철강 투표: [투표 끝내고 결과 보기] = 다음 단계(결과 → 회상 → 실제 사례)
+      const steel = ce.id === STEEL_EVENT && typeof ce.step === 'number';
       return {
         state: 'respond', tag: stageTag(c, live ?? null), line, lineTestId: 'tl-responses',
         sub,
-        primary: manual && next ? manualNext(next) : { label: closeLabel(ce.id), kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' },
+        primary: steel
+          ? { label: STEEL_NEXT_LABEL.vote, kind: 'eventStep', testId: 'btn-event-step', tone: 'primary' }
+          : manual && next ? manualNext(next) : { label: closeLabel(ce.id), kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' },
         // 작은 글자 버튼 하나: 결과 화면이 있으면 [TV에 결과 보여 주기], 없고 라운드 1 전이면 [라운드 바로 시작](수정 1회차)
-        secondary: withResult && !ce.revealed ? { label: 'TV에 결과 보여 주기', kind: 'reveal', testId: 'btn-reveal-event' } : preRoundNow(c, next, now),
+        secondary: steel ? null : withResult && !ce.revealed ? { label: 'TV에 결과 보여 주기', kind: 'reveal', testId: 'btn-reveal-event' } : preRoundNow(c, next, now),
         keyExtra: ce.id, eventId: ce.id,
       };
     }
@@ -661,8 +722,12 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
       // 라운드에 붙은 결정(응답 받는 활동) 진행
       if (ce && !ce.closed && needsResponse(ce.id)) {
         const responded = players.filter((p) => respondedToCurrent(c, p) === true).length;
-        sub.push({ text: `${eventTitle(c, ce.id)} 학생 ${responded}/${players.length} 응답${ce.revealed ? ' · TV에 결과 보여 주는 중' : ''}`, testId: 'tl-resp-count', eventId: ce.id, strong: true });
+        // (작업 173) 4차시 베트남 공장 결정(짧은 형태 패널)은 쉬운 말 한 줄
+        sub.push({ text: ce.id === 'L4-E2' ? `베트남 공장 결정 ${responded}/${players.length}${ce.revealed ? ' · TV에 결과 보여 주는 중' : ''}` : `${eventTitle(c, ce.id)} 학생 ${responded}/${players.length} 응답${ce.revealed ? ' · TV에 결과 보여 주는 중' : ''}`, testId: 'tl-resp-count', eventId: ce.id, strong: true });
         secondary = { label: '응답 받기 끝내기', kind: 'closeEvent', testId: 'btn-close-event' };
+      } else if (ce && !ce.closed && ce.id === 'L4-E3') {
+        // (작업 173) 근로 환경 보도: 고칠 수 있는 회사 수(교사만, 이름 없이)
+        sub.push({ text: `근로 환경 보도: 고칠 수 있는 회사 ${fixableCompanies(players)}곳`, testId: 'now-vn-report', eventId: ce.id });
       } else if (ce && resultShowing(c, now)) {
         sub.push({ text: `${eventTitle(c, ce.id)} 결과를 TV에 보여 주는 중 · ${leftText((ce.resultUntil! - now) / 1000)}`, testId: 'tl-result', eventId: ce.id, strong: true });
         secondary = { label: '결과 닫기', kind: 'endResult', testId: 'btn-end-result' };

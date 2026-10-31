@@ -56,7 +56,7 @@ export const lessons: readonly Lesson[] = [
     eventQueue: ['L3-COVER', 'L3-E1', 'W09', 'L3-E2', 'L3-E3', 'L3-E4', 'L3-E5', 'W10', 'L3-E6', 'W11', 'W12'],
   },
   {
-    id: 'L4', title: '수입의 빛과 그림자, 기업의 선택, 항해를 마치며', pages: [108, 109, 110, 111, 112, 113],
+    id: 'L4', title: '수입의 빛과 그림자, 기업의 결정, 항해를 마치며', pages: [108, 109, 110, 111, 112, 113],
     goal: '수입 증가의 좋은 점과 문제점, 관세의 역할, 생산 시설 해외 이전의 까닭과 문제점, 관세사가 하는 일을 알고, 단원 내용을 확인하며 사회적 책임을 담아 기업을 소개한다.',
     portsOpened: portsOpenedIn('L4'), goodsUnlocked: newGoods('L4', 'L3'), defaultRounds: 1, legacyLetters: 1, priority: 'P1',
     eventQueue: ['L4-COVER', 'L4-E1', 'W13', 'L4-E2', 'L4-E3', 'W14', 'L4-E4', 'W15'],

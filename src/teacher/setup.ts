@@ -108,8 +108,19 @@ export function phoneFullMinutes(part: LessonPart, base: Partial<Pick<SetupValue
   return found;
 }
 
-/** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1·2·3차시(작업 172 — 4차시·단원 한 판은 아직 '라운드마다') */
-export const FREE_VOYAGE_LESSONS: readonly LessonId[] = ['L1', 'L2', 'L3'];
+/**
+ * (작업 173) 4차시 판 설정 안내 한 줄 — 시간마다 마무리 구성이 달라 예상 수업 시간이 다르다(값은 실제 배치 계산 `expected`).
+ * 앞 시간: 마무리는 결산·시상·되돌아보기만. 뒤 시간: 무역 10~15분 + 마무리(컨테이너 OX·잡지 표지). 두 시간 모두: 마무리가 길다.
+ */
+export function lesson4Hint(part: LessonPart, expected: { tradeMin: number; wrapMin: number; totalMin: number }): string {
+  const tail = `예상 수업 시간 ${expected.totalMin}분(무역 ${expected.tradeMin}분 + 마무리 ${expected.wrapMin}분 + 준비).`;
+  if (part === 'front') return `앞 시간 마무리는 결산·시상·되돌아보기만 해요(컨테이너 OX·잡지 표지는 뒤 시간). ${tail}`;
+  if (part === 'back') return `뒤 시간은 무역 10~15분 + 마무리를 권해요. 마무리에 컨테이너 OX·잡지 표지가 있어 길어요. ${tail}`;
+  return `마무리에 컨테이너 OX·잡지 표지가 있어 예상 수업 시간이 길어요. ${tail}`;
+}
+
+/** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1~4차시(작업 172·173 — 단원 한 판은 아직 '라운드마다') */
+export const FREE_VOYAGE_LESSONS: readonly LessonId[] = ['L1', 'L2', 'L3', 'L4'];
 
 export function freeVoyageAvailable(v: Pick<SetupValues, 'playUnit' | 'lesson'>): boolean {
   return v.playUnit === 'lesson' && !!v.lesson && FREE_VOYAGE_LESSONS.includes(v.lesson);

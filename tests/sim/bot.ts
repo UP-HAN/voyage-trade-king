@@ -23,6 +23,25 @@ export interface BotStudent {
   store: StudentStore;
   /** (작업 172) 3차시 스마트폰 부품 모으기에 마음 쓰는 정도(0~1, 기본 0.6). 0이면 부품을 모으지 않는다 */
   phoneFocus?: number;
+  /**
+   * (작업 173) 4차시 호찌민 공장 결정을 미리 정해 둔다(없으면 무작위). 'fair' = 정당+설치, 'low' = 낮은 임금+미설치, 'none' = 짓지 않음.
+   * improve: 근로 환경 보도 뒤 고치기(기본 true)
+   */
+  vn?: 'fair' | 'low' | 'none';
+  vnImprove?: boolean;
+  /** (작업 173) 1970년대 철강 투표를 미리 정해 둔다(없으면 무작위) */
+  steelVote?: 'tariff' | 'noTariff';
+  /** (작업 173 검증 반영) 상품을 살 때 남겨 둘 돈(공장 결정·고치기 비용) — 없으면 0(1~3차시 봇 그대로) */
+  reserve?: number;
+}
+
+/** (작업 173) 호찌민 공장 결정 응답(돈이 모자라면 짓지 않음) */
+function vnResponse(s: BotStudent, money: number, rand: () => number): Record<string, unknown> {
+  const kind = s.vn ?? (['fair', 'low', 'none', 'mixed'] as const)[Math.floor(rand() * 4)];
+  if (kind === 'none') return { build: false };
+  const d = kind === 'fair' ? { build: true, wage: 'fair', env: 'install' } : kind === 'low' ? { build: true, wage: 'low', env: 'skip' } : { build: true, wage: 'fair', env: 'skip' };
+  const cost = 150 + (d.env === 'install' ? 100 : 0);
+  return cost <= money ? { ...d, reason: '봇이 정했어요' } : { build: false };
 }
 
 /** (작업 172) 스마트폰 부품을 사는 곳(배터리는 재료를 사서 부산 공장에서) */
@@ -134,7 +153,22 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
   if (wsCur && wsCur.some((w) => !wsDone.includes(w)) && rand() < 0.5) return { type: 'markWorksheetDone' };
   // 지금 사건 응답
   const ev = cls.currentEvent;
-  if (ev && !ev.closed && me.game.responses[ev.id] === undefined) {
+  const freeNow = cls.settings.voyageMode === 'free';
+  const spend = freeNow ? me.game.money - (me.game.fareDue ?? 0) : me.game.money;
+  // (작업 173) 근로 환경 보도: 대상이면 고칠 수 있는 것을 고친다(돈이 되면)
+  if (ev && !ev.closed && ev.id === 'L4-E3' && (s.vnImprove ?? true) && spend >= 100 && rand() < 0.5) {
+    const d = me.game.responses['L4-E2'] as Record<string, unknown> | undefined;
+    const r = me.game.responses['L4-E3'] as Record<string, unknown> | undefined;
+    const done = r && Array.isArray(r.improved) ? (r.improved as string[]) : [];
+    if (d?.build === true && d.wage === 'low' && !done.includes('wage')) return { type: 'respondEvent', eventId: 'L4-E3', response: { improve: 'wage' } };
+    if (d?.build === true && d.env === 'skip' && !done.includes('env')) return { type: 'respondEvent', eventId: 'L4-E3', response: { improve: 'env' } };
+  }
+  // (작업 173) 1970년대 철강: 투표 단계(0)에서만 표를 낸다
+  if (ev && !ev.closed && ev.id === 'L4-E1' && (ev.step ?? 0) >= 1) {
+    /* 결과·회상 단계 — 표를 받지 않는다 */
+  } else if (ev && !ev.closed && ev.id === 'L4-E2' && me.game.responses[ev.id] === undefined) {
+    if (rand() < 0.6) return { type: 'respondEvent', eventId: ev.id, response: vnResponse(s, spend, rand) as never };
+  } else if (ev && !ev.closed && me.game.responses[ev.id] === undefined) {
     const def = eventsById[ev.id];
     if (def?.needsResponse && rand() < 0.6) {
       if (ev.id === 'L1-E1') {
@@ -146,7 +180,7 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
       // (작업 172) 짧은 형태 확인 퀴즈(3차시 경쟁 세 가지 '카드만')는 카드 확인
       if (def.kind === 'checkQuiz' && ev.short && def.shortForm) return { type: 'respondEvent', eventId: ev.id, response: { seen: true } };
       // (작업 172) 학급 투표는 { vote }
-      if (def.kind === 'vote' && def.options?.length) return { type: 'respondEvent', eventId: ev.id, response: { vote: def.options[Math.floor(rand() * def.options.length)]!.id } };
+      if (def.kind === 'vote' && def.options?.length) return { type: 'respondEvent', eventId: ev.id, response: { vote: ev.id === 'L4-E1' && s.steelVote ? s.steelVote : def.options[Math.floor(rand() * def.options.length)]!.id } };
       if (def.kind === 'checkQuiz') {
         const q = checkQuiz.find((x) => x.lesson === def.lesson && !me.game.checkQuiz[x.id]);
         if (q) return { type: 'answerCheckQuiz', qid: q.id, answer: rand() < 0.7 ? q.answer : typeof q.answer === 'number' ? (q.answer + 1) % Math.max(2, q.choices?.length ?? 3) : q.answer === 'O' ? 'X' : 'O' };
@@ -195,10 +229,11 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
     if (q && q.sell !== null && !q.cannotSell) return { type: 'sell', good: lot.good, qty: Math.max(1, Math.min(lot.qty, 1 + Math.floor(rand() * lot.qty))) };
   }
   if (r < 0.7) {
-    const buyable = view.filter((q) => q.buy !== null && q.buyLeft > 0 && q.buy <= money);
+    const budget = money - (s.reserve ?? 0);
+    const buyable = view.filter((q) => q.buy !== null && q.buyLeft > 0 && q.buy <= budget);
     if (buyable.length) {
       const q = buyable[Math.floor(rand() * buyable.length)]!;
-      const maxQty = Math.min(q.buyLeft, Math.floor(money / (q.buy as number)), 5);
+      const maxQty = Math.min(q.buyLeft, Math.floor(budget / (q.buy as number)), 5);
       if (maxQty >= 1) return { type: 'buy', good: q.good, qty: 1 + Math.floor(rand() * maxQty) };
     }
   }

@@ -11,6 +11,7 @@
  * 연속 클릭: 107 `READY_TOGGLE_GUARD_MS`(500ms) 패턴 — 거래 직후 500ms 동안 사기·팔기 버튼 클릭 무시.
  * 연출 훅: 판매 → `fx.stamp(도장 요소, { kind })`(도장마다) → `fx.trade(결과 띠, { profit })`, 구매 → `fx.buy(카드, { good, qty })`.
  */
+import { STEEL_TARIFF_TAG } from '../../data/steel1970';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Action, GameEvent, StampKind } from '../../core';
 import { canTrade, cargoCapacity, cargoUsed } from '../../core';
@@ -177,6 +178,11 @@ function SellCardView({
               <span class="st-tag pt-rule-tag" data-testid="tariff-rule-tag" title="관세율은 게임 설정이에요(교과서 108쪽은 관세의 뜻만 다뤄요)">
                 게임 규칙
               </span>
+              {c.tariffVote && (
+                <span class="st-tag pt-rule-tag" data-testid="tariff-vote-tag">
+                  {STEEL_TARIFF_TAG}
+                </span>
+              )}
             </span>
           )}
           {c.service && <ServiceMark />}

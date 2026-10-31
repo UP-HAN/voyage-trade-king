@@ -9,6 +9,7 @@
 import { eventsById } from '../data/events';
 import { lessonPartRulesOf, portsHeldBack, SINGAPORE_OPEN_AFTER, SINGAPORE_PORT } from '../data/lessonParts';
 import { roundLength, stageStartByLesson } from '../data/schedule';
+import { STEEL_EVENT, steelSteps } from '../data/steel1970';
 import { worksheetById } from '../data/worksheet';
 import type { GameEvent as EventDef, LessonId, WorksheetId } from '../data/types';
 import { slotsArrivingAt } from './letters';
@@ -18,6 +19,8 @@ import type { ActiveEffect, ClassSettings, ClassState, Phase, Player, TeacherAct
 export type SideEffect =
   | { type: 'eventFired'; id: string }
   | { type: 'eventClosed'; id: string }
+  /** (작업 173) 투표 뒤 단계가 있는 활동(L4-E1)의 투표를 끝냄 — 호스트가 집계·학급 효과(`closeEventForAll`)를 적용한다. 사건은 아직 열려 있다 */
+  | { type: 'eventTallied'; id: string }
   | { type: 'roundEnded'; round: number }
   | { type: 'stageStarted'; stage: LessonId }
   | { type: 'tradeEnded' }
@@ -50,6 +53,8 @@ export const EVENT_RESULT_SHOW_SEC = 20;
 export function hasResultView(def: EventDef | undefined, short = false): boolean {
   if (!def) return false;
   if (def.kind === 'checkQuiz') return !short;
+  // (작업 173) 호찌민 공장 결정(L4-E2)은 선택지 데이터 없이 3단계 카드를 쓰지만, 마감 뒤 TV에 학급 분포 막대(이름 없음)를 보인다
+  if (def.id === 'L4-E2') return true;
   return def.kind === 'vote' || ((def.kind === 'decision' || def.kind === 'article') && !!def.options?.length);
 }
 
@@ -133,7 +138,7 @@ function fire(cs: ClassState, def: EventDef, short: boolean, now: number): Teach
     openPorts: [...openPorts],
     features: [...features],
     activeEffects: dedupeEffects(effects),
-    currentEvent: { id: def.id, openedAt: now, closesAt: null, closed: false, short },
+    currentEvent: { id: def.id, openedAt: now, closesAt: null, closed: false, short, ...(def.id === STEEL_EVENT ? { step: 0, stepAt: now } : {}) },
     phase: blocking && !cls.tradeEnded && cls.phase !== 'round' ? 'event' : cls.phase,
     firedEvents: cls.firedEvents.includes(def.id) ? cls.firedEvents : [...cls.firedEvents, def.id],
     shortEvents: short ? [...new Set([...cls.shortEvents, def.id])] : cls.shortEvents.filter((x) => x !== def.id),
@@ -266,7 +271,8 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
       if (!ev || ev.closed) return err(cs, 'NO_OPEN_EVENT');
       // [마감]은 결과 공개와 함께(reveal) — 공용 화면에 선택 분포·정답률 막대(작업 111)
       // 결과가 있는 사건은 마감하면 늘 결과를 공개하고 EVENT_RESULT_SHOW_SEC 동안 보여 준다([결과 공개]를 먼저 누르지 않았어도)
-      const withResult = hasResultView(eventsById[ev.id], ev.short);
+      // (작업 173) 단계 활동(L4-E1)은 투표 결과를 이미 보였으면(step ≥ 1) 마감 뒤 결과 시간을 다시 두지 않는다
+      const withResult = hasResultView(eventsById[ev.id], ev.short) && !((ev.step ?? 0) >= 1);
       const revealed = ev.revealed === true || action.reveal === true || withResult;
       let cls: ClassState = {
         ...cs,
@@ -280,6 +286,20 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
       };
       cls = markSchedule(cls, ev.id, 'done');
       return ok(cls, [{ type: 'eventClosed', id: ev.id }]);
+    }
+    case 'eventStep': {
+      // (작업 173) L4-E1: 투표 → 결과(집계) → 회상 3단계 → 실제 사례. 마지막 단계에서 누르면 마감
+      const ev = cs.currentEvent;
+      if (!ev || ev.closed || typeof ev.step !== 'number') return err(cs, 'NO_OPEN_EVENT');
+      const n = steelSteps(ev.short).length;
+      if (ev.step >= n - 1) return applyTeacherAction(cs, { type: 'closeEvent' }, now);
+      const side: SideEffect[] = [];
+      let votes = cs.votes;
+      if (ev.step === 0) {
+        side.push({ type: 'eventTallied', id: ev.id });
+        votes = { ...votes, [ev.id]: { result: votes[ev.id]?.result ?? null, revealed: true } };
+      }
+      return ok({ ...cs, votes, currentEvent: { ...ev, step: ev.step + 1, stepAt: now, revealed: true } }, side);
     }
     case 'endResult': {
       const ev = cs.currentEvent;
@@ -337,8 +357,12 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
       if (!cs.paused) return err(cs, 'NOT_PAUSED');
       const pausedSec = cs.clock.pausedAt !== null ? Math.max(0, (now - cs.clock.pausedAt) / 1000) : 0;
       const roundEndsAt = cs.phase === 'round' && cs.roundRemainingMs !== null ? now + cs.roundRemainingMs : cs.roundEndsAt;
+      // (작업 173 검증 반영) 단계 활동(L4-E1 회상)의 지금 단계 시작 시각도 멈춘 만큼 미룬다 — 풀자마자 다음 단계로 넘어가지 않게
+      const ce = cs.currentEvent;
+      const currentEvent = ce && !ce.closed && typeof ce.stepAt === 'number' ? { ...ce, stepAt: ce.stepAt + pausedSec * 1000 } : ce;
       return ok({
         ...cs,
+        currentEvent,
         paused: false,
         clock: { ...cs.clock, pausedAt: null, pausedTotalSec: cs.clock.pausedTotalSec + pausedSec },
         roundEndsAt,

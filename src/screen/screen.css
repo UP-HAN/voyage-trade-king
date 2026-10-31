@@ -435,3 +435,17 @@
 .scr-phone__cols.is-two .scr-h1 { font-size: calc(var(--scr-body) * 1.15); }
 .scr-phone__cols.is-two .scr-gauge__steps { grid-template-columns: 1fr 1fr; }
 .scr-gauge > .scr-lead { color: var(--ink); font-size: calc(var(--scr-body) * 0.85); }
+
+/* ─── (작업 173 검증 반영) 호찌민 공장 결정 분포(세 줄: 공장·임금·환경 설비) ─── */
+.scr-vn { width: 100%; display: grid; grid-template-columns: max-content 1fr max-content; align-items: center; gap: calc(var(--u) * 0.6) calc(var(--u) * 1.2); padding: calc(var(--u) * 1) calc(var(--u) * 1.4); }
+.scr-vn__h, .scr-vn__lead { grid-column: 1 / -1; margin: 0; }
+.scr-vn__h { font-family: var(--font-title); font-size: var(--scr-body); color: var(--ink); }
+.scr-vn__row { display: contents; }
+.scr-vn__label { font-weight: 700; white-space: nowrap; font-size: var(--scr-body); color: var(--ink); }
+.scr-vn__track { display: flex; height: calc(var(--u) * 2.2); border: 2px solid var(--ink); border-radius: calc(var(--u) * 0.4); overflow: hidden; background: var(--parchment-mid); }
+.scr-vn__a { display: block; height: 100%; background: linear-gradient(90deg, #2f6e45, #4f9c68); }
+.scr-vn__b { display: block; height: 100%; background: linear-gradient(90deg, #b07a3a, #d3a25f); }
+.scr-vn__val { white-space: nowrap; font-size: calc(var(--scr-body) * 0.9); color: var(--ink); font-variant-numeric: tabular-nums; }
+.scr-vn__val b { font-size: 1.25em; }
+.scr-vn__val small { font-size: var(--scr-small); }
+.scr-vn__lead { font-size: calc(var(--scr-body) * 0.8); color: var(--ink); }

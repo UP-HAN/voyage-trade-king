@@ -447,3 +447,13 @@
 .ev-phone__gauge { font-weight: 700; }
 .ev-tech { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: rgba(150, 60, 40, 0.1); }
 .ev-tech.is-won { background: rgba(61, 139, 90, 0.15); }
+
+/* ─── (작업 173) 4차시: 호찌민 공장 결정·근로 환경 보도 ─── */
+.ev-vn-steps { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 8px; padding: 0; list-style: none; font-size: 0.9em; color: var(--ink-soft); }
+.ev-vn-steps .is-now { font-weight: 700; color: var(--ink); }
+.ev-vn-steps .is-done { text-decoration: line-through; }
+.ev-vn-result { font-weight: 700; font-size: 1.1em; margin: 6px 0; }
+.ev-vn-warn { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: rgba(170, 60, 40, 0.12); }
+.ev-vn-story, .ev-vn-report, .ev-vn-short { margin: 8px 0; padding: 10px 12px; border-radius: 8px; background: #fff8e6; border: 2px solid var(--brass); }
+.ev-vn-effect { font-weight: 700; margin: 6px 0; }
+.ev-panel--vn { max-height: calc(100vh - 120px); overflow-y: auto; }

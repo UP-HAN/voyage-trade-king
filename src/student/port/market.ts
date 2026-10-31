@@ -51,6 +51,8 @@ export interface SellCard {
   boughtFor: number;
   /** 관세율(해외 상품을 이 항구에 팔 때, 0이면 없음) */
   tariffRate: number;
+  /** (작업 173) 관세가 1970년대 철강 투표 결과(부산 해외 철강 30%)에서 왔다 — 도장 옆 꼬리표 */
+  tariffVote?: boolean;
   /** 제값에 더 팔 수 있는 양(게이지) */
   fullLeft: number;
   /** 제값 한도(상자) */
@@ -131,6 +133,7 @@ export function sellCards(cs: ClassState, p: Player): SellCard[] {
       storm: canSell && q.storm,
       boughtFor: first.unitCost,
       tariffRate: canSell ? tariffForLot(cs, port, good, first.origin) : 0,
+      ...(canSell && tariffForLot(cs, port, good, first.origin) > 0 && cs.activeEffects.some((e) => e.id === 'steel1970' && e.effect.type === 'tariff' && e.effect.port === port && e.effect.good === good) ? { tariffVote: true } : {}),
       fullLeft: q.sellFullLeft,
       fullLimit: q.sellLimit,
       reason,

@@ -20,6 +20,7 @@
  * 라운드 끝 항해 처리, 사건 개인 효과). 그래서 이 파일은 학급 상태를 직접 고치지 않고 교사 행동을 `hostReduce`로 넣는다.
  */
 import { eventsById } from '../data/events';
+import { STEEL_AUTO, STEEL_EVENT, steelSteps } from '../data/steel1970';
 import { lessonPartRules, lessonPartRulesOf } from '../data/lessonParts';
 import * as clock from './clock';
 import { hostReduce, type HostHooks } from './host';
@@ -148,7 +149,8 @@ function syncStatuses(ctx: Ctx): void {
  */
 function closeAtSec(it: ScheduleItem): number {
   const def = it.kind === 'event' ? eventsById[it.refId] : undefined;
-  if (def && hasResultView(def, it.form === 'short') && it.durSec >= EVENT_RESULT_SHOW_SEC * 2) return it.at + it.durSec - EVENT_RESULT_SHOW_SEC;
+  // (작업 173) 단계 활동(L4-E1)은 결과를 단계 안에서 보이므로 칸 끝에 마감한다
+  if (def && def.id !== STEEL_EVENT && hasResultView(def, it.form === 'short') && it.durSec >= EVENT_RESULT_SHOW_SEC * 2) return it.at + it.durSec - EVENT_RESULT_SHOW_SEC;
   return it.at + it.durSec;
 }
 
@@ -158,6 +160,31 @@ function resultHold(ctx: Ctx): boolean {
   if (!resultShowing(c, ctx.now)) return false;
   const def = eventsById[c.currentEvent!.id];
   return !!def && isBlocking(def, c.currentEvent!.short);
+}
+
+/**
+ * (작업 173) '저절로' 진행: 단계 활동(L4-E1 1970년대 철강)을 시간에 맞춰 다음 단계로.
+ * 투표는 30초(모두 투표하면 5초 뒤), 그 뒤 단계는 칸의 남은 시간을 남은 단계 수로 나눠(최소 12초). 마지막 단계는 칸 끝에 닫힌다(closeExpired).
+ */
+function stepDue(ctx: Ctx, e: number): void {
+  const c = cls(ctx);
+  const ce = c.currentEvent;
+  if (!ce || ce.closed || typeof ce.step !== 'number' || c.paused) return;
+  const n = steelSteps(ce.short).length;
+  if (ce.step >= n - 1) return;
+  const passed = (ctx.now - (ce.stepAt ?? ce.openedAt)) / 1000;
+  if (ce.step === 0) {
+    const players = Object.values(ctx.snap.players);
+    const all = players.length > 0 && players.every((p) => p.game.responses[ce.id] !== undefined);
+    if (passed < STEEL_AUTO.voteSec && !(all && passed >= STEEL_AUTO.allVotedSec)) return;
+  } else {
+    const live = c.schedule.items.find((it) => it.status === 'live' && it.kind === 'event' && it.refId === ce.id);
+    const end = live ? live.at + live.durSec : e;
+    const startE = e - passed;
+    const per = Math.max(STEEL_AUTO.minStepSec, (end - startE) / (n - ce.step));
+    if (passed < per) return;
+  }
+  act(ctx, { type: 'eventStep' });
 }
 
 /** 끝 시각이 지난 활동·학습지 닫기(자동 진행) */
@@ -324,7 +351,7 @@ function finishTrade(ctx: Ctx): void {
   syncStatuses(ctx);
   patchItems(ctx, (it) => (it.status === 'pending' && it.form !== 'dropped' ? { ...it, status: 'skipped' } : it.status === 'live' ? { ...it, status: 'done' } : it));
   const c = cls(ctx);
-  const wrapup = buildWrapup(ctx.snap.meta.playUnit, c.settings.scope, unwrittenWorksheets(c));
+  const wrapup = buildWrapup(ctx.snap.meta.playUnit, c.settings.scope, unwrittenWorksheets(c), lessonPartRules(ctx.snap.meta.playUnit, c.settings.scope, c.settings.lessonPart));
   setSchedule(ctx, { ...c.schedule, wrapup, timeUp: null, upcoming: [], waiting: null });
   notice(ctx, 'TRADE_ENDED');
 }
@@ -358,6 +385,7 @@ function advance(ctx: Ctx): void {
   const auto = cls(ctx).schedule.mode === 'auto';
   // (작업 162) T 뒤에도 끝 시각이 지난 활동·학습지는 제때 닫는다
   if (auto) closeExpired(ctx, e);
+  if (auto) stepDue(ctx, e);
   markOvertime(ctx, e);
   maybeRecordBase(ctx, e);
   // 마감한 차단형 사건의 결과를 보여 주는 동안에는 다음 항목을 발동하지 않는다(작업 111)
@@ -733,9 +761,9 @@ function rebuildAfterWorksheets(ctx: Ctx): void {
   const scope = c.settings.scope;
   const accounted = new Set<string>();
   for (const it of c.schedule.items) if (it.kind === 'worksheet' && it.placement !== 'during') (it.refIds ?? [it.refId]).forEach((w) => accounted.add(w));
-  const drop = lessonPartRules(ctx.snap.meta.playUnit, scope, c.settings.lessonPart)?.dropWorksheets;
-  const after = scope.flatMap((st) => tradeWorksheets(st, drop)).filter((w) => !accounted.has(w));
-  setSchedule(ctx, { ...c.schedule, wrapup: buildWrapup(ctx.snap.meta.playUnit, scope, after) });
+  const rule = lessonPartRules(ctx.snap.meta.playUnit, scope, c.settings.lessonPart);
+  const after = scope.flatMap((st) => tradeWorksheets(st, rule?.dropWorksheets)).filter((w) => !accounted.has(w));
+  setSchedule(ctx, { ...c.schedule, wrapup: buildWrapup(ctx.snap.meta.playUnit, scope, after, rule) });
 }
 
 function startRoundNow(ctx: Ctx, action: Extract<TeacherAction, { type: 'startRoundNow' }>, fail: (code: string) => boolean): boolean {
