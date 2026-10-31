@@ -129,7 +129,7 @@ export function pickAfterWorksheetScene(d: ScreenData): string | null {
 
 /** 마무리 단계의 다른 장면(순위판·해도 등) 아래 '끝나고 쓰기' 번호 띠 */
 export function AfterWorksheetBand({ d, sceneId }: { d: ScreenData; sceneId: string }) {
-  if (d.cls.phase !== 'wrapup' || ['awards', 'ended', 'afterWorksheet', 'worksheet', 'black', 'pause'].includes(sceneId)) return null;
+  if (d.cls.phase !== 'wrapup' || ['awards', 'gallery', 'ended', 'afterWorksheet', 'worksheet', 'black', 'pause'].includes(sceneId)) return null;
   const rows = afterWorksheets(d);
   if (!rows.length) return null;
   return (
