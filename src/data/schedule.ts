@@ -258,9 +258,9 @@ export const stageStartByLesson: Readonly<Record<LessonId, StageStart>> = Object
 
 /**
  * (작업 134 → 115, 교사 결정 2026-10-19) 차시별 준비 표시. 판 설정에서 true 인 차시만 고를 수 있다.
- * 단원 전체 한 판은 모든 차시가 true 일 때만 열린다(`FULL_UNIT_READY`). 3·4차시(작업 116~118)가 끝나면 true 로 바꾼다.
+ * 단원 전체 한 판은 모든 차시가 true 일 때만 열린다(`FULL_UNIT_READY`). (작업 179) 3·4차시(172~178) 검증을 마쳐 모두 열었다.
  */
-export const LESSON_READY: Readonly<Record<LessonId, boolean>> = { L1: true, L2: true, L3: false, L4: false };
+export const LESSON_READY: Readonly<Record<LessonId, boolean>> = { L1: true, L2: true, L3: true, L4: true };
 /** 단원 전체 한 판을 고를 수 있는가(모든 차시가 준비됨) */
 export const FULL_UNIT_READY: boolean = (Object.values(LESSON_READY) as boolean[]).every(Boolean);
 /** 단원 한 판이 열리기 전에 고를 수 있는 차시(LESSON_READY 에서) */

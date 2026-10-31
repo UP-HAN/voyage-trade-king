@@ -6,7 +6,7 @@ import { openTvMenu } from './support/voyage-ui';
 
 /**
  * 작업 172 — 3차시 판(차시 한 판 L3) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — lesson2-full.spec.ts와 같은 기반).
- * `LESSON_READY.L3`는 verifier PASS 전까지 false — 이 시험은 개발 열쇠(localStorage `voyage.dev.fullUnit`)로 3차시를 연다.
+ * (작업 179) 3차시가 열려 개발 열쇠 없이 고른다.
  * 교사는 '지금 할 일' 카드의 큰 버튼만 누른다. 학생 3명(1번 반도체 팀, 2번 배터리 팀, 3번 정밀 화학 원료 팀):
  *  - 앞 시간·두 시간 모두: 광물 협력 기사(밑줄 → 결정), 부산 [조립장]에 부품 넣기. 25분 앞 시간은 부품 6종을 모두 모아 '스마트폰 완성!'.
  *  - 뒤 시간·두 시간 모두: AI 기술 연구비(비공개), 자동화 항만 투표(투표 공통 카드), 경제 게이지, 경쟁 세 가지 카드(카드만).
@@ -57,8 +57,6 @@ async function setup(browser: import('@playwright/test').Browser, baseURL: strin
   await t.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
-    // (작업 172) verifier PASS 전에는 개발 열쇠로만 3차시를 연다
-    localStorage.setItem('voyage.dev.fullUnit', '1');
   });
   await t.reload();
   await expect(t.getByTestId('teacher-start')).toBeVisible();

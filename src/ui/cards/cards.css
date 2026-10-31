@@ -324,6 +324,14 @@ div.vc__opt {
   cursor: default;
 }
 
+.vc__opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.vc__opt-off {
+  font-size: 0.85em;
+  color: var(--stamp-red);
+}
 .vc__opt.is-on {
   border-color: var(--sea);
   box-shadow: 0 0 0 3px var(--sea-teal);

@@ -86,9 +86,16 @@ export function DecisionCard({ model: m, size = 'student', panel, chosen, noResp
                   aria-checked={on}
                   class={`vc__opt${on ? ' is-on' : ''}`}
                   data-testid={`decision-opt-${o.id}`}
-                  onClick={() => setPick(o.id)}
+                  disabled={!!o.disabled}
+                  aria-disabled={o.disabled ? 'true' : undefined}
+                  onClick={() => !o.disabled && setPick(o.id)}
                 >
                   {inner}
+                  {o.disabled && (
+                    <span class="vc__opt-off" data-testid="decision-opt-off">
+                      {o.disabled}
+                    </span>
+                  )}
                 </button>
               ) : (
                 <div key={o.id} class="vc__opt" data-testid={`decision-opt-${o.id}`}>

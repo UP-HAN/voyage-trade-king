@@ -445,7 +445,7 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
     }
     if (pr.decision) {
       if (later(`dec${pr.card ?? pr.eventPanel}`, 25_000)) return null;
-      const opts = p.locator('button[data-testid^="decision-opt-"]:visible');
+      const opts = p.locator('button[data-testid^="decision-opt-"]:enabled:visible');
       const n = await opts.count();
       if (n > 0) {
         await clickLoc('decision-opt', opts.nth(Math.floor(o.rand() * n)));

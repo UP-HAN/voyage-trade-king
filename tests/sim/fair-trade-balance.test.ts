@@ -23,10 +23,10 @@ const PER = 3;
 type Kind = 'grind' | 'diverse' | 'mission';
 const KINDS: Kind[] = ['grind', 'diverse', 'mission'];
 
-async function runGame(scope: LessonId[], minutes: number, seed: number, lessonPart: LessonPart = 'all', fairTrade = true) {
+async function runGame(scope: LessonId[], minutes: number, seed: number, lessonPart: LessonPart = 'all', fairTrade = true, playUnit: 'lesson' | 'unit' = 'lesson') {
   const w = makeSimWorld({ recordInbox: false });
   const h = w.host();
-  const code = await w.openGame(h, { playUnit: 'lesson', scope, tradeMinutes: minutes, seed: 20261030 + seed, settings: { voyageMode: 'free', lessonPart, fairTrade } });
+  const code = await w.openGame(h, { playUnit, scope, tradeMinutes: minutes, seed: 20261030 + seed, settings: { voyageMode: playUnit === 'unit' ? 'round' : 'free', ...(playUnit === 'lesson' ? { lessonPart } : {}), fairTrade } });
   const students: { s: SimStudent; kind: Kind; mem: TraderMemory }[] = [];
   let seat = 0;
   for (const kind of KINDS) {
@@ -111,12 +111,13 @@ function save() {
 }
 
 describe('(작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 균형', () => {
-  for (const [label, scope, part] of [['1차시 25분', ['L1'], 'all'], ['2차시 앞 시간 25분', ['L2'], 'front']] as const) {
+  // (작업 179) 단원 한 판 25분(1~4차시, 열린 뒤)도 같은 기준
+  for (const [label, scope, part, unit] of [['1차시 25분', ['L1'], 'all', false], ['2차시 앞 시간 25분', ['L2'], 'front', false], ['단원 한 판 60분', ['L1', 'L2', 'L3', 'L4'], 'all', true]] as const) {
     it(`${label}: 정상 임무 봇 폭풍 0·예보 0, 반복 봇 ≤ 다양한 봇(자산 평균), 돈 음수 0, 보너스 중복 없음`, { timeout: 1_200_000 }, async () => {
       const all: Row[] = [];
       const perSeed: unknown[] = [];
       for (let seed = 1; seed <= SEEDS; seed++) {
-        const { phase, rows } = await runGame([...scope], 25, seed, part);
+        const { phase, rows } = await runGame([...scope], unit ? 60 : 25, seed, part, true, unit ? 'unit' : 'lesson');
         expect(phase).toBe('wrapup');
         perSeed.push(summarize(rows));
         all.push(...rows);
@@ -126,7 +127,7 @@ describe('(작업 176) 같은 거래 반복 폭풍·다양한 무역 보너스 �
       let control: unknown = null;
       if (process.env.FAIR_CONTROL === '1') {
         const off: Row[] = [];
-        for (let seed = 1; seed <= SEEDS; seed++) off.push(...(await runGame([...scope], 25, seed, part, false)).rows);
+        for (let seed = 1; seed <= SEEDS; seed++) off.push(...(await runGame([...scope], unit ? 60 : 25, seed, part, false, unit ? 'unit' : 'lesson')).rows);
         control = summarize(off);
       }
       results[label] = { seeds: SEEDS, summary: sum, control, perSeed };

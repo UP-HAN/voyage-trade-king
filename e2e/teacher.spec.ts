@@ -112,19 +112,13 @@ test.describe('판 설정', () => {
     await expect(page.getByTestId('btn-open')).toBeEnabled();
     await shot(page, 'setup-lesson-L1-25.png');
 
-    // (작업 134) 단원 한 판은 L2~L4 본편(115~118) 전까지 '준비 중'(선택 불가 + 이유)
-    await expect(page.getByTestId('unit-unit')).toBeDisabled();
-    await expect(page.getByTestId('unit-soon')).toContainText('준비 중');
-    await shot(page, 'setup-unit-soon.png');
-    // 개발용 열쇠로 열면 미리보기 4구간(플래그를 켰을 때 모습)
-    await page.evaluate(() => localStorage.setItem('voyage.dev.fullUnit', '1'));
-    await page.reload();
-    await page.getByTestId('btn-new').click();
+    // (작업 179) 단원 한 판이 열렸다 — 열쇠 없이 고를 수 있고 미리보기 4구간('준비 중' 이유 없음)
+    await expect(page.getByTestId('unit-unit')).toBeEnabled();
+    await expect(page.getByTestId('unit-soon')).toHaveCount(0);
     await page.getByTestId('unit-unit').click();
     await expect(page.getByTestId('preview-band')).toHaveCount(4);
     await expect(page.getByTestId('expected-time')).toContainText('무역 25분');
     await shot(page, 'setup-unit-25.png');
-    await page.evaluate(() => localStorage.removeItem('voyage.dev.fullUnit'));
 
     await page.getByTestId('unit-lesson').click();
     await page.getByTestId('lesson-L1').click();

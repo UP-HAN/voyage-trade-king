@@ -8,7 +8,7 @@ import { AWARD_ORDER } from '../src/data/awards';
 
 /**
  * 작업 173 — 4차시 판(차시 한 판 L4) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — lesson3-full.spec.ts와 같은 기반).
- * `LESSON_READY.L4`는 174까지 끝난 뒤 연다 — 이 시험은 개발 열쇠(localStorage `voyage.dev.fullUnit`)로 4차시를 연다.
+ * (작업 179) 4차시가 열려 개발 열쇠 없이 고른다.
  * 교사는 '지금 할 일' 카드의 큰 버튼만 누른다. 학생 3명:
  *  - 1번 해오름무역: 관세를 매겨요 · 공장 지음(정당한 임금 + 환경 설비 설치)
  *  - 2번 바다상회: 관세를 매겨요 · 공장 지음(낮은 임금 + 설비 안 함) → 근로 환경 보도 → 임금 올리기·설비 설치로 모두 고침
@@ -65,19 +65,12 @@ async function setup(browser: import('@playwright/test').Browser, baseURL: strin
     sessionStorage.clear();
   });
   await t.reload();
-  // 열쇠 없이는 4차시가 '준비 중'
-  await expect(t.getByTestId('teacher-start')).toBeVisible();
-  await t.getByTestId('btn-new').click();
-  await t.getByTestId('unit-lesson').click();
-  await expect(t.getByTestId('lesson-L4')).toBeDisabled();
-  await expect(t.getByTestId('lesson-L4')).toContainText('준비 중');
-  // (작업 173) 174 전에는 개발 열쇠로만 4차시를 연다
-  await t.evaluate(() => localStorage.setItem('voyage.dev.fullUnit', '1'));
-  await t.reload();
+  // (작업 179) 4차시가 열려 개발 열쇠 없이 고른다('준비 중' 표기 없음)
   await expect(t.getByTestId('teacher-start')).toBeVisible();
   await t.getByTestId('btn-new').click();
   await t.getByTestId('unit-lesson').click();
   await expect(t.getByTestId('lesson-L4')).toBeEnabled();
+  await expect(t.getByTestId('lesson-L4')).not.toContainText('준비 중');
   await t.getByTestId('lesson-L4').click();
   // 어느 시간 내용을 할까요? — 버튼 세 개, 기본 '앞 시간'
   await expect(t.locator('[data-testid^="lesson-part-"]:not([data-testid="lesson-part-pick"])')).toHaveCount(3);

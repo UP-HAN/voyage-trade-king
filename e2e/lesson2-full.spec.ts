@@ -75,12 +75,12 @@ async function setup(browser: import('@playwright/test').Browser, baseURL: strin
   await expect(t.getByTestId('teacher-start')).toBeVisible();
   await t.getByTestId('btn-new').click();
   await t.getByTestId('unit-lesson').click();
-  // 판 설정: 1·2차시는 고를 수 있고 3·4차시는 준비 중, 단원 한 판도 준비 중
-  await expect(t.getByTestId('lesson-L1')).toBeEnabled();
-  await expect(t.getByTestId('lesson-L2')).toBeEnabled();
-  await expect(t.getByTestId('lesson-L3')).toBeDisabled();
-  await expect(t.getByTestId('lesson-L4')).toBeDisabled();
-  await expect(t.getByTestId('unit-unit')).toBeDisabled();
+  // 판 설정: (작업 179) 1·2·3·4차시와 단원 한 판 모두 고를 수 있다(열쇠 없이, '준비 중' 표기 없음)
+  for (const id of ['lesson-L1', 'lesson-L2', 'lesson-L3', 'lesson-L4', 'unit-unit']) {
+    await expect(t.getByTestId(id)).toBeEnabled();
+    await expect(t.getByTestId(id)).not.toContainText('준비 중');
+  }
+  await expect(t.getByTestId('unit-soon')).toHaveCount(0);
   await t.getByTestId('lesson-L2').click();
   // (작업 154) 어느 시간 내용을 할까요? — 기본 '앞 시간'이 눌려 있다
   await expect(t.getByTestId('lesson-part-front')).toHaveAttribute('aria-pressed', 'true');

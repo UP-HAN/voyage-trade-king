@@ -37,8 +37,8 @@ async function openTeacher(
   await page.evaluate((unit: boolean) => {
     localStorage.clear();
     sessionStorage.clear();
-    // (작업 134) 단원 한 판은 기능 플래그로 막혀 있다 — 시험에서는 개발용 열쇠로 연다
-    if (unit) localStorage.setItem('voyage.dev.fullUnit', '1');
+    // (작업 179) 단원 한 판이 열려 개발용 열쇠가 필요 없다
+    void unit;
   }, !!o.unit);
   await page.reload();
   await page.getByTestId('btn-new').click();

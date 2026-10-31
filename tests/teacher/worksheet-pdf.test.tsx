@@ -16,6 +16,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { countPdfPages, PDF_FILE_MAX, scanWorksheetPdfs, STALE_WARNING, WORKSHEET_PDF_SOURCES, manifestOf } from '../../scripts/vite-worksheet-pdfs';
 import { SetupContainer } from '../../src/teacher/index';
 import { defaultSetup, DEV_FULL_UNIT_KEY, NOT_READY_TEXT, orderSummaryOf, orderSummaryText, type SetupValues } from '../../src/teacher/setup';
+import { FULL_UNIT_READY } from '../../src/data/schedule';
 import { guideOpenInitially, GUIDE_KEY, PrepGuide, rememberGuide } from '../../src/teacher/StartScreen';
 import { WorksheetPdfMenu } from '../../src/teacher/WorksheetPdfMenu';
 import { availablePdfs, lessonPdfKeys, metaText, NO_PDF_TEXT, WORKSHEET_PDF_META, type WorksheetPdfManifestEntry } from '../../src/teacher/worksheet-pdfs';
@@ -342,7 +343,7 @@ describe('판 설정 정리(PRD 7.5.2.3·7.5.2.5)', () => {
   const L1: SetupValues = { ...defaultSetup(), playUnit: 'lesson', lesson: 'L1', tradeMinutes: 10 };
 
   for (const flag of [false, true]) {
-    it(`FULL_UNIT_READY ${flag ? '켜짐' : '꺼짐'}: 기본 4가지만 밖, 나머지는 [고급 설정](접힘) 안`, async () => {
+    it(`개발 열쇠 ${flag ? '있음' : '없음'}: 기본 4가지만 밖, 나머지는 [고급 설정](접힘) 안`, async () => {
       const restore = withFullUnit(flag);
       try {
         await mountSetup(L1);
@@ -382,9 +383,9 @@ describe('판 설정 정리(PRD 7.5.2.3·7.5.2.5)', () => {
         expect(tiers.length).toBeGreaterThan(0);
         for (const t of tiers) expect(['꼭 할 활동', '하면 좋은 활동', '시간 나면 하는 활동']).toContain(t);
         expect(text(dom.root as unknown as FakeElement)).not.toMatch(/[123]등급/);
-        // 단원 카드: 꺼짐이면 준비 중 + 이유, 켜짐이면 고를 수 있음
+        // 단원 카드: 꺼짐이면 준비 중 + 이유, 켜짐이면 고를 수 있음. (작업 179) FULL_UNIT_READY가 켜져 열쇠 없이도 고를 수 있음
         const unit = byId(dom.root, 'unit-unit')!;
-        if (flag) {
+        if (flag || FULL_UNIT_READY) {
           expect(unit.hasAttribute('disabled')).toBe(false);
           expect(byId(dom.root, 'unit-soon')).toBeUndefined();
           for (const l of ['L2', 'L3', 'L4']) expect(byId(dom.root, `lesson-${l}`)).toBeDefined();

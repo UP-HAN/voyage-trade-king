@@ -14,6 +14,7 @@ import {
   type SetupValues,
 } from '../../src/teacher/setup';
 import { MemStorage } from '../sync/session-helpers';
+import { FULL_UNIT_READY, LESSON_READY } from '../../src/data/schedule';
 
 const ok = { kind: 'ok' as const, rooms: 23, maxRooms: 50 };
 const L1 = (patch: Partial<SetupValues> = {}): SetupValues => ({ ...defaultSetup(), playUnit: 'lesson', lesson: 'L1', ...patch });
@@ -70,9 +71,12 @@ describe('판 단위', () => {
 
   it('비활성 이유 순서: 판 단위 → 시간(SCOPE_TOO_LONG) → 서버', () => {
     const full = { kind: 'full' as const, rooms: 50, maxRooms: 50 };
-    // (작업 134) 단원 한 판은 기능 플래그가 꺼져 있으면 '준비 중'(판 단위 이유)이 먼저
+    // (작업 179) 판 단위를 고르지 않으면 판 단위 이유가 먼저. 단원 한 판이 열린 뒤에는 5분처럼 너무 짧으면 시간 이유(SCOPE_TOO_LONG)가 서버보다 먼저
+    expect(openDisabledReason(defaultSetup(), previewOf(defaultSetup()), full)?.kind).toBe('unit');
     const unit = { ...defaultSetup(), playUnit: 'unit' as const, tradeMinutes: 5 };
-    expect(openDisabledReason(unit, previewOf(unit), full)).toEqual({ kind: 'unit', text: '단원 전체 한 판은 아직 준비 중이에요' });
+    expect(openDisabledReason(unit, previewOf(unit), full)?.kind).toBe('time');
+    const unit25 = { ...defaultSetup(), playUnit: 'unit' as const, tradeMinutes: 25 };
+    expect(openDisabledReason(unit25, previewOf(unit25), full)).toEqual({ kind: 'server', text: '서버에 방이 가득 찼어요' });
     expect(openDisabledReason(L1(), { ok: false, error: 'SCOPE_TOO_LONG', message: '범위를 줄이거나 시간을 늘려 주세요' }, full)?.kind).toBe('time');
     expect(openDisabledReason(L1(), previewOf(L1()), full)).toEqual({ kind: 'server', text: '서버에 방이 가득 찼어요' });
     expect(openDisabledReason(L1(), previewOf(L1()), { kind: 'blocked', rooms: 3, maxRooms: 50 })?.text).toBe('점검 중이라 새 방을 열 수 없어요');
@@ -124,23 +128,25 @@ describe('기억(voyage.teacher.prefs)', () => {
   });
 });
 
-describe('(작업 115) 차시별 준비 표시 LESSON_READY — 1·2차시만', () => {
-  it('차시 1·2만 고를 수 있고 3·4차시·단원 한 판·3차시가 든 연속 구간은 준비 중', () => {
-    expect(lessonImplemented('L1')).toBe(true);
-    expect(lessonImplemented('L2')).toBe(true);
-    for (const l of ['L3', 'L4'] as const) expect(lessonImplemented(l)).toBe(false);
-    expect(implementedLessons()).toEqual(['L1', 'L2']);
-    const l2 = L1({ lesson: 'L2' });
-    expect(openDisabledReason(l2, previewOf(l2), ok)).toBeNull();
-    const custom = { ...defaultSetup(), playUnit: 'custom' as const, customScope: ['L2', 'L3'] as SetupValues['customScope'] };
-    expect(openDisabledReason(custom, previewOf(custom), ok)?.text).toBe('고른 구간에 아직 준비 중인 차시가 있어요');
-    const unit = { ...defaultSetup(), playUnit: 'unit' as const };
-    expect(openDisabledReason(unit, previewOf(unit), ok)?.text).toBe('단원 전체 한 판은 아직 준비 중이에요');
+describe('(작업 179) 차시별 준비 표시 LESSON_READY — 1~4차시와 단원 한 판 모두 열림', () => {
+  it('1·2·3·4차시, 3·4차시가 든 연속 구간, 단원 한 판 모두 고를 수 있다(준비 중 이유 없음)', () => {
+    expect(LESSON_READY).toEqual({ L1: true, L2: true, L3: true, L4: true });
+    expect(FULL_UNIT_READY).toBe(true);
+    for (const l of ['L1', 'L2', 'L3', 'L4'] as const) expect(lessonImplemented(l)).toBe(true);
+    expect(implementedLessons()).toEqual(['L1', 'L2', 'L3', 'L4']);
+    for (const lesson of ['L2', 'L3', 'L4'] as const) {
+      const v = L1({ lesson, tradeMinutes: 25 });
+      expect(openDisabledReason(v, previewOf(v), ok), lesson).toBeNull();
+    }
+    const custom = { ...defaultSetup(), playUnit: 'custom' as const, customScope: ['L2', 'L3'] as SetupValues['customScope'], tradeMinutes: 30 };
+    expect(openDisabledReason(custom, previewOf(custom), ok)).toBeNull();
+    const unit = { ...defaultSetup(), playUnit: 'unit' as const, tradeMinutes: 25 };
+    expect(openDisabledReason(unit, previewOf(unit), ok)).toBeNull();
   });
-  it('기억한 단원 한 판은 고르지 않은 상태로 복원', () => {
+  it('기억한 단원 한 판은 단원 한 판으로 복원', () => {
     const st = new MemStorage();
     savePrefs({ ...defaultSetup(), playUnit: 'unit' }, st);
-    expect(loadPrefs(st).playUnit).toBeNull();
+    expect(loadPrefs(st).playUnit).toBe('unit');
   });
 });
 

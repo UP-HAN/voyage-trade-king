@@ -3,7 +3,7 @@
  * 값은 지금 시장 시세(103 `portPrice`)와 운항비(`voyageCostFor`)에서 계산한다 — [게임 설정] 값이라 교과서 문장이 아니다.
  * L2~L4 결정(115~117)은 사건 ID별 함수를 이 표에 더하면 된다.
  */
-import { portPrice, voyageCostFor, type PublicClass } from '../../core';
+import { portPrice, spendable, voyageCostFor, type PublicClass } from '../../core';
 import type { OptionFacts } from '../../ui/cards';
 import { classForPredict, playerForPredict, type MeView } from '../predict';
 import { formatMoney } from '../text';
@@ -16,6 +16,13 @@ const price = (cls: PublicClass, port: 'BUS' | 'SHA'): string => {
 };
 
 export const OPTION_FACTS: Readonly<Record<string, FactsFn>> = {
+  // (작업 179) 3차시 AI 기술 연구비: 쓸 수 있는 돈(자유 항해면 낼 운항비를 뺀 돈)보다 큰 금액은 고를 수 없게 — 호스트가 거절(NO_MONEY)하기 전에
+  'L3-E3': (cls, me) => {
+    const can = spendable(classForPredict(cls), playerForPredict(me));
+    const out: OptionFacts = {};
+    for (const n of [0, 100, 200, 300]) out[String(n)] = { good: '', worry: '', cost: '', ...(n > can ? { disabled: '쓸 수 있는 돈이 모자라요' } : {}) };
+    return out;
+  },
   'L1-E7': (cls, me) => {
     const cs = classForPredict(cls);
     const shaCost = me.game.port === 'SHA' ? 0 : voyageCostFor(cs, playerForPredict(me), me.game.port, 'SHA');

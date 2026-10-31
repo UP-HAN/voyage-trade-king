@@ -4,7 +4,7 @@ import { shot174, wrapRound, type WrapSeen } from './support/wrap174';
 
 /**
  * 작업 174 — 단원 한 판 25분(1~4차시)을 마무리 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계).
- * `LESSON_READY.L4`는 순서표 6단계에서 연다 — 지금은 개발 열쇠(localStorage `voyage.dev.fullUnit`)로 단원 한 판을 연다.
+ * (작업 179) 단원 한 판이 열려 개발 열쇠 없이 고른다.
  * 교사는 '지금 할 일' 카드의 큰 버튼만 누른다(잡지 표지는 종이로 한 번 본 뒤 [게임에서 써요], 표지 고르기는 마무리 순서 목록에서).
  * 학생 3명은 무역 중에는 카드 확인·학습지 [다 썼어요]만, 마무리에서는 컨테이너 싣기·자기 평가·되돌아보기·잡지 표지를 한다.
  * 매 단계 TV·학생 innerText에 개발 표기 /\bL[1-4]\b/ 0건, 학생 화면 '선택' 0건, 페이지 오류 0.
@@ -72,10 +72,10 @@ async function tidy(s: Page) {
   }
 }
 
-test('단원 한 판 25분 — 카드 큰 버튼만으로 마무리(컨테이너 OX → 결산·시상 → 되돌아보기 → 잡지 표지 → 끝나고 쓰기) 끝까지', async ({ browser, baseURL }) => {
+for (const minutes of [25, 40]) test(`단원 한 판 ${minutes}분 — 카드 큰 버튼만으로 마무리(컨테이너 OX → 결산·시상 → 되돌아보기 → 잡지 표지 → 끝나고 쓰기) 끝까지`, async ({ browser, baseURL }) => {
   test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
-  test.setTimeout(1_500_000);
-  const P = 'unit-25';
+  test.setTimeout(2_400_000);
+  const P = `unit-${minutes}`;
   const ctx = await browser.newContext({ baseURL, viewport: { width: 1366, height: 768 } });
   await ctx.clock.install();
   const t = await ctx.newPage();
@@ -85,17 +85,19 @@ test('단원 한 판 25분 — 카드 큰 버튼만으로 마무리(컨테이너
   await t.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem('voyage.dev.fullUnit', '1');
   });
   await t.reload();
   await expect(t.getByTestId('teacher-start')).toBeVisible();
   await t.getByTestId('btn-new').click();
   await expect(t.getByTestId('unit-unit')).toBeEnabled();
+  await expect(t.getByTestId('unit-soon')).toHaveCount(0);
   await t.getByTestId('unit-unit').click();
+  // (작업 179) 단원 한 판은 나눠 고르기를 쓰지 않는다(앞/뒤 시간 버튼 없음)
+  await expect(t.locator('[data-testid^="lesson-part-"]')).toHaveCount(0);
   const custom = t.getByTestId('trade-minutes-custom');
-  await custom.fill('25');
+  await custom.fill(String(minutes));
   await custom.blur();
-  await expect(custom).toHaveValue('25');
+  await expect(custom).toHaveValue(String(minutes));
   await t.getByTestId('btn-open').click();
   const codeEl = t.getByTestId('room-code');
   await expect(codeEl).toHaveText(/^\d{6}$/);
@@ -116,7 +118,7 @@ test('단원 한 판 25분 — 카드 큰 버튼만으로 마무리(컨테이너
   const scenes = new Set<string>();
   const log: string[] = [];
   let wrapIds: string[] = [];
-  for (let step = 0; step < 400; step++) {
+  for (let step = 0; step < 700; step++) {
     const st = (await stateOf(t)) ?? '';
     if (st === 'ended') break;
     if (st !== 'wrapup') for (const s of students) await tidy(s);
@@ -154,7 +156,9 @@ test('단원 한 판 25분 — 카드 큰 버튼만으로 마무리(컨테이너
     expect(cards, `잡지 표지 ${l}`).toContain(`magazine-sent:${l}`);
   }
   expect(cards).toContain('reflect-inputs:3');
-  expect(cards).toContain('magazine-paper:s1');
+  // 잡지 표지 기본: 무역 40분 미만 = 종이(한 번 본 뒤 [게임에서 써요]), 40분 이상 = 게임
+  if (minutes < 40) expect(cards).toContain('magazine-paper:s1');
+  else expect(cards).not.toContain('magazine-paper:s1');
   expect(cards).toContain('tv-gallery');
   expect(cards.some((c) => c.startsWith('tv-award:intro:'))).toBe(true);
   expect(cards).toContain('tv-award-list');

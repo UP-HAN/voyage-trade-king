@@ -213,6 +213,8 @@ export interface DecisionOptionView {
   cost: string;
   /** 고른 뒤 보여 줄 말(데이터 `after`) */
   after: string | null;
+  /** (작업 179) 지금 고를 수 없는 까닭(없으면 고를 수 있음) */
+  disabled?: string;
 }
 
 export interface DecisionModel {
@@ -232,7 +234,7 @@ export interface DecisionModel {
 }
 
 /** 선택지별 좋은 점·걱정되는 점·비용(화면 문구). 값은 시장 시세에서 계산해 넘긴다 */
-export type OptionFacts = Record<string, { good: string; worry: string; cost: string }>;
+export type OptionFacts = Record<string, { good: string; worry: string; cost: string; /** (작업 179) 지금 고를 수 없음(쓸 수 있는 돈이 모자람 등) — 그 까닭 */ disabled?: string }>;
 
 /**
  * 결정 사건 → 결정 카드 모델. 본문 문장을 상황(앞)·묻는 말("골라 보세요"·"않아도 돼요")·공개 사실(마지막 교과서 문장)로 나눈다.
@@ -264,6 +266,7 @@ export function decisionModel(def: GameEvent, opts: { scope?: readonly LessonId[
       good: opts.facts?.[o.id]?.good ?? '',
       worry: opts.facts?.[o.id]?.worry ?? '',
       cost: opts.facts?.[o.id]?.cost ?? '',
+      ...(opts.facts?.[o.id]?.disabled ? { disabled: opts.facts[o.id]!.disabled } : {}),
       after: o.after ?? null,
     })),
     reveal: facts.length || dexCard ? { title: dexCard?.title ?? def.title, text: facts.join(' '), quote } : null,
