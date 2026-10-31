@@ -206,7 +206,8 @@ describe('시상: 수상 회사 없는 상은 카드가 없다', () => {
     const { game } = show('awards', { plain: true, unit: true, n: 3 });
     const p = parseScreenData(payloadOf(game).publicState, payloadOf(game).classView)!;
     const withWinners = (p.pub.awards ?? []).filter((a) => a.winners.length > 0);
-    expect((p.pub.awards ?? []).length).toBeGreaterThan(withWinners.length);
+    // (작업 178) 마무리 공개 상태에는 수상 회사가 있는 상만(고정 목록에서 공개한 상) — 수상자 없는 상은 아예 오지 않는다
+    expect(p.pub.awards ?? []).toEqual(withWinners);
     const cards = byTest('award-card');
     expect(cards).toHaveLength(withWinners.length);
     for (const c of cards) expect(c.find((el) => el.getAttribute('data-testid') === 'screen-company').length).toBeGreaterThan(0);

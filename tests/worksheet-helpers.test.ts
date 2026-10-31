@@ -16,6 +16,7 @@ import {
   type HelperPlayer,
 } from '../src/core/worksheet-helpers';
 import { worksheet, worksheetById } from '../src/data/worksheet';
+import { emptyFairTrade } from '../src/core/state';
 import { helperDefs, NEW_HELPER_KEYS } from '../src/data/worksheetHelpers';
 import type { HelperKey, LessonId, WorksheetId } from '../src/data/types';
 import { planDone } from './core/helpers';
@@ -53,7 +54,7 @@ function full(): HelperPlayer {
     L({ kind: 'sell', good: 'clothes', qty: 2, port: 'JKT', amount: 90, stamp: 'relay' }),
     L({ kind: 'sell', good: 'gas', qty: 1, port: 'BUS', amount: 50, stamp: 'import' }),
   ];
-  return { pid: 'p1', game: { decisions: { graphiteChoice: 'SHA' }, responses, log, metrics: { visited: ['BUS', 'DAM', 'BKK', 'SIN', 'JKT'] } } };
+  return { pid: 'p1', game: { decisions: { graphiteChoice: 'SHA' }, responses, log, metrics: { visited: ['BUS', 'DAM', 'BKK', 'SIN', 'JKT'] }, fairTrade: { ...emptyFairTrade(), ports: ['DAM', 'BKK', 'SIN', 'JKT'] } } };
 }
 
 describe('기록 도우미: helper 키 16개', () => {
@@ -101,7 +102,8 @@ describe('기록 도우미: helper 키 16개', () => {
     expect(line('factoryDecision')).toBe('공장: 지었어요 · 임금: 정당한 임금 · 환경 설비: 설치 · 까닭: 근로자를 위해');
     expect(line('containerResult')).toBe('컨테이너 OX 8개 중 7개 맞혔어요 · 틀린 문장: 3번');
     expect(line('magazineDraft')).toBe('대표 상품 제안: 석유 제품 · 주요 수출국 제안: 타이');
-    expect(line('voyageSummary')).toContain('방문 항구 5곳');
+    // (작업 178) 개척 지표(176)와 같은 '사고판 항구'(해외 4곳 + 부산)
+    expect(line('voyageSummary')).toContain('사고판 항구 5곳');
     expect(line('voyageSummary')).toContain('받은 상: 수출상');
     expect(line('expoEntry')).toBe('출품: 배터리 · 받은 관심 도장 5개');
   });

@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { OLD_TEACHER_TERMS } from '../src/teacher/teacher-terms';
 import { openTvMenu } from './support/voyage-ui';
-import { wrapRound } from './support/wrap174';
+import { expectedContainerPct, wrapRound } from './support/wrap174';
+import { AWARD_ORDER } from '../src/data/awards';
 
 /**
  * 작업 173 — 4차시 판(차시 한 판 L4) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — lesson3-full.spec.ts와 같은 기반).
@@ -309,6 +310,12 @@ for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15,
     ];
     await t.bringToFront();
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ready');
+    // (작업 178) 상별 수상 인원 1명 — 학생 3명이라도 상이 여러 개 나와 시상 차례(도약상 → 무역왕상)가 실제로 돈다
+    await t.getByTestId('btn-settings').click();
+    await t.getByTestId('settings-advanced').locator(':scope > summary').click();
+    await t.getByTestId('set-awards-per-1').click();
+    await expect(t.getByTestId('set-awards-per-1')).toHaveAttribute('aria-pressed', 'true');
+    await t.getByTestId('settings-close').click();
 
     const seen: Seen = { worksheets: new Set(), cards: new Set(), shots: new Set(), helpers: new Map() };
     const log: string[] = [];
@@ -439,29 +446,39 @@ for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15,
       expect(cards).toContain('reflect-inputs:2');
       expect(scenes.has('gallery')).toBe(false);
     } else {
-      for (const l of ['s1', 's2', 's3']) {
+      for (const l of students.map((_, i) => `s${i + 1}`)) {
         expect(cards, `컨테이너 ${l}`).toContain(`containers-done:${l}`);
         expect(cards, `잡지 표지 ${l}`).toContain(`magazine-sent:${l}`);
       }
       expect(cards).toContain('containers-score:s1:컨테이너 8개 중 8개 맞혔어요. 옳은 문장은 4개예요.');
       expect(cards).toContain('containers-score:s3:컨테이너 8개 중 5개 맞혔어요. 옳은 문장은 4개예요.');
       // TV 문장별 정답률(3명): 맞힌 회사 수 ÷ 다 실은 회사 수
-      expect(cards).toContain('tv-containers-pct:67,67,100,100,67,100,67,33');
+      expect(cards).toContain(`tv-containers-pct:${expectedContainerPct(students.map((_, i) => `s${i + 1}`))}`);
       expect(seen.helpers.get('s1:containerResult') ?? '').toContain('컨테이너 OX 8개 중 8개 맞혔어요');
       expect(cards).toContain('reflect-inputs:3');
       expect(cards).toContain('magazine-paper:s1');
       expect(cards).toContain('tv-gallery');
       expect(scenes.has('containers') && scenes.has('reflect') && scenes.has('gallery'), [...scenes].join(',')).toBe(true);
     }
-    for (const l of ['s1', 's2', 's3']) expect(cards, `되돌아보기 ${l}`).toContain(`reflect-sent:${l}`);
+    for (const l of students.map((_, i) => `s${i + 1}`)) expect(cards, `되돌아보기 ${l}`).toContain(`reflect-sent:${l}`);
     expect(cards).toContain('reflect-copy');
+    // (작업 178) '마지막 항해예요' 강조 줄: 앞 시간 판에는 없고, 뒤 시간·두 시간 모두 판에는 있다(TV 안내 장면도 같은 규칙)
+    expect(cards).toContain(`half-cargo:${part !== 'front'}`);
+    expect(cards).not.toContain(`half-cargo:${part === 'front'}`);
     // 시상 차례: 안내 → 한 장씩 → 전체 목록, 도약상은 무역왕상 바로 앞(뒤 시간 15분은 거래가 없어 받을 회사가 있는 상이 없을 수 있다 — 상이 있을 때만)
     const anyAward = cards.some((c) => c.startsWith('tv-award:'));
     if (part !== 'back' || anyAward) {
       const one = cards.filter((c) => c.startsWith('tv-award:one:')).sort((a, b) => Number(a.split(':')[2]) - Number(b.split(':')[2])).map((c) => c.split(':')[3]);
       expect(cards.some((c) => c.startsWith('tv-award:intro:'))).toBe(true);
       expect(one.length).toBeGreaterThan(0);
+      test.info().annotations.push({ type: '시상 차례', description: one.join(' → ') });
       if (one.includes('leap') && one.includes('finalAsset')) expect(one.indexOf('leap')).toBe(one.indexOf('finalAsset') - 1);
+      // (작업 178) 상별 1명이라 상이 여러 개 — TV에 나온 차례가 발표 순서(AWARD_ORDER) 그대로, 무역왕상이 맨 끝(도약상 → 무역왕상 차례는 거래 없는 이 판에서 도약상이 안 생겨 e2e/screen.spec.ts 시상식 차례 시험이 실제 판 상태로 확인)
+      if (part !== 'back') {
+        expect(one.length, one.join(' → ')).toBeGreaterThan(1);
+        expect(one).toEqual(AWARD_ORDER.filter((id) => one.includes(id)));
+        expect(one.at(-1)).toBe('finalAsset');
+      }
       expect(cards).toContain('tv-award-list');
       expect(cards.some((c) => c.startsWith('cheer:')), '내 상 축하 카드').toBe(true);
     }

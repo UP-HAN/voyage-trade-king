@@ -216,7 +216,8 @@ describe('막대', () => {
 describe('시상: 수상 회사가 없는 상', () => {
   it('거래 없이 마무리(단원 한 판) → 수상자 없는 상만이면 시상 장면이 아니다', () => {
     const d = data('awards', { plain: true, unit: true });
-    expect((d.pub.awards ?? []).some((a) => a.winners.length === 0)).toBe(true);
+    // (작업 178) 공개 상태에는 수상 회사가 있는 상만 온다(아래 none은 옛 상태처럼 수상자 없는 상만 있을 때)
+    expect((d.pub.awards ?? []).every((a) => a.winners.length > 0)).toBe(true);
     expect(pickScene(d, NOW)).toBe(hasAwardWinners(d) ? 'awards' : 'leaderboard');
     const none = { ...d, pub: { ...d.pub, awards: (d.pub.awards ?? []).map((a) => ({ ...a, winners: [] })) } };
     expect(hasAwardWinners(none)).toBe(false);

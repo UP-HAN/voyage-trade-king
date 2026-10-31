@@ -200,7 +200,8 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
 /** 지금 학생이 '할 일'이 화면에 떠 있는가(활동·카드·팝업·편지·따라잡기) */
 export function hasTask(pr: StudentProbe): boolean {
   // 편지는 아이콘이 실제로 눌릴 때만 할 일(수정 1)
-  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.article || pr.vote || pr.vn || pr.vnFix || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable));
+  // (작업 178) 편지함이 열려 있으면(결과·[알겠어요]·닫기) 그것도 할 일 — 학생은 편지를 닫고 거래로 돌아간다
+  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.article || pr.vote || pr.vn || pr.vnFix || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable) || (pr.letterOpen && !pr.tradeOver));
 }
 
 /** 라운드 중 거래·출항에 쓸 수 있는 조작이 '보이고 실제로 눌리는가'(수정 1: 투명 층·남은 층·pointer-events:none이 덮으면 아님). readyNote = 이미 출항 준비함 */
@@ -329,6 +330,23 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
     const now = (o.now ?? Date.now)();
     if (!mem.delayUntil.has(key)) mem.delayUntil.set(key, now + ms * (1 - o.diligence) * (0.5 + o.rand()));
     return now < mem.delayUntil.get(key)!;
+  };
+  /** (작업 178) 편지함 닫기: 결과가 뜰 때까지(최대 실제 2초) 기다렸다가 [알겠어요] → [닫기] */
+  const closeLetterPanel = async () => {
+    for (let i = 0; i < 8; i++) {
+      const ack = p.getByTestId('letter-ack');
+      if (await ack.isVisible().catch(() => false)) {
+        await click('letter-ack').catch(() => undefined);
+        await sleep(150);
+      }
+      const close = p.getByTestId('letter-close');
+      if (await close.isVisible().catch(() => false)) {
+        await click('letter-close').catch(() => undefined);
+        await sleep(150);
+      }
+      if (!(await p.getByTestId('letter-panel').isVisible().catch(() => false))) return;
+      await sleep(250);
+    }
   };
   // 초6이 학습지를 쓰는 시간(게임 시계): 50~140초, 덜 성실한 학생은 1.5~2배
   const writing = (key: string) => {
@@ -468,6 +486,14 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
     }
     // 가벼운 창: 세 번 넘게 안 눌리면(가려짐 등) 더 매달리지 않고 다른 할 일로 넘어간다 — 실패 수는 runner가 보고서에 남긴다
     // 최근(실제 30초) 세 번 넘게 안 눌린 창은 잠시 건너뛴다
+    // (작업 178) 아래 갈매기 띠의 카드(힌트·같은 거래 예보·⑥ 함께 쓰기)도 학생처럼 [알겠어요]로 접는다 — 띠가 거래 버튼 위 자리를 차지하지 않게
+    for (const id of ['gull-hint-ok', 'fair-ok', 'ws6-along-ok']) {
+      const b = p.getByTestId(id).first();
+      if (await b.isVisible().catch(() => false)) {
+        await clickLoc(id, b).catch(() => undefined);
+        return 'gull-ok';
+      }
+    }
     const recentFails = (id: string) => (mem.failAt.get(id) ?? []).filter((x) => Date.now() - x < 30_000).length;
     const light = ['port-card-ok', 'concept-ok', 'event-result-close'].filter((id) => recentFails(id) < 3);
     if (pr.lightPopup && light.length) {
@@ -489,8 +515,14 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
       const choices = p.getByTestId('letter-choice');
       const n = await choices.count();
       if (n > 0) await clickLoc('letter-choice', choices.nth(Math.floor(o.rand() * n)));
-      for (const id of ['letter-ack', 'letter-close']) if (await p.getByTestId(id).isVisible().catch(() => false)) await click(id).catch(() => undefined);
+      // (작업 178) 결과가 뜰 때까지 잠깐 기다렸다가 [알겠어요] → [닫기](틀린 편지는 [알겠어요]를 눌러야 닫기가 나온다)
+      await closeLetterPanel();
       return 'letter';
+    }
+    // (작업 178) 앞에서 다 닫지 못하고 편지함이 열린 채 남았으면(결과가 늦게 옴 등) 다시 [알겠어요]·[닫기]
+    if (pr.letterOpen && !pr.tradeOver) {
+      await closeLetterPanel();
+      return 'letter-close';
     }
     if (pr.tradeOver) {
       if (pr.wrapAwards) mem.seen.add('wrap-awards');

@@ -26,7 +26,8 @@
   position: absolute;
   top: 76px;
   right: 10px;
-  bottom: 10px;
+  /* (작업 178) 아래 막대·갈매기 띠 위에서 멈춘다(GameScreen이 --st-below-main을 알림) — 거래 버튼을 덮지 않게 */
+  bottom: calc(var(--st-below-main, 0px) + 10px);
   width: min(400px, calc(100% - 20px));
   pointer-events: none;
   display: flex;

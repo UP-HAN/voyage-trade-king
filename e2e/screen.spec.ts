@@ -331,6 +331,40 @@ test.describe('장면(가짜 호스트 = 실제 교사 리듀서 상태)', () =>
     expect(errors).toEqual([]);
   });
 
+  test('(작업 178) 시상식 차례 공개: 안내 → 한 장씩(도약상 → 무역왕상) → 전체 목록, 화면 안·공개한 상만', async ({ page, context }) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const host = await fakeHost(context);
+    await page.goto(`./#/screen?room=${CODE}`);
+    await expect(page.getByTestId('scene-wait')).toBeVisible();
+    const order: string[] = [];
+    for (let k = 0; k < 20; k++) {
+      await expect
+        .poll(async () => {
+          await host.send('awards', { awardsLive: k });
+          return page.getByTestId('scene-awards').getAttribute('data-mode').catch(() => null);
+        }, { timeout: 10_000, intervals: [700] })
+        .toMatch(k === 0 ? /^intro$/ : /^(one|list)$/);
+      const mode = await page.getByTestId('scene-awards').getAttribute('data-mode');
+      if (mode === 'list') break;
+      if (k > 0) {
+        await expect(page.getByTestId('scene-awards')).toHaveAttribute('data-shown', String(k));
+        order.push((await page.getByTestId('scene-awards').getAttribute('data-metric')) ?? '');
+        const b = await page.getByTestId('award-card').boundingBox();
+        expect(b && b.y >= 0 && b.y + b.height <= 1080, `상 카드 ${k} 화면 안`).toBe(true);
+      }
+      if (SHOT_DIR && (k <= 1 || order.at(-1) === 'leap' || order.at(-1) === 'finalAsset')) await shot(page, `178-awards-${k}-${mode}${order.at(-1) ? `-${order.at(-1)}` : ''}.png`);
+    }
+    // 발표 순서: 도약상이 무역왕상 바로 앞(마지막 두 장)
+    expect(order.length).toBeGreaterThan(3);
+    expect(order.slice(-2)).toEqual(['leap', 'finalAsset']);
+    await expect(page.getByTestId('scene-awards')).toHaveAttribute('data-mode', 'list');
+    await expect(page.getByTestId('award-card')).toHaveCount(order.length);
+    expect(errors).toEqual([]);
+  });
+
   test('1280×720·1366×768에서도 잘리지 않는다', async ({ page, context }) => {
     test.setTimeout(120_000);
     const host = await fakeHost(context);

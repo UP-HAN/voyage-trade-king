@@ -14,6 +14,9 @@ import { magazineFields } from '../../src/data/magazine';
 import type { SessionInput } from '../../src/sync/host-session';
 import {
   awardsRevealed,
+  hiddenOnScreen,
+  resultTableOf,
+  screenSafeText,
   liveWrapStep,
   magazineModeOf,
   newTeacherGame,
@@ -22,7 +25,7 @@ import {
   wrapAwardList,
   type TeacherGame,
 } from '../../src/teacher/game';
-import { hiddenSummaryMetrics, reflectQuestionsOf, revealedAwards } from '../../src/student/wrapup/model';
+import { hiddenSummaryMetrics, isLastVoyage, reflectQuestionsOf, revealedAwards } from '../../src/student/wrapup/model';
 
 interface World {
   get: () => TeacherGame;
@@ -319,5 +322,93 @@ describe('C. 결산 요약·시상', () => {
     expect(awardsRevealed(w.get())).toBe(list.length);
     w.teach({ type: 'setWrapStep', id: 'awards', status: 'live' });
     expect(awardsRevealed(w.get())).toBe(0);
+  });
+});
+
+describe('(작업 178) 시상 결과 고정·공개 상태·표지 글 가림·마지막 항해 줄', () => {
+  /** 4명, 사회적 책임만 1번이 근소하게 앞섬 → 착한 기업상 1번. 잡지 표지 +10을 받은 2번이 뒤에 앞서도 상은 그대로 */
+  function csrWorld() {
+    const w = wrapWorld({ part: 'back', n: 4 });
+    const g0 = w.get();
+    const players = { ...g0.players };
+    [1, 2, 3, 4].forEach((s) => {
+      const p = players[seatKey(s)]!;
+      players[seatKey(s)] = { ...p, game: { ...p.game, metrics: { ...p.game.metrics, csr: s === 1 ? 55 : 50, exports: s === 4 ? 40 : 0, quizRight: s === 3 ? 5 : 0 } } };
+    });
+    w.set({ ...g0, class: { ...g0.class, settings: { ...g0.class.settings, awardsPerPrize: 1 } }, players });
+    return w;
+  }
+  const csrWinner = (list: ReturnType<typeof wrapAwardList>) => list.find((a) => a.metric === 'csr')?.winners.map((x) => x.pid) ?? [];
+
+  it('[첫 상 공개] 순간 고정 — 잡지 표지 +10 뒤에도 TV·학생·끝 화면·결과 파일의 상이 그대로, 지표 값만 바뀜', () => {
+    const w = csrWorld();
+    w.teach({ type: 'setWrapStep', id: 'awards', status: 'live' });
+    expect(w.get().awardsFrozen ?? null).toBeNull();
+    w.teach({ type: 'awardNext' });
+    const frozen = w.get().awardsFrozen!;
+    expect(Array.isArray(frozen)).toBe(true);
+    const pid1 = player(w.get(), 1).pid;
+    const pid2 = player(w.get(), 2).pid;
+    expect(csrWinner(frozen)).toEqual([pid1]);
+    for (let i = 0; i < 10; i++) w.teach({ type: 'awardNext' });
+    w.teach({ type: 'setWrapStep', id: 'reflect', status: 'live' });
+    w.teach({ type: 'setWrapStep', id: 'magazine', status: 'live' });
+    w.teach({ type: 'setMagazineMode', mode: 'game' });
+    expect(w.respond(2, 'L4-E8', { fields: ['a', 'b', 'c', '목표', '노력', 'f'], bg: 1 }).ok).toBe(true);
+    expect(player(w.get(), 2).game.metrics.csr).toBe(60);
+    // 지금 다시 계산하면 2번이 착한 기업상이지만, 고정한 목록은 1번
+    expect(csrWinner(awards(Object.values(w.get().players), { perPrize: 1, hideFlatMetrics: true }) as never)).toEqual([pid2]);
+    expect(csrWinner(wrapAwardList(w.get()))).toEqual([pid1]);
+    expect(csrWinner(pub(w.get()).public.awards ?? [])).toEqual([pid1]);
+    w.teach({ type: 'endSession' });
+    expect(w.get().class.phase).toBe('ended');
+    expect(csrWinner(pub(w.get()).public.awards ?? [])).toEqual([pid1]);
+    const table = resultTableOf(w.get());
+    const row1 = table.rows.find((r) => r.seat === 1)!;
+    const row2 = table.rows.find((r) => r.seat === 2)!;
+    expect(row1.awards).toContain('착한 기업상');
+    expect(row2.awards).not.toContain('착한 기업상');
+    expect(row2.values.csr).toBe(60);
+  });
+
+  it('공개 상태 awards에는 공개한 상만(시상식 전 0개, 한 장씩 늘어남)', () => {
+    const w = csrWorld();
+    expect(pub(w.get()).public.awards).toEqual([]);
+    w.teach({ type: 'setWrapStep', id: 'awards', status: 'live' });
+    expect(pub(w.get()).public.awards).toEqual([]);
+    const total = wrapAwardList(w.get()).length;
+    expect(total).toBeGreaterThan(1);
+    w.teach({ type: 'awardNext' });
+    expect(pub(w.get()).public.awards).toHaveLength(1);
+    w.teach({ type: 'awardNext' });
+    expect(pub(w.get()).public.awards).toHaveLength(2);
+    expect(JSON.stringify(pub(w.get()).public.awards)).not.toContain(wrapAwardList(w.get())[2]?.award ?? '없는 상');
+  });
+
+  it('시상식을 건너뛰면 수업을 끝낼 때 고정', () => {
+    const w = csrWorld();
+    w.teach({ type: 'setWrapStep', id: 'awards', status: 'skipped' });
+    expect(w.get().awardsFrozen ?? null).toBeNull();
+    w.teach({ type: 'endSession' });
+    expect(Array.isArray(w.get().awardsFrozen)).toBe(true);
+  });
+
+  it('표지 글 가림: 단위 붙은 숫자(2030년·1000만 원)는 그대로, 전화번호·주소·금칙어는 ***', () => {
+    expect(screenSafeText('2030년까지 탄소 줄이기')).toBe('2030년까지 탄소 줄이기');
+    expect(screenSafeText('수출 1000만 원 달성')).toBe('수출 1000만 원 달성');
+    expect(screenSafeText('010-1234-5678로 연락')).toBe('***');
+    expect(screenSafeText('20301234')).toBe('***');
+    expect(screenSafeText('www 홈페이지')).toBe('***');
+    expect(screenSafeText('바보 회사')).toBe('***');
+    expect(hiddenOnScreen('바보 회사')).toBe(true);
+    expect(hiddenOnScreen('2030년까지')).toBe(false);
+  });
+
+  it("'마지막 항해예요' 강조 줄: 4차시 앞 시간 판에서는 빼고, 뒤 시간·두 시간 모두·단원 한 판에만", () => {
+    expect(isLastVoyage(wrapWorld({ part: 'front' }).get().class.settings as never)).toBe(false);
+    expect(isLastVoyage(wrapWorld({ part: 'back' }).get().class.settings as never)).toBe(true);
+    expect(isLastVoyage(wrapWorld({ part: 'all' }).get().class.settings as never)).toBe(true);
+    expect(isLastVoyage(wrapWorld({ scope: ['L3'] }).get().class.settings as never)).toBe(false);
+    expect(isLastVoyage(wrapWorld({ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'] }).get().class.settings as never)).toBe(true);
   });
 });

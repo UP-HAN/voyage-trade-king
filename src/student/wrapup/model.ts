@@ -5,6 +5,16 @@ import type { MetricId } from '../../data/awards';
 import { metrics as METRICS } from '../../data/awards';
 import { eventsById } from '../../data/events';
 import type { PublicClass, PublicState, PublicWrap, WrapItem } from '../../core';
+import { lessonPartRulesOf } from '../../data/lessonParts';
+
+/**
+ * (작업 178) 이 판이 단원의 마지막 항해인가('마지막 항해예요 — 남은 화물은 산 값의 절반' 강조 줄): 4차시가 든 판이되,
+ * 4차시 앞 시간 판은 다음 시간에 뒤 시간 판을 또 하므로 아니다.
+ */
+export function isLastVoyage(settings: PublicClass['settings'] | null | undefined): boolean {
+  if (!settings?.scope?.includes('L4')) return false;
+  return lessonPartRulesOf(settings)?.part !== 'front';
+}
 
 /** 마무리 항목 하나(없으면 undefined) */
 export function wrapItemOf(cls: PublicClass, id: string): WrapItem | undefined {

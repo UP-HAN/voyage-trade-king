@@ -170,7 +170,8 @@ export function wrapScene(d: ScreenData): SceneId | null {
     case 'containers':
       return 'containers';
     case 'awards':
-      return hasAwardWinners(d) ? 'awards' : null;
+      // (작업 178) 공개 상태에는 공개한 상만 오므로 전체 수(wrap.awardsTotal)로 본다
+      return (d.wrap ? d.wrap.awardsTotal > 0 : hasAwardWinners(d)) ? 'awards' : null;
     case 'reflect':
       return 'reflect';
     case 'magazine':

@@ -81,7 +81,7 @@ export function SettingsModal({ game, actions, onClose, onSaveResult, onSaveMove
             {pick(s.assetBoard, true, '보임', () => upd({ assetBoard: true }))}
             {pick(s.assetBoard, false, '숨김', () => upd({ assetBoard: false }))}
           </Row>
-          <Row label="상별 수상 인원">{([1, 2, 3] as const).map((k) => pick(s.awardsPerPrize, k, `${k}명`, () => upd({ awardsPerPrize: k })))}</Row>
+          <Row label="상별 수상 인원">{([1, 2, 3] as const).map((k) => pick(s.awardsPerPrize, k, `${k}명`, () => upd({ awardsPerPrize: k }), `set-awards-per-${k}`))}</Row>
           <Row label="'다 썼어요' 대기 시간">
             {worksheetWaitSecOptions.map((w) => pick(s.worksheetWaitSec, w, `${w}초`, () => upd({ worksheetWaitSec: w })))}
           </Row>

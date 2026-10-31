@@ -8,6 +8,7 @@ import { fairTradeText } from '../../data/fairTrade';
 import { afterWorksheets, awardsWithWinners, rulesFor } from '../model';
 import { ArtImg, CompanyTag } from '../parts';
 import type { SceneProps } from './types';
+import { isLastVoyage } from '../../student/wrapup/model';
 import { AfterWorksheetList } from './WorksheetScene';
 
 export function PauseScene(_p: SceneProps) {
@@ -55,10 +56,12 @@ export function AwardsScene({ d }: SceneProps) {
   // 수상 회사가 없는 상(값이 0뿐인 지표 등)은 그리지 않는다
   const all = awardsWithWinners(d).sort((a, b) => AWARD_ORDER.indexOf(a.metric) - AWARD_ORDER.indexOf(b.metric));
   // (작업 174) 시상식 차례 공개: 교사가 [다음 상]으로 한 장씩(도약상이 무역왕상 바로 앞 — AWARD_ORDER). 다 공개하면 전체 목록 + 완주 증서 수
+  // (작업 178) 공개 상태에는 이미 공개한 상만 온다 — 전체 수는 wrap.awardsTotal
   const shown = d.wrap ? Math.min(all.length, Math.max(0, d.wrap.awardsShown)) : all.length;
+  const total = d.wrap ? d.wrap.awardsTotal : all.length;
   // 진행 중 시상식은 마지막 상까지 한 장씩, 교사가 [상 전체 목록 보기]를 누르면(awardsList) 전체 목록
-  const revealing = d.wrapLive === 'awards' && !!d.wrap && !d.wrap.awardsList && (shown < all.length || all.length > 0);
-  if (revealing) return <AwardRevealScene d={d} all={all} shown={shown} />;
+  const revealing = d.wrapLive === 'awards' && !!d.wrap && !d.wrap.awardsList && total > 0;
+  if (revealing) return <AwardRevealScene d={d} all={all} shown={shown} total={total} />;
   const awards = all.slice(0, shown);
   const after = afterWorksheets(d);
   return (
@@ -89,18 +92,18 @@ export function AwardsScene({ d }: SceneProps) {
 }
 
 /** (작업 174) 시상식 한 장씩: 처음(0)은 결산 안내, 그다음은 방금 공개한 상 하나를 크게 */
-function AwardRevealScene({ d, all, shown }: { d: SceneProps['d']; all: ReturnType<typeof awardsWithWinners>; shown: number }) {
+function AwardRevealScene({ d, all, shown, total }: { d: SceneProps['d']; all: ReturnType<typeof awardsWithWinners>; shown: number; total: number }) {
   if (shown === 0) {
-    const last = d.scope.includes('L4');
+    const last = isLastVoyage(d.cls.settings);
     return (
-      <div class="scr-scene scr-awards scr-awards--intro" data-testid="scene-awards" data-mode="intro" data-shown={0} data-total={all.length}>
+      <div class="scr-scene scr-awards scr-awards--intro" data-testid="scene-awards" data-mode="intro" data-shown={0} data-total={total}>
         <p class="scr-kicker">결산 · 시상식</p>
         <h1 class="scr-h1">항해가 끝났어요</h1>
         <div class="scr-panel scr-awards__intro">
           {last && <p class="scr-awards__strong">마지막 항해예요. 배에 남은 화물은 산 값의 절반으로 계산해 최종 자산을 정해요.</p>}
           <p>상은 최종 자산 하나로만 주지 않아요. 여러 기록을 보고 서로 다른 친구에게 상을 줘요.</p>
           <p>
-            오늘 상은 모두 <b>{all.length}</b>가지예요. 한 가지씩 공개해요!
+            오늘 상은 모두 <b>{total}</b>가지예요. 한 가지씩 공개해요!
           </p>
         </div>
       </div>
@@ -108,9 +111,9 @@ function AwardRevealScene({ d, all, shown }: { d: SceneProps['d']; all: ReturnTy
   }
   const a = all[shown - 1];
   return (
-    <div class="scr-scene scr-awards scr-awards--one" data-testid="scene-awards" data-mode="one" data-shown={shown} data-total={all.length} data-metric={a.metric}>
+    <div class="scr-scene scr-awards scr-awards--one" data-testid="scene-awards" data-mode="one" data-shown={shown} data-total={total} data-metric={a.metric}>
       <p class="scr-kicker">
-        시상식 · {shown}/{all.length}
+        시상식 · {shown}/{total}
       </p>
       <div class="scr-panel scr-awards__big" data-testid="award-card" data-metric={a.metric}>
         <h2 class="scr-awards__bigname">{a.award || awardName(a.metric)}</h2>

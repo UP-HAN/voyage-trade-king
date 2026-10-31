@@ -19,7 +19,15 @@ export async function shot174(page: Page, name: string) {
   await page.screenshot({ path: join(SHOTS174, name) });
 }
 /** 학생별 컨테이너 싣기(옳은 문장 = 1·5·7·8): 1번 전부 맞힘, 2번 하나 틀림, 3번 하나만 */
-export const LOADS: Record<string, number[]> = { s1: [1, 5, 7, 8], s2: [1, 2, 5], s3: [7] };
+export const LOADS: Record<string, number[]> = { s1: [1, 5, 7, 8], s2: [1, 2, 5], s3: [7], s4: [1, 5, 7], s5: [5, 8] };
+
+/** (작업 178) LOADS로 계산한 TV 문장별 정답률(%) — 학생 수가 바뀌어도 기대값이 맞게 */
+export function expectedContainerPct(labels: readonly string[]): string {
+  const correct = [1, 5, 7, 8];
+  return [1, 2, 3, 4, 5, 6, 7, 8]
+    .map((no) => Math.round((labels.filter((l) => (LOADS[l] ?? []).includes(no) === correct.includes(no)).length / labels.length) * 100))
+    .join(',');
+}
 export const COVER_TEXT = (label: string) => [`${label}반도체`, `${label}작고 빨라요`, '베트남', `${label}환경을 지키는 기업`, `${label}정당한 임금을 줘요`, `${label}협력해요`];
 
 /** (작업 174) 마무리 학생 화면: 컨테이너 싣기 → 자기 평가, 되돌아보기 입력·복사·보내기, 잡지 표지 게임 쓰기 */
@@ -112,12 +120,14 @@ export async function wrapRound(o: { t: Page; scr: Page; students: Page[]; seen:
   const visible = (p: Page, id: string) => p.getByTestId(id).first().isVisible().catch(() => false);
   for (const [i, s] of students.entries()) await wrapTidy(s, seen, `s${i + 1}`, P);
   await o.tick(2);
+  // (작업 178) '마지막 항해예요' 강조 줄이 보였는지(4차시 앞 시간 판에는 없어야)
+  if (await s1.getByTestId('wrap-awards').isVisible().catch(() => false)) seen.cards.add(`half-cargo:${await s1.getByTestId('wrap-half-cargo').isVisible().catch(() => false)}`);
   const wrapScene = (await scr.getByTestId('route-screen').getAttribute('data-scene')) ?? '';
   scenes.add(wrapScene);
   if (wrapScene === 'containers') {
     const result = await scr.getByTestId('scene-containers').getAttribute('data-result');
     if (result === '0') {
-      await expect(scr.getByTestId('containers-count')).toContainText('3/3');
+      await expect(scr.getByTestId('containers-count')).toContainText(`${students.length}/${students.length}`);
       if (!seen.shots.has('w-tv-containers')) {
         seen.shots.add('w-tv-containers');
         await shot174(scr, `${P}-tv-containers.png`);

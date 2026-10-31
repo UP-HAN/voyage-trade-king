@@ -15,7 +15,8 @@ import { worksheet, worksheetById } from '../data/worksheet';
 import { helperText, type HelperInputs, type IslandAmounts } from '../data/worksheetHelpers';
 import type { ExportTypeId, GoodId, HelperKey, LessonId, PortId, WorksheetId } from '../data/types';
 import { parseVNDecision } from './factoryVN';
-import type { AwardResult, ClassVote, Json, LogEntry, ScheduleState } from './types';
+import { tradedPortCount } from './fairTrade';
+import type { AwardResult, ClassVote, FairTradeState, Json, LogEntry, ScheduleState } from './types';
 
 // ─── 입력 모양(구조만) ─────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface HelperPlayer {
     responses: Record<string, Json>;
     log: readonly LogEntry[];
     metrics: { visited: readonly string[] };
+    /** (작업 178) 같은 거래 반복·다양한 무역 기록(사고판 항구 수 — 없으면 부산 1곳) */
+    fairTrade?: FairTradeState;
   };
 }
 
@@ -291,11 +294,12 @@ function voyageSummary(src: HelperSource): HelperInputs['voyageSummary'] | null 
     if (profit === null) continue;
     if (!bestTrade || profit > bestTrade.profit) bestTrade = { good: e.good, port: e.port, profit };
   }
-  const visitedPorts = p.game.metrics.visited.length;
+  // (작업 178) 개척 지표(176)와 같은 '실제로 사고판 항구 수'(부산 포함)
+  const tradedPorts = tradedPortCount(p);
   const awards = (src.pub?.awards ?? []).filter((a) => p.pid && a.winners.some((w) => w.pid === p.pid)).map((a) => a.award);
   const traded = p.game.log.some((e) => e.kind === 'buy' || e.kind === 'sell' || e.kind === 'voyage');
   if (!traded && !awards.length) return null;
-  return { bestTrade, visitedPorts, awards };
+  return { bestTrade, tradedPorts, awards };
 }
 
 /** 선택 활동 박람회(P2) — 응답 모양이 정해지면 읽는다 */

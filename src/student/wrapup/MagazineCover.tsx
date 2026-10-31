@@ -8,7 +8,7 @@
  * PNG 저장·인쇄는 범위 밖(후속). 학생은 미리보기를 보고 학습지 ⑰에 옮겨 쓴다.
  */
 import { useState } from 'preact/hooks';
-import type { Action, PublicClass, PublicState, PublicWrap } from '../../core';
+import { metricValue, type Action, type PublicClass, type PublicState, type PublicWrap } from '../../core';
 import { helperInputs } from '../../core/worksheet-helpers';
 import { goodsById } from '../../data/goods';
 import { magazineBackgrounds, magazineFields, magazinePaperText } from '../../data/magazine';
@@ -16,7 +16,7 @@ import { helperText, magazineSuggestion } from '../../data/worksheetHelpers';
 import { worksheetById } from '../../data/worksheet';
 import { img } from '../../ui/common/asset';
 import { MagazineCoverCard } from '../../ui/cards/MagazineCoverCard';
-import type { MeView } from '../predict';
+import { playerForPredict, type MeView } from '../predict';
 import type { StudentActResult } from '../store';
 import { revealedAwards, wrapItemOf } from './model';
 
@@ -86,7 +86,8 @@ export function MagazineCover({ cls, pub, me, wrap, act }: MagazineCoverProps) {
 
   const dirty = sentText !== JSON.stringify([fields, bg]);
   const exportsV = me.game.metrics.exports ?? 0;
-  const ports = me.game.metrics.visited?.length ?? 0;
+  // (작업 178) 개척 지표(176)와 같은 '실제로 사고판 항구 수'
+  const ports = metricValue(playerForPredict(me), 'explore');
   const myAwards = revealedAwards(pub, wrap).filter((a) => a.winners.some((w) => w.pid === me.pid)).map((a) => a.award);
   const submit = () => {
     const r = act({ type: 'respondEvent', eventId: 'L4-E8', response: { fields, bg } as never });

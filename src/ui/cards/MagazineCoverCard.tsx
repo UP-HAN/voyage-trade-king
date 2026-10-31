@@ -3,7 +3,7 @@
  *
  * - 크기는 부모 너비를 따르고(세로 = 너비 × 1.414, A4 세로), 글자는 컨테이너 단위(cqw)로 비례한다.
  * - 배경: `cover/bg-1~3.png`(없으면 같은 번호의 단색 — data/magazine.ts). 제목 "우리나라 대표 기업을 알아보는 / 이달의 기업"(p.113 문구).
- * - 회사 이름·깃발·(학생 화면이면) 선장 그림, 6칸 글, (학생 화면이면) 아래 '항해 기록' 띠(수출액·방문 항구·받은 상).
+ * - 회사 이름·깃발·(학생 화면이면) 선장 그림, 6칸 글, (학생 화면이면) 아래 '항해 기록' 띠(수출액·사고판 항구 — 개척 지표와 같은 값(작업 178)·받은 상).
  * - 공용 화면에는 교사가 고른 표지의 회사 이름·깃발·6칸 글·배경 번호만 온다(띠·선장 없음).
  */
 import { useState } from 'preact/hooks';
@@ -85,7 +85,7 @@ export function MagazineCoverCard({ company, flag, fields, bg, avatar, record, h
           <footer class="mz-record" data-testid="magazine-record">
             <b>항해 기록</b>
             <span>수출액 {record.exports.toLocaleString('ko-KR')}만 원</span>
-            <span>방문 항구 {record.ports}곳</span>
+            <span>사고판 항구 {record.ports}곳</span>
             <span>받은 상 {record.awards.length ? record.awards.join(', ') : '—'}</span>
           </footer>
         )}

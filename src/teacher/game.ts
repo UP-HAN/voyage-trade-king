@@ -22,6 +22,7 @@ import {
   type HostSnapshot,
   type ItemForm,
   type PlayUnit,
+  type AwardResult,
   type PublicWrap,
   type WrapItem,
 } from '../core';
@@ -63,6 +64,11 @@ export type TeacherGame = HostSnapshot & {
   wrapAutoStarted?: boolean;
   /** (작업 174) 시상식에서 공개한 상 수(수상 회사가 있는 상, 발표 순서 `AWARD_ORDER`). 없으면 0 */
   awardsShown?: number;
+  /**
+   * (작업 178) 시상 결과 고정: 시상식 [첫 상 공개]를 누르는 순간(시상식을 건너뛰었으면 수업을 끝낼 때) 상 목록을 저장한다.
+   * 이후 TV·학생·끝 화면·결과 파일의 상은 이 목록을 쓴다(잡지 표지 +10 등 뒤에 바뀐 지표 값은 지표 칸에만 남음).
+   */
+  awardsFrozen?: AwardResult[] | null;
   /** (작업 174) 컨테이너 싣기 문장별 정답률을 TV에 보였는가([결과 보기]) */
   containersResult?: boolean;
   /** (작업 174) 잡지 표지를 어디에 쓰나(교사가 고름). 없으면 무역 시간으로 기본값(`magazineModeOf`) */
@@ -113,11 +119,14 @@ export const teacherReducer: SessionReducer<TeacherGame> = (snapshot, input: Ses
       return { snapshot: next, outputs: PUBLIC_OUT };
     }
     if (a.type === 'awardNext') {
-      const total = wrapAwardList(snapshot).length;
-      const cur = Math.max(0, snapshot.awardsShown ?? 0);
+      if (snapshot.wrapProgress?.awards !== 'live') return { snapshot, outputs: [] };
+      // (작업 178) [첫 상 공개]를 누르는 순간 상 목록을 고정
+      const frozen = freezeAwards(snapshot);
+      const total = wrapAwardList(frozen).length;
+      const cur = Math.max(0, frozen.awardsShown ?? 0);
       // 마지막 상 다음 한 번 더 = 전체 목록(total + 1)
-      if (snapshot.wrapProgress?.awards !== 'live' || cur > total) return { snapshot, outputs: [] };
-      return { snapshot: { ...snapshot, awardsShown: cur + 1 }, outputs: PUBLIC_OUT };
+      if (cur > total) return { snapshot: frozen, outputs: frozen === snapshot ? [] : PUBLIC_OUT };
+      return { snapshot: { ...frozen, awardsShown: cur + 1 }, outputs: PUBLIC_OUT };
     }
     if (a.type === 'setContainersResult') {
       if (!!snapshot.containersResult === a.show) return { snapshot, outputs: [] };
@@ -138,7 +147,9 @@ export const teacherReducer: SessionReducer<TeacherGame> = (snapshot, input: Ses
     }
   }
   const r = coreReducer(snapshot, input as never, now);
-  const next = r.snapshot as TeacherGame;
+  let next = r.snapshot as TeacherGame;
+  // (작업 178) 시상식을 건너뛰었거나 공개하지 않고 수업을 끝내면 끝낼 때 상 목록을 고정
+  if (next.class.phase === 'ended' && snapshot.class.phase !== 'ended' && next.class.tradeEnded) next = freezeAwards(next);
   const outputs = r.outputs as unknown as SessionOutput[];
   // (작업 137, PRD 7.5.2.9) 무역 시간이 끝나 마무리 단계가 되는 순간 첫 마무리 항목을 저절로 시작한다(한 번만)
   const auto = autoStartWrap(snapshot, next);
@@ -168,14 +179,21 @@ export function fireWrapEvent(g: TeacherGame, now: number): { snapshot: TeacherG
   return { snapshot: snap, outputs: r.outputs as unknown as SessionOutput[] };
 }
 
-/** (작업 174) 시상식 상 목록(수상 회사가 있는 상만, 발표 순서) — 공개 상태 `awards`와 같은 계산 */
-export function wrapAwardList(g: TeacherGame) {
+/** (작업 174) 시상식 상 목록(수상 회사가 있는 상만, 발표 순서). (작업 178) 고정했으면 고정한 목록 */
+export function wrapAwardList(g: TeacherGame): AwardResult[] {
+  if (Array.isArray(g.awardsFrozen)) return g.awardsFrozen;
   return computeAwards(Object.values(g.players), {
     perPrize: g.class.settings.awardsPerPrize,
     hideFlatMetrics: g.meta.playUnit === 'lesson',
     off: g.class.settings.awardsOff,
     nameReview: g.class.settings.nameReview,
   }).filter((a) => a.winners.length > 0);
+}
+
+/** (작업 178) 상 목록 고정(이미 고정했으면 그대로) */
+export function freezeAwards(g: TeacherGame): TeacherGame {
+  if (Array.isArray(g.awardsFrozen)) return g;
+  return { ...g, awardsFrozen: wrapAwardList(g) };
 }
 
 /**
@@ -226,11 +244,22 @@ export function nextCoverPid(g: TeacherGame): string | null {
   return list[(i + 1) % list.length].pid;
 }
 
+/**
+ * (작업 178) 단위가 붙은 숫자(연도·금액·수량 — "2030년", "1000만 원", "5000개")는 개인정보 형태(숫자 4자리 이상) 검사에서 뺀다.
+ * 전화번호·학번처럼 단위 없는 숫자 덩어리는 그대로 걸린다.
+ */
+const UNIT_NUMBER = /\d{4,}(?=\s*(?:년|만|억|원|개|명|상자|톤|대|%|퍼센트))/g;
+
 /** (작업 174) TV에 올리는 학생 글: 회사 이름 금칙어·개인정보 형태 검사와 같은 검사에 걸리면 '***' */
 export function screenSafeText(s: string, extraWords: readonly string[] = []): string {
   const t = String(s ?? '').trim();
   if (!t) return '';
-  return hasBadWord(t, extraWords) || looksLikePersonalInfo(t) ? '***' : t;
+  return hasBadWord(t, extraWords) || looksLikePersonalInfo(t.replace(UNIT_NUMBER, '0')) ? '***' : t;
+}
+
+/** (작업 178) 이 글이 TV에서 가려지는가(교사 고르기 목록 표시용) */
+export function hiddenOnScreen(s: string, extraWords: readonly string[] = []): boolean {
+  return screenSafeText(s, extraWords) === '***';
 }
 
 /** (작업 174) 공개 상태에 싣는 마무리 정보(교사 화면 전용 진행 값에서) */
@@ -301,7 +330,10 @@ export function liveWrapStep(g: Pick<TeacherGame, 'wrapProgress' | 'class'>): st
 
 /** 공개 상태(학생 전원·공용 화면 공통). 출석번호·개인 자금·응답 명단 없음 */
 export function publicView(g: TeacherGame, strict = false): JsonObject {
-  const data = { ...publicPayload(g), screenScene: g.screenScene ?? 'auto', wrapLive: liveWrapStep(g), ...(g.class.tradeEnded ? { wrap: wrapPublic(g) } : {}) } as unknown as JsonObject;
+  const payload = publicPayload(g);
+  // (작업 178) 마무리 단계의 공개 상태 상 목록은 고정 목록에서 **공개한 상만**(아직 공개 안 된 상이 학생 기기로 새지 않게)
+  if (g.class.tradeEnded) payload.public = { ...payload.public, awards: wrapAwardList(g).slice(0, awardsRevealed(g)) };
+  const data = { ...payload, screenScene: g.screenScene ?? 'auto', wrapLive: liveWrapStep(g), ...(g.class.tradeEnded ? { wrap: wrapPublic(g) } : {}) } as unknown as JsonObject;
   if (isDev || strict) assertNoSeatInPublic(data, strict);
   return data;
 }
@@ -380,11 +412,8 @@ export function scopeLabel(scope: readonly LessonId[]): string {
 /** 결과 표(PRD 10.7, v0.3.1): 출석번호·회사 이름은 세션이 붙이고 여기서는 지표와 상만. 실명 없음 */
 export function resultTableOf(g: TeacherGame): ResultTable {
   const players = Object.values(g.players);
-  const prizes = computeAwards(players, {
-    perPrize: g.class.settings.awardsPerPrize,
-    hideFlatMetrics: g.meta.playUnit === 'lesson',
-    off: g.class.settings.awardsOff,
-  });
+  // (작업 178) 시상식에서 고정한 상(없으면 지금 계산) — TV·학생 화면과 같은 결과
+  const prizes = wrapAwardList(g);
   const seatByPid = new Map(players.map((p) => [p.pid, p.seat]));
   const awardsBySeat = new Map<number, string[]>();
   for (const a of prizes) {

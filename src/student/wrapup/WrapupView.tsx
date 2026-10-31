@@ -19,7 +19,7 @@ import { playerForPredict, type MeView } from '../predict';
 import type { StudentActResult } from '../store';
 import { Containers } from './Containers';
 import { MagazineCover } from './MagazineCover';
-import { hiddenSummaryMetrics, revealedAwards, wrapItemOf } from './model';
+import { hiddenSummaryMetrics, isLastVoyage, revealedAwards, wrapItemOf } from './model';
 import { Reflect } from './Reflect';
 import './wrapup.css';
 
@@ -56,7 +56,7 @@ function AwardsSection({ cls, pub, me, wrap }: WrapSectionProps) {
   const mine = shown.filter((a) => a.winners.some((w) => w.pid === me.pid)).map((a) => a.award);
   const total = wrap ? wrap.awardsTotal : shown.length;
   const allShown = shown.length >= total;
-  const lastVoyage = cls.settings.scope.includes('L4');
+  const lastVoyage = isLastVoyage(cls.settings);
   let cert = false;
   try {
     cert = hasCertificate(cls as unknown as ClassState, player);

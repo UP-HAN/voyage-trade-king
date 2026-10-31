@@ -30,6 +30,7 @@ import { showRejoinEscape, type StudentState, type StudentStore } from './store'
 import { toggleAllowed } from './guard';
 import { formatMoney } from './text';
 import { WrapupView } from './wrapup/WrapupView';
+import { useLetterUi } from './letters/ui';
 
 /** 호스트가 15초 넘게 없으면 띠(PRD 7.8) */
 export const HOST_WAIT_BAND_MS = 15_000;
@@ -570,6 +571,26 @@ function MapView({ store, st, onSail }: { store: StudentStore; st: StudentState;
 
 export function GameScreen({ store, st }: { store: StudentStore; st: StudentState }) {
   const now = useServerNow(store);
+  // (작업 178) 편지함이 열린 동안에는 아래 갈매기 띠(힌트·예보·함께 쓰기 카드)를 접는다 — 편지 [알겠어요]를 덮지 않게(닫으면 다시 나옴)
+  const letterOpen = useLetterUi().open;
+  // (작업 178) 편지함 자리(.lt-dock)가 아래 막대·갈매기 띠 위에서 멈추도록, 가운데 화면(st-main) 아래 남는 높이를 CSS 변수로 알린다
+  const gameRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const g = gameRef.current;
+    const m = mainRef.current;
+    if (!g || !m) return;
+    const set = () => {
+      const below = Math.max(0, Math.round(g.getBoundingClientRect().bottom - m.getBoundingClientRect().bottom));
+      g.style.setProperty('--st-below-main', `${below}px`);
+    };
+    set();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(set);
+    ro.observe(g);
+    ro.observe(m);
+    return () => ro.disconnect();
+  }, []);
   const [view, setView] = useSessionValue<'map' | 'port'>('voyage.student.view', 'map');
   const [dex, setDex] = useState(false);
   const [editFlag, setEditFlag] = useState(false);
@@ -669,16 +690,16 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
     }
     setBonusSeen(`${roomCode}|${bonusList.length}`);
   }, [bonusList.length, roomCode]);
-  const dockCount = (alongOn ? 1 : 0) + (hintOn && hint ? 1 : 0) + (fairOn ? 1 : 0);
+  const dockCount = letterOpen ? 0 : (alongOn ? 1 : 0) + (hintOn && hint ? 1 : 0) + (fairOn ? 1 : 0);
   // 일시정지·이름 막힘 층이 떠 있으면 아래 화면 전체(HUD·도감·설정 메뉴 포함)를 키보드로도 못 건드리게
   const covered = topLayer(st) !== null;
 
   return (
-    <div class="st-game" data-testid="student-game" data-phase={phase ?? ''}>
+    <div class="st-game" ref={gameRef} data-testid="student-game" data-phase={phase ?? ''}>
       <div class="st-game__base" data-testid="game-base" {...(covered ? { inert: true, 'aria-hidden': 'true' } : {})}>
         <StatusBands st={st} now={now} />
         {(founded || phase !== 'prep') && <Hud store={store} st={st} now={now} onDex={() => setDex(true)} />}
-        <div class="st-main">{main}</div>
+        <div class="st-main" ref={mainRef}>{main}</div>
         {dockCount > 0 && (
           <div class={`st-gull-dock${dockCount > 1 ? ' st-gull-dock--stack' : ''}`}>
             {alongOn && <Ws6AlongCard onOk={() => setAlongSeen(roomCode)} />}

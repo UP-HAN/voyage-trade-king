@@ -42,6 +42,8 @@ export interface FixtureOptions {
   plain?: boolean;
   /** 'awards'를 단원 한 판으로 */
   unit?: boolean;
+  /** (작업 178) 'awards'를 시상식 진행 중으로: 교사가 [다음 상]을 이만큼 누른 상태(0 = 안내 한 장). 상별 1명 */
+  awardsLive?: number;
 }
 
 export interface ScreenPayload {
@@ -183,6 +185,12 @@ export function buildGame(scene: FixtureScene, o: FixtureOptions = {}): TeacherG
       if (g.class.phase !== 'wrapup') g = { ...g, class: { ...g.class, phase: 'wrapup', tradeEnded: true } };
       // (작업 174) 시상식(상 차례 공개)을 끝낸 뒤 — 전체 목록 장면. 마무리 첫 항목 자동 시작(4차시·단원 한 판은 컨테이너 싣기)은 끝난 것으로 둔다
       g = { ...g, wrapProgress: Object.fromEntries((g.class.schedule.wrapup ?? []).filter((w) => w.id !== 'afterWorksheet').map((w) => [w.id, 'done' as const])) };
+      if (o.awardsLive !== undefined) {
+        // (작업 178) 시상식 진행 중: 실제 교사 리듀서 행동으로 [시작] → [첫 상 공개]… (고정 목록 포함)
+        g = { ...g, class: { ...g.class, settings: { ...g.class.settings, awardsPerPrize: 1 } }, wrapProgress: { ...g.wrapProgress, awards: 'done' } };
+        run({ type: 'teacher', action: { type: 'setWrapStep', id: 'awards', status: 'live' } as never }, now - 3000);
+        for (let k = 0; k < o.awardsLive; k++) run({ type: 'teacher', action: { type: 'awardNext' } as never }, now - 2000 + k);
+      }
       break;
     default:
       break;

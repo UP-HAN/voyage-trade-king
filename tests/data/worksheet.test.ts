@@ -98,8 +98,8 @@ describe('기록 도우미(helper) 16종 — docs/worksheet.md 2.1', () => {
       .toBe('기술 연구비: 200만 원(AI 반도체 얻음) · 항만 투표: 찬성(우리 반 결과: 찬성)');
     expect(helperText('magazineDraft', { exportsByGood: { car: 900, chip: 300 }, exportsByPort: { BKK: 700, SHA: 500 } }))
       .toBe('대표 상품 제안: 자동차 · 주요 수출국 제안: 타이');
-    expect(helperText('voyageSummary', { bestTrade: { good: 'battery', port: 'ROT', profit: 230 }, visitedPorts: 9, awards: ['협력상'] }))
-      .toBe('가장 많이 남긴 거래: 배터리를 로테르담에 팔아 +230만 원 · 방문 항구 9곳 · 받은 상: 협력상');
+    expect(helperText('voyageSummary', { bestTrade: { good: 'battery', port: 'ROT', profit: 230 }, tradedPorts: 9, awards: ['협력상'] }))
+      .toBe('가장 많이 남긴 거래: 배터리를 로테르담에 팔아 +230만 원 · 사고판 항구 9곳 · 받은 상: 협력상');
     expect(helperText('expoEntry', { good: 'battery', stamps: 5 })).toBe('출품: 배터리 · 받은 관심 도장 5개');
   });
 

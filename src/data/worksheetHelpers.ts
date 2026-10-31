@@ -92,7 +92,8 @@ export interface HelperInputs {
   magazineDraft: { exportsByGood: Partial<Record<GoodId, number>>; exportsByPort: Partial<Record<PortId, number>> };
   voyageSummary: {
     bestTrade: { good: GoodId; port: PortId; profit: number } | null;
-    visitedPorts: number;
+    /** (작업 178) 실제로 사고판 항구 수(개척 지표와 같은 값 — 작업 176) */
+    tradedPorts: number;
     awards: readonly string[];
   };
   expoEntry: { good: GoodId; stamps: number };
@@ -218,12 +219,12 @@ export const helperDefs: { readonly [K in HelperKey]: HelperDef<K> } = {
   },
   voyageSummary: {
     key: 'voyageSummary', source: '거래 기록·결산', events: ['L4-E7', 'L4-E9'], emptyText: HELPER_EMPTY_TEXT, isNew: true,
-    format: ({ bestTrade, visitedPorts, awards }) => {
+    format: ({ bestTrade, tradedPorts, awards }) => {
       const parts: string[] = [];
       if (bestTrade && bestTrade.profit > 0) {
         parts.push(`가장 많이 남긴 거래: ${eulReul(goodName(bestTrade.good))} ${portName(bestTrade.port)}에 팔아 +${bestTrade.profit}만 원`);
       }
-      parts.push(`방문 항구 ${visitedPorts}곳`);
+      parts.push(`사고판 항구 ${tradedPorts}곳`);
       parts.push(`받은 상: ${awards.length ? awards.join(', ') : '—'}`);
       return parts.join(' · ');
     },

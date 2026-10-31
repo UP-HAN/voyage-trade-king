@@ -20,7 +20,7 @@ import { fx } from '../ui/common/fx';
 import type { HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
 import { Fold, useFolds } from './Fold';
-import { coverOf, liveWrapStep, magazineModeOf, nextCoverPid, SCREEN_SCENES, writtenCovers, type TeacherGame, type WrapStepStatus } from './game';
+import { coverOf, hiddenOnScreen, liveWrapStep, magazineModeOf, nextCoverPid, SCREEN_SCENES, writtenCovers, type TeacherGame, type WrapStepStatus } from './game';
 import { magazineFields } from '../data/magazine';
 import { downloadText, screenConnected } from './host';
 import { NowCard } from './NowCard';
@@ -933,7 +933,14 @@ function CoverPicker({ game, actions }: { game: TeacherGame; actions: TeacherAct
                   {magazineFields.map((f, i) => (
                     <div key={f.no}>
                       <dt>{f.short}</dt>
-                      <dd>{cv.fields[i] || '—'}</dd>
+                      <dd>
+                        {cv.fields[i] || '—'}
+                        {cv.fields[i] && hiddenOnScreen(cv.fields[i]!, game.class.settings.extraBannedWords ?? []) && (
+                          <span class="t-tag" data-testid="cover-hidden">
+                            TV에서 가려져요
+                          </span>
+                        )}
+                      </dd>
                     </div>
                   ))}
                 </dl>
