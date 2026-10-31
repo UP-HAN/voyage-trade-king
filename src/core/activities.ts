@@ -11,6 +11,7 @@ import { byeokrando, byeokrandoItems, type ByeokrandoItemId } from '../data/byeo
 import { checkQuiz } from '../data/checkQuiz';
 import { CORRECT_CONTAINER_NOS } from '../data/containers';
 import { eventsById } from '../data/events';
+import { magazineFields } from '../data/magazine';
 import { econGaugeOf, lessonPartRulesOf } from '../data/lessonParts';
 import { MINERAL_COOP } from '../data/phone';
 import { tariffs } from '../data/market';
@@ -43,6 +44,21 @@ export const VOTE_OPTIONS: Readonly<Record<string, readonly string[]>> = {
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/** (작업 174) 다시 보낼 수 있는 응답(L4-E3 고치기는 따로 — 여러 번) */
+const RESUBMIT_EVENTS: ReadonlySet<string> = new Set(['L4-E3', 'L4-E8', 'L4-E9']);
+
+/** (작업 174) 잡지 표지 6칸 글자 수(p.112~113, PRD 6.14.3): 대표 상품 / 특징 30 / 주요 수출국 / 목표 40 / 노력 40 / 자랑 30 */
+export const COVER_FIELD_MAX: readonly number[] = magazineFields.map((f) => f.max);
+/** (작업 174) 잡지 표지 배경 수(cover/bg-1~3) */
+export const COVER_BG_COUNT = 3;
+/** (작업 174) 되돌아보기 한 칸 글자 수 */
+export const REFLECT_MAX = 60;
+
+/** 글자 수(코드 포인트) 기준으로 자르기 — 한글·이모지가 반쪽으로 잘리지 않게 */
+export function clipText(s: unknown, max: number): string {
+  return [...String(s ?? '').replace(/\s+/g, ' ')].slice(0, max).join('');
+}
+
 /** 사건 발동 때 개인 효과 */
 export function applyFiredEventToPlayer(cs: ClassState, p: Player, def: EventDef, events: GameEvent[]): void {
   for (const e of def.effects) {
@@ -71,7 +87,8 @@ export function canRespond(cs: ClassState, p: Player, eventId: string): string |
   if ((def.kind === 'vote' || eventId === 'L3-E3') && !live) return 'CLOSED';
   // (작업 173) 단계 활동(L4-E1)은 투표 단계(0)에서만 표를 받는다 — 결과를 보인 뒤에는 늦은 표를 넣지 않는다
   if (live && (cs.currentEvent?.step ?? 0) >= 1) return 'CLOSED';
-  if (eventId !== 'L4-E3' && p.game.responses[eventId] !== undefined) return 'ANSWERED';
+  // (작업 174) 잡지 표지(L4-E8)·되돌아보기(L4-E9)는 고쳐 쓴 글을 다시 보낼 수 있다(사회적 책임 +10은 한 번만)
+  if (!RESUBMIT_EVENTS.has(eventId) && p.game.responses[eventId] !== undefined) return 'ANSWERED';
   return null;
 }
 
@@ -186,9 +203,15 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
       return null;
     }
     case 'L4-E6': {
-      // 컨테이너 OX: 트럭에 실은 문장 번호
+      // 컨테이너 OX: 트럭에 실은 문장 번호. (작업 174) 자기 평가 별 3개(각 1~3, p.111)도 함께 — 없으면 기록하지 않고, 있으면 범위를 지켜야 한다
       const picks = Array.isArray(r.picks) ? (r.picks as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 8) : null;
       if (!picks) return 'BAD_RESPONSE';
+      let self: number[] | null = null;
+      if (r.self !== undefined) {
+        const raw = Array.isArray(r.self) ? (r.self as unknown[]).map(Number) : null;
+        if (!raw || raw.length !== 3 || !raw.every((n) => Number.isInteger(n) && n >= 1 && n <= 3)) return 'BAD_RESPONSE';
+        self = raw;
+      }
       const set = new Set(picks);
       let correct = 0;
       const wrongNos: number[] = [];
@@ -197,23 +220,31 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
         if (ok) correct += 1;
         else wrongNos.push(n);
       }
-      p.game.responses[eventId] = { correct, total: 8, wrongNos };
+      p.game.responses[eventId] = { correct, total: 8, wrongNos, picks: [...set].sort((a, b) => a - b), ...(self ? { self } : {}) };
       return null;
     }
     case 'L4-E8': {
-      // 잡지 표지: 6칸. 4번(목표)·5번(노력)을 쓰면 사회적 책임 +10
-      const fields = Array.isArray(r.fields) ? (r.fields as unknown[]).map((f) => String(f ?? '').slice(0, 40)) : null;
+      // 잡지 표지: 6칸(칸마다 글자 수 자름) + (작업 174) 배경 번호 1~3. 4번(목표)·5번(노력)을 쓰면 사회적 책임 +10(한 판에 한 번)
+      const fields = Array.isArray(r.fields) ? (r.fields as unknown[]).map((f, i) => clipText(f, COVER_FIELD_MAX[i] ?? 40).trim()) : null;
       if (!fields || fields.length !== 6) return 'BAD_RESPONSE';
-      if (fields[3].trim() && fields[4].trim()) {
+      const bgN = Number(r.bg ?? 1);
+      const bg = Number.isInteger(bgN) && bgN >= 1 && bgN <= COVER_BG_COUNT ? bgN : 1;
+      const prev = isObj(p.game.cover) ? p.game.cover : null;
+      const bonusGiven = prev?.csrBonus === true;
+      const bonus = !bonusGiven && !!fields[3] && !!fields[4];
+      if (bonus) {
         p.game.metrics.csr += scoringConstants.csrMagazineBonus;
         events.push({ type: 'csr', amount: scoringConstants.csrMagazineBonus, reason: 'magazine' });
       }
-      p.game.cover = { fields };
+      p.game.cover = { fields, bg, ...(bonusGiven || bonus ? { csrBonus: true } : {}) };
       p.game.responses[eventId] = true;
       return null;
     }
     case 'L4-E9': {
-      p.game.reflect = clone(response);
+      // (작업 174) 되돌아보기: 문항마다 한 줄(60자). 빈 칸도 받는다(쓰지 않아도 진행은 막지 않음)
+      const answers = Array.isArray(r.answers) ? (r.answers as unknown[]).slice(0, 3).map((a) => clipText(a, REFLECT_MAX).trim()) : null;
+      if (!answers) return 'BAD_RESPONSE';
+      p.game.reflect = { answers };
       p.game.responses[eventId] = true;
       return null;
     }

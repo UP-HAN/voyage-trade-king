@@ -627,7 +627,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
   else if (phase === 'prep' && editFlag) main = <FoundCompany store={store} st={st} onDone={() => setEditFlag(false)} />;
   else if (phase === 'prep') main = <PrepWait store={store} st={st} onEdit={() => setEditFlag(true)} />;
   else if (tradeOver)
-    main = <WrapupView cls={cls} pub={st.peer.public?.public ?? null} me={me} wrapLive={st.peer.public?.wrapLive ?? null} />;
+    main = <WrapupView cls={cls} pub={st.peer.public?.public ?? null} me={me} wrapLive={st.peer.public?.wrapLive ?? null} wrap={st.peer.public?.wrap ?? null} act={(a) => store.act(a)} />;
   else if (waitPhase)
     main = (
       <>

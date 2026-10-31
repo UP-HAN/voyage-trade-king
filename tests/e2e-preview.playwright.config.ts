@@ -22,10 +22,12 @@ process.env.FAIR_E2E = '1';
 process.env.LESSON3_E2E = '1';
 // (작업 173) 4차시 판 끝에서 끝까지
 process.env.LESSON4_E2E = '1';
+// (작업 174) 단원 한 판 25분을 마무리 끝까지(개발 열쇠)
+process.env.UNIT_E2E = '1';
 
 export default defineConfig({
   testDir: '../e2e',
-  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time|lesson2-full|lesson3-full|lesson4-full|fair-trade)\.spec\.ts$/,
+  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time|lesson2-full|lesson3-full|lesson4-full|unit-full|fair-trade)\.spec\.ts$/,
   outputDir: '../test-results/e2e-preview',
   reporter: [['list']],
   fullyParallel: false,

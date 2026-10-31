@@ -381,8 +381,16 @@ export const L4_FRONT_EVENTS: readonly string[] = ['L4-E1', 'L4-E2', 'L4-E3', 'L
 export const L4_FRONT_DEX: readonly string[] = ['import-pros-cons', 'steel-1970', 'overseas-production', 'customs-broker'];
 
 const L4_WRAP = wrapupByUnit.lesson.L4;
+/**
+ * (작업 174) 4차시 앞 시간 되돌아보기 2문항 — 그 시간에 배운 108~110쪽(수입의 좋은 점과 문제점·관세, 해외 생산 시설과 기업의 책임)에 맞춘다.
+ * (단원 전체 자기 평가 성격의 L4-E9 앞 두 문항 대신 — 173 검증 메모)
+ */
+export const L4_FRONT_REFLECT: readonly string[] = [
+  '1970년대 우리나라가 수입 철강 제품에 높은 관세를 매긴 까닭은 무엇일까요?',
+  '다른 나라에 공장을 지은 회사가 근로자와 환경을 위해 꼭 생각해야 할 것은 무엇일까요?',
+];
 /** (작업 173) 4차시 앞 시간 마무리: 정산 → 결산·시상 → 되돌아보기 2문항(⑱ 없음) → 끝나고 쓰기 */
-const L4_FRONT_WRAP: readonly WrapStep[] = L4_WRAP.filter((s) => s.id !== 'containers' && s.id !== 'magazine').map((s) => (s.id === 'reflect' ? { ...s, questions: 2 } : s));
+const L4_FRONT_WRAP: readonly WrapStep[] = L4_WRAP.filter((s) => s.id !== 'containers' && s.id !== 'magazine').map((s) => (s.id === 'reflect' ? { ...s, questions: 2, questionTexts: L4_FRONT_REFLECT } : s));
 
 /**
  * (작업 173, 교사 결정 2026-10-30) 4차시 나눠 고르기.

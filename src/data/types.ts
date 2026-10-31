@@ -466,4 +466,6 @@ export interface WrapStep {
   hideFlatMetrics?: boolean;
   /** 되돌아보기 문항 수(축약 2 / 전체 3) */
   questions?: number;
+  /** (작업 174) 되돌아보기 문항 글(없으면 L4-E9 `reflectQuestions` 앞 n개). 4차시 앞 시간처럼 그 시간 내용에 맞춘 문항 */
+  questionTexts?: readonly string[];
 }

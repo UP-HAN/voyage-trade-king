@@ -112,6 +112,8 @@ export interface WrapItem {
   hideFlatMetrics?: boolean;
   /** 되돌아보기 문항 수(축약 2 / 전체 3) */
   questions?: number;
+  /** (작업 174) 되돌아보기 문항 글(없으면 L4-E9 `reflectQuestions` 앞 `questions`개) */
+  questionTexts?: string[];
   /** 이 단계에서 쓰는 학습지 번호(끝나고 쓰기 안내·⑯⑰⑱) */
   worksheetIds: WorksheetId[];
 }
@@ -702,6 +704,15 @@ export interface PublicState {
    * (작업 173) 호찌민 공장 결정(L4-E2) 학급 분포 — 수만(누가 낮은 임금·미설치를 골랐는지는 없음). L4-E2가 발동한 판에만
    */
   vnFactory?: VNFactoryCounts;
+  /**
+   * (작업 174) 마무리 단계에서만: 판에서 실제로 모든 회사 값이 같은 지표(학생 결산 요약이 차시 한 판에서 사회적 책임·협력을 숨길지 정한다 —
+   * 시상 `awards`의 hideFlatMetrics와 같은 계산)
+   */
+  flatMetrics?: MetricId[];
+  /** (작업 174) 컨테이너 싣기(L4-E6) 학급 집계 — 다 실은 회사 수와 문장 8개별 맞힌 수(이름 없이). L4-E6이 발동한 판에만 */
+  containers?: { done: number; total: number; right: number[] };
+  /** (작업 174) 잡지 표지(L4-E8)를 게임에서 다 쓴 회사 수(글은 싣지 않음 — 교사가 고른 표지만 교사 화면이 따로 싣는다). L4-E8이 발동한 판에만 */
+  covers?: { done: number; total: number };
 }
 
 /** (작업 172) 공개 스마트폰 프로젝트(출석번호·개인 자금 없음 — 회사 이름만) */
@@ -894,6 +905,24 @@ export interface PublicPayload {
   public: PublicState;
   /** (작업 132) 교사가 [시작]한 마무리 단계 ID(교사 화면 진행 표시 — 학생 마무리 화면이 따른다). 옛 상태에는 없음 */
   wrapLive?: string | null;
+  /** (작업 174) 마무리 진행 정보(교사 화면 전용 진행 값에서 — 무역이 끝난 뒤에만). 옛 상태에는 없음 */
+  wrap?: PublicWrap;
+}
+
+/** (작업 174) 공개 마무리 정보(teacher/game.ts `wrapPublic`) */
+export interface PublicWrap {
+  /** 학생·TV가 볼 수 있는 상 수(수상 회사가 있는 상, 발표 순서 앞에서부터) */
+  awardsShown: number;
+  /** 수상 회사가 있는 상 전체 수 */
+  awardsTotal: number;
+  /** 시상식에서 마지막 상까지 공개한 뒤 전체 목록을 보이는가(시상식을 끝냈거나 건너뛰었어도 true) */
+  awardsList?: boolean;
+  /** 컨테이너 싣기 문장별 정답률을 TV에 보이는가 */
+  containersResult: boolean;
+  /** 잡지 표지: 종이 / 게임 */
+  magazineMode: 'paper' | 'game';
+  /** 교사가 고른 표지(고르기 전에는 null — 학생 글을 싣지 않는다). 글은 금칙어 검사에 걸리면 '***' */
+  cover: { pid: string; company: string | null; flag: { color: string; emblem: string }; fields: string[]; bg: number } | null;
 }
 
 /** 학생 개인 상태(기기 토큰 제외) */

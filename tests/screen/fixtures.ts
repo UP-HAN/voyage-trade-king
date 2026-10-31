@@ -181,6 +181,8 @@ export function buildGame(scene: FixtureScene, o: FixtureOptions = {}): TeacherG
     case 'awards':
       run({ type: 'teacher', action: { type: 'finishNow' } }, now - 5000);
       if (g.class.phase !== 'wrapup') g = { ...g, class: { ...g.class, phase: 'wrapup', tradeEnded: true } };
+      // (작업 174) 시상식(상 차례 공개)을 끝낸 뒤 — 전체 목록 장면. 마무리 첫 항목 자동 시작(4차시·단원 한 판은 컨테이너 싣기)은 끝난 것으로 둔다
+      g = { ...g, wrapProgress: Object.fromEntries((g.class.schedule.wrapup ?? []).filter((w) => w.id !== 'afterWorksheet').map((w) => [w.id, 'done' as const])) };
       break;
     default:
       break;

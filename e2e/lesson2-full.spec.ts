@@ -586,6 +586,11 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
         for (const [i, s] of students.entries()) await noTimeText(s, `s${i + 1}(순서를 다 함)`);
         await expect(t.getByTestId('now-primary')).toHaveAttribute('data-kind', 'finishEarly');
       }
+      // (작업 174) 마무리: 학생 결산 요약 지표 줄·되돌아보기 입력 칸
+      if ((await stateOf(t)) === 'wrapup') {
+        if (await s1.getByTestId('wrap-metrics').isVisible().catch(() => false)) seen.cards.add('wrap-metrics');
+        if (await s1.getByTestId('wrap-reflect').isVisible().catch(() => false)) seen.cards.add(`reflect-inputs:${await s1.getByTestId('reflect-input').count()}`);
+      }
       const res = await pressBig(t);
       log.push(`${res.state}:${res.label}${res.confirms.length ? `(${res.confirms.join('+')})` : ''}`);
       await run(ctx, t, 1);
@@ -596,6 +601,9 @@ for (const [minutes, part] of [[15, 'front'], [25, 'front'], [30, 'all']] as con
     }
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ended');
     test.info().annotations.push({ type: '누른 순서', description: log.join(' → ') });
+    // (작업 174) 결산 요약 + 되돌아보기 2문항 입력 칸
+    expect([...seen.cards]).toContain('wrap-metrics');
+    expect([...seen.cards]).toContain('reflect-inputs:2');
     // (작업 162) 순서를 다 한 카드에서 [마무리로]를 눌러 마무리로 갔다(저절로 가지 않음)
     expect(seen.shots.has('plan-done'), `순서를 다 함 카드 — ${log.join(' / ')}`).toBe(true);
     expect(log.some((x) => x.startsWith('waiting:마무리로'))).toBe(true);

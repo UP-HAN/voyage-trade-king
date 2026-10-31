@@ -22,6 +22,7 @@ import {
   type HostSnapshot,
   type ItemForm,
   type PlayUnit,
+  type PublicWrap,
   type WrapItem,
 } from '../core';
 import { metrics as METRICS, type MetricId } from '../data/awards';
@@ -29,7 +30,8 @@ import { playUnits } from '../data/schedule';
 import type { LessonId } from '../data/types';
 import type { JsonObject } from '@shared/protocol';
 import { assertNoSeatInPublic } from '../sync/app-messages';
-import { validateCompanyName } from '../sync/company-name';
+import { hasBadWord, looksLikePersonalInfo, validateCompanyName } from '../sync/company-name';
+import { publicCompanyName } from '../core/scoring';
 import type { SessionInput, SessionOutput, SessionReducer, SessionViews } from '../sync/host-session';
 import type { ResultTable } from '../sync/host-store';
 
@@ -45,6 +47,13 @@ export const SCREEN_SCENES: readonly { id: ScreenScene; label: string }[] = [
 
 export type WrapStepStatus = 'live' | 'done' | 'skipped';
 
+/** (작업 174) 잡지 표지를 어디에 쓰나: 종이(교과서 112~113쪽·학습지 ⑰) / 게임 */
+export type MagazineMode = 'paper' | 'game';
+/** (작업 174, 교사 확정 2026-10-30·PRD 16.2-2) 무역 시간이 이 값(분) 이상이면 잡지 표지 기본이 '게임에서 써요', 아니면 '종이' */
+export const MAGAZINE_GAME_MIN_MINUTES = 40;
+/** (작업 174) 마무리 항목이 시작될 때 코어에서 함께 발동하는 사건(학생 응답을 받는 것만 — 결산·시상 L4-E7은 응답이 없어 그대로) */
+export const WRAP_FIRE_EVENTS: ReadonlySet<string> = new Set(['L4-E6', 'L4-E8', 'L4-E9']);
+
 export type TeacherGame = HostSnapshot & {
   /** 공용 화면 장면(교사 선택). 없으면 'auto' */
   screenScene?: ScreenScene;
@@ -52,15 +61,32 @@ export type TeacherGame = HostSnapshot & {
   wrapProgress?: Record<string, WrapStepStatus>;
   /** (작업 137) 마무리 첫 항목을 저절로 시작했는가(새로 고침 뒤 두 번 시작하지 않게) */
   wrapAutoStarted?: boolean;
+  /** (작업 174) 시상식에서 공개한 상 수(수상 회사가 있는 상, 발표 순서 `AWARD_ORDER`). 없으면 0 */
+  awardsShown?: number;
+  /** (작업 174) 컨테이너 싣기 문장별 정답률을 TV에 보였는가([결과 보기]) */
+  containersResult?: boolean;
+  /** (작업 174) 잡지 표지를 어디에 쓰나(교사가 고름). 없으면 무역 시간으로 기본값(`magazineModeOf`) */
+  magazineMode?: MagazineMode;
+  /** (작업 174) TV 갤러리에 크게 보일 표지(교사가 고른 회사 pid). 고르기 전에는 글을 공개 상태에 싣지 않는다 */
+  coverPick?: string | null;
 };
 
 /** 교사 화면 전용 행동(103 TeacherAction 밖 — 이 파일의 리듀서가 처리) */
 export type TeacherLocalAction =
   | { type: 'setScreenScene'; scene: ScreenScene }
   | { type: 'setWrapStep'; id: string; status: WrapStepStatus | null }
-  | { type: 'setRoomCode'; code: string };
+  | { type: 'setRoomCode'; code: string }
+  /** (작업 174) 시상식: 다음 상 공개(마지막 상 다음은 전체 목록) */
+  | { type: 'awardNext' }
+  /** (작업 174) 컨테이너 싣기 결과(문장별 정답률)를 TV에 보이기/감추기 */
+  | { type: 'setContainersResult'; show: boolean }
+  /** (작업 174) 잡지 표지: 종이 / 게임 */
+  | { type: 'setMagazineMode'; mode: MagazineMode }
+  /** (작업 174) TV 갤러리에 보일 표지(pid, null이면 내림) */
+  | { type: 'pickCover'; pid: string | null };
 
-const LOCAL_TYPES = new Set(['setScreenScene', 'setWrapStep', 'setRoomCode']);
+const LOCAL_TYPES = new Set(['setScreenScene', 'setWrapStep', 'setRoomCode', 'awardNext', 'setContainersResult', 'setMagazineMode', 'pickCover']);
+const PUBLIC_OUT: SessionOutput[] = [{ type: 'teacher', data: { notice: 'WRAP_STEP' } }, { type: 'public' }];
 
 const coreReducer = createSessionReducer(createTradeHooks({ validateName: (raw, o) => validateCompanyName(raw, o) }));
 
@@ -74,10 +100,37 @@ export const teacherReducer: SessionReducer<TeacherGame> = (snapshot, input: Ses
     }
     if (a.type === 'setWrapStep') {
       const wp = { ...(snapshot.wrapProgress ?? {}) };
+      // (작업 174) 진행 중인 항목은 하나만 — 다른 항목을 시작하면 지금 하던 항목은 끝난 것으로(학생 화면·TV·코어 사건이 한 항목을 따르게)
+      if (a.status === 'live') for (const [k, v] of Object.entries(wp)) if (v === 'live' && k !== a.id) wp[k] = 'done';
       if (a.status) wp[a.id] = a.status;
       else delete wp[a.id];
-      // (작업 132) 학생 마무리 화면이 따르도록 공개 상태도 다시 보낸다
-      return { snapshot: { ...snapshot, wrapProgress: wp }, outputs: [{ type: 'teacher', data: { notice: 'WRAP_STEP' } }, { type: 'public' }] };
+      let next: TeacherGame = { ...snapshot, wrapProgress: wp };
+      // (작업 174) 시상식을 다시 시작하면 처음 상부터
+      if (a.id === 'awards' && a.status === 'live' && snapshot.wrapProgress?.awards !== 'live') next = { ...next, awardsShown: 0 };
+      // (작업 132) 학생 마무리 화면이 따르도록 공개 상태도 다시 보낸다. (작업 174) 응답을 받는 항목이면 코어 사건도 함께 발동
+      const fired = a.status === 'live' ? fireWrapEvent(next, now) : null;
+      if (fired) return { snapshot: fired.snapshot, outputs: [...fired.outputs, ...PUBLIC_OUT] };
+      return { snapshot: next, outputs: PUBLIC_OUT };
+    }
+    if (a.type === 'awardNext') {
+      const total = wrapAwardList(snapshot).length;
+      const cur = Math.max(0, snapshot.awardsShown ?? 0);
+      // 마지막 상 다음 한 번 더 = 전체 목록(total + 1)
+      if (snapshot.wrapProgress?.awards !== 'live' || cur > total) return { snapshot, outputs: [] };
+      return { snapshot: { ...snapshot, awardsShown: cur + 1 }, outputs: PUBLIC_OUT };
+    }
+    if (a.type === 'setContainersResult') {
+      if (!!snapshot.containersResult === a.show) return { snapshot, outputs: [] };
+      return { snapshot: { ...snapshot, containersResult: a.show }, outputs: PUBLIC_OUT };
+    }
+    if (a.type === 'setMagazineMode') {
+      if (a.mode !== 'paper' && a.mode !== 'game') return { snapshot, outputs: [] };
+      return { snapshot: { ...snapshot, magazineMode: a.mode, ...(a.mode === 'paper' ? { coverPick: null } : {}) }, outputs: PUBLIC_OUT };
+    }
+    if (a.type === 'pickCover') {
+      const pid = a.pid && Object.values(snapshot.players).some((p) => p.pid === a.pid && coverOf(p)) ? a.pid : null;
+      if ((snapshot.coverPick ?? null) === pid) return { snapshot, outputs: [] };
+      return { snapshot: { ...snapshot, coverPick: pid }, outputs: PUBLIC_OUT };
     }
     if (a.type === 'setRoomCode') {
       if (snapshot.meta.code === a.code) return { snapshot, outputs: [] };
@@ -89,9 +142,123 @@ export const teacherReducer: SessionReducer<TeacherGame> = (snapshot, input: Ses
   const outputs = r.outputs as unknown as SessionOutput[];
   // (작업 137, PRD 7.5.2.9) 무역 시간이 끝나 마무리 단계가 되는 순간 첫 마무리 항목을 저절로 시작한다(한 번만)
   const auto = autoStartWrap(snapshot, next);
-  if (auto) return { snapshot: auto, outputs: [...outputs, { type: 'teacher', data: { notice: 'WRAP_STEP' } }, { type: 'public' }] };
+  if (auto) {
+    // (작업 174) 첫 항목이 응답을 받는 활동(4차시 마무리의 컨테이너 싣기)이면 코어 사건도 함께 발동
+    const fired = fireWrapEvent(auto, now);
+    if (fired) return { snapshot: fired.snapshot, outputs: [...outputs, ...fired.outputs, ...PUBLIC_OUT] };
+    return { snapshot: auto, outputs: [...outputs, ...PUBLIC_OUT] };
+  }
   return { snapshot: next, outputs };
 };
+
+/**
+ * (작업 174) 지금 진행 중인 마무리 항목이 학생 응답을 받는 활동(L4-E6·L4-E8·L4-E9)이고 아직 발동하지 않았으면 코어 `fireEvent`를 보낸다.
+ * 호스트 상태(`firedEvents`·`currentEvent`)에 남으므로 새로 고침·늦은 입장·복구에도 이어진다. 이미 발동했으면 null(다시 보내지 않음).
+ * 마무리 단계(`tradeEnded`)에서 발동해도 단계는 'wrapup' 그대로(core lesson.ts fire 규칙).
+ */
+export function fireWrapEvent(g: TeacherGame, now: number): { snapshot: TeacherGame; outputs: SessionOutput[] } | null {
+  if (!g.class.tradeEnded || g.class.phase !== 'wrapup') return null;
+  const live = liveWrapStep(g);
+  const item = (g.class.schedule.wrapup ?? []).find((w) => w.id === live);
+  const id = item?.eventId;
+  if (!id || !WRAP_FIRE_EVENTS.has(id) || g.class.firedEvents.includes(id)) return null;
+  const r = coreReducer(g, { type: 'teacher', action: { type: 'fireEvent', id } } as never, now);
+  const snap = r.snapshot as TeacherGame;
+  if (!snap.class.firedEvents.includes(id)) return null;
+  return { snapshot: snap, outputs: r.outputs as unknown as SessionOutput[] };
+}
+
+/** (작업 174) 시상식 상 목록(수상 회사가 있는 상만, 발표 순서) — 공개 상태 `awards`와 같은 계산 */
+export function wrapAwardList(g: TeacherGame) {
+  return computeAwards(Object.values(g.players), {
+    perPrize: g.class.settings.awardsPerPrize,
+    hideFlatMetrics: g.meta.playUnit === 'lesson',
+    off: g.class.settings.awardsOff,
+    nameReview: g.class.settings.nameReview,
+  }).filter((a) => a.winners.length > 0);
+}
+
+/**
+ * (작업 174) 학생·TV가 볼 수 있는 상 수. 시상식(awards)이 진행 중이면 교사가 공개한 만큼, 시상식을 끝냈거나 건너뛰었으면 전부,
+ * 아직 시작 전이면 0(미리 보이지 않게).
+ */
+export function awardsRevealed(g: TeacherGame): number {
+  const st = g.wrapProgress?.awards;
+  const total = wrapAwardList(g).length;
+  if (st === 'live') return Math.min(total, Math.max(0, g.awardsShown ?? 0));
+  if (st === 'done' || st === 'skipped' || g.class.phase === 'ended') return total;
+  return 0;
+}
+
+/** (작업 174) 시상식 전체 목록 단계인가(마지막 상 다음 [전체 목록 보기]를 눌렀거나, 시상식을 끝냈·건너뛰었음) */
+export function awardsListShown(g: TeacherGame): boolean {
+  const st = g.wrapProgress?.awards;
+  if (st === 'live') return Math.max(0, g.awardsShown ?? 0) > wrapAwardList(g).length;
+  return st === 'done' || st === 'skipped' || g.class.phase === 'ended';
+}
+
+/** (작업 174) 잡지 표지 방식: 교사가 고른 것, 없으면 무역 시간 40분 이상 = 게임, 미만 = 종이 */
+export function magazineModeOf(g: Pick<TeacherGame, 'magazineMode' | 'class'>): MagazineMode {
+  if (g.magazineMode === 'paper' || g.magazineMode === 'game') return g.magazineMode;
+  return (g.class.settings.tradeMinutes ?? 0) >= MAGAZINE_GAME_MIN_MINUTES ? 'game' : 'paper';
+}
+
+/** (작업 174) 학생이 게임에서 쓴 잡지 표지(없으면 null) */
+export function coverOf(p: { game: { cover?: unknown; responses: Record<string, unknown> } }): { fields: string[]; bg: number } | null {
+  const c = p.game.cover as { fields?: unknown; bg?: unknown } | null | undefined;
+  if (!c || typeof c !== 'object' || !Array.isArray(c.fields) || p.game.responses['L4-E8'] === undefined) return null;
+  const bg = Number(c.bg);
+  return { fields: c.fields.map((f) => String(f ?? '')), bg: Number.isInteger(bg) && bg >= 1 && bg <= 3 ? bg : 1 };
+}
+
+/** (작업 174) 표지를 다 쓴 학생(출석번호 순 — 교사 화면 전용) */
+export function writtenCovers(g: TeacherGame) {
+  return Object.values(g.players)
+    .filter((p) => coverOf(p))
+    .sort((a, b) => a.seat - b.seat);
+}
+
+/** (작업 174) [다음 표지 TV에]: 지금 고른 표지 다음(끝이면 처음) 학생 pid. 다 쓴 표지가 없으면 null */
+export function nextCoverPid(g: TeacherGame): string | null {
+  const list = writtenCovers(g);
+  if (!list.length) return null;
+  const i = list.findIndex((p) => p.pid === g.coverPick);
+  return list[(i + 1) % list.length].pid;
+}
+
+/** (작업 174) TV에 올리는 학생 글: 회사 이름 금칙어·개인정보 형태 검사와 같은 검사에 걸리면 '***' */
+export function screenSafeText(s: string, extraWords: readonly string[] = []): string {
+  const t = String(s ?? '').trim();
+  if (!t) return '';
+  return hasBadWord(t, extraWords) || looksLikePersonalInfo(t) ? '***' : t;
+}
+
+/** (작업 174) 공개 상태에 싣는 마무리 정보(교사 화면 전용 진행 값에서) */
+export type WrapPublic = PublicWrap;
+
+export function wrapPublic(g: TeacherGame): WrapPublic {
+  const pick = g.coverPick ? Object.values(g.players).find((p) => p.pid === g.coverPick) : undefined;
+  const cv = pick ? coverOf(pick) : null;
+  const extra = g.class.settings.extraBannedWords ?? [];
+  const mode = magazineModeOf(g);
+  return {
+    awardsShown: awardsRevealed(g),
+    awardsTotal: wrapAwardList(g).length,
+    awardsList: awardsListShown(g),
+    containersResult: !!g.containersResult,
+    magazineMode: mode,
+    cover:
+      pick && cv && mode === 'game'
+        ? {
+            pid: pick.pid,
+            company: publicCompanyName(pick, g.class.settings.nameReview),
+            flag: { color: pick.company.color, emblem: pick.company.emblem },
+            fields: cv.fields.map((f) => screenSafeText(f, extra)),
+            bg: cv.bg,
+          }
+        : null,
+  };
+}
 
 /** 마무리 단계 중 저절로 시작할 첫 항목(내용이 있는 첫 항목 — 0분짜리 '마지막 라운드 정산'은 끝난 것으로 둔다) */
 export function firstWrapStep(items: readonly WrapItem[]): WrapItem | null {
@@ -134,7 +301,7 @@ export function liveWrapStep(g: Pick<TeacherGame, 'wrapProgress' | 'class'>): st
 
 /** 공개 상태(학생 전원·공용 화면 공통). 출석번호·개인 자금·응답 명단 없음 */
 export function publicView(g: TeacherGame, strict = false): JsonObject {
-  const data = { ...publicPayload(g), screenScene: g.screenScene ?? 'auto', wrapLive: liveWrapStep(g) } as unknown as JsonObject;
+  const data = { ...publicPayload(g), screenScene: g.screenScene ?? 'auto', wrapLive: liveWrapStep(g), ...(g.class.tradeEnded ? { wrap: wrapPublic(g) } : {}) } as unknown as JsonObject;
   if (isDev || strict) assertNoSeatInPublic(data, strict);
   return data;
 }

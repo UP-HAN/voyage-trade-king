@@ -20,7 +20,8 @@ import { fx } from '../ui/common/fx';
 import type { HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
 import { Fold, useFolds } from './Fold';
-import { SCREEN_SCENES, type TeacherGame, type WrapStepStatus } from './game';
+import { coverOf, liveWrapStep, magazineModeOf, nextCoverPid, SCREEN_SCENES, writtenCovers, type TeacherGame, type WrapStepStatus } from './game';
+import { magazineFields } from '../data/magazine';
 import { downloadText, screenConnected } from './host';
 import { NowCard } from './NowCard';
 import { endRoundConfirm, nextItemOf, nowCard, wrapSteps, type FoldId, type NowButton } from './now-card';
@@ -434,6 +435,18 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
       case 'showFold':
         if (b.fold) openFold(b.fold);
         return;
+      case 'containersResult':
+        return actions.dispatch({ type: 'setContainersResult', show: true });
+      case 'awardNext':
+        return actions.dispatch({ type: 'awardNext' });
+      case 'magazineMode':
+        if (b.mode) actions.dispatch({ type: 'setMagazineMode', mode: b.mode });
+        return;
+      case 'coverNext': {
+        const pid = nextCoverPid(game);
+        if (pid) actions.dispatch({ type: 'pickCover', pid });
+        return;
+      }
       case 'oneMoreRound':
         // (작업 172) 무역 시간을 라운드 하나만큼 늘린다 — 남은 순서가 다시 배치되며 라운드가 하나 더 생긴다
         return actions.dispatch({ type: 'extend', sec: c.settings.roundSec });
@@ -888,6 +901,55 @@ function WrapupPanel({ game, actions }: { game: TeacherGame; actions: TeacherAct
       <p class="t-small" data-testid="wrap-hint">
         카드의 [다음으로]로 차례대로 넘겨요. 시상식은 공용 화면에서 함께 봐요.
       </p>
+      {liveWrapStep(game) === 'magazine' && magazineModeOf(game) === 'game' && <CoverPicker game={game} actions={actions} />}
     </section>
+  );
+}
+
+/**
+ * (작업 174) 잡지 표지 고르기(교사 화면 전용): 다 쓴 표지 목록(출석번호·회사 이름·6칸 글) → [TV에 보이기].
+ * 고른 표지 하나만 공용 화면에 크게 나온다(금칙어에 걸린 글은 TV에서 '***'). 고르기 전에는 학생 글이 공개 상태에 없다.
+ */
+function CoverPicker({ game, actions }: { game: TeacherGame; actions: TeacherActions }) {
+  const list = writtenCovers(game);
+  const pick = game.coverPick ?? null;
+  return (
+    <div class="t-covers" data-testid="cover-picker">
+      <h3 class="t-h3">
+        다 쓴 잡지 표지 {list.length}/{Object.keys(game.players).length}
+      </h3>
+      {list.length === 0 && <p class="t-small">아직 다 쓴 학생이 없어요.</p>}
+      <ol class="t-covers__list">
+        {list.map((p) => {
+          const cv = coverOf(p)!;
+          const on = p.pid === pick;
+          return (
+            <li key={p.pid} data-testid="cover-row" data-seat={p.seat} data-on={on ? '1' : '0'}>
+              <details>
+                <summary>
+                  <b>{p.seat}번</b> {p.company.name} {on && <span class="t-tag">TV에 나오는 중</span>}
+                </summary>
+                <dl class="t-covers__fields">
+                  {magazineFields.map((f, i) => (
+                    <div key={f.no}>
+                      <dt>{f.short}</dt>
+                      <dd>{cv.fields[i] || '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+              <button type="button" class="t-mini" data-testid="cover-pick" onClick={() => actions.dispatch({ type: 'pickCover', pid: on ? null : p.pid })}>
+                {on ? 'TV에서 내리기' : 'TV에 보이기'}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {list.length > 1 && (
+        <button type="button" class="t-mini" data-testid="cover-next" onClick={() => { const pid = nextCoverPid(game); if (pid) actions.dispatch({ type: 'pickCover', pid }); }}>
+          다음 표지
+        </button>
+      )}
+    </div>
   );
 }

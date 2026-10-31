@@ -7,7 +7,8 @@
  *   `player`(내 회사), `act`(행동 보내기 — 결과는 `{ type: 'respondEvent', eventId, response }`), `onDone`(화면 닫기)
  * - 결과는 학생이 정답 공개·정의 카드·결과 그래프까지 본 뒤 [마치기]에서 보낸다(`shared.tsx` 참고).
  *   사건이 마감되기 전에 마치지 못한 학생은 기록이 없으므로(111 마감 규칙: 미니게임은 기본값을 넣지 않음) 다시 들어올 때 따라잡기로 다시 받는다.
- * - 아직 만들지 않은 미니게임(L4-E6 컨테이너 싣기 등)은 "준비 중" 자리표시와 [닫기].
+ * - (작업 174) 컨테이너 싣기(L4-E6)는 마무리 화면(`student/wrapup/Containers.tsx`)과 같은 화면을 쓴다(사건 층이 넘기는 경우 — 보통은 마무리 화면이 그린다).
+ * - 그 밖에 아직 만들지 않은 미니게임은 "준비 중" 자리표시와 [닫기].
  */
 import type { Action, PublicClass } from '../core';
 import { eventsById } from '../data/events';
@@ -15,6 +16,7 @@ import type { MeView } from '../student/predict';
 import type { StudentActResult } from '../student/store';
 import { Byeokrando } from './Byeokrando';
 import { TwoIslands } from './TwoIslands';
+import { Containers } from '../student/wrapup/Containers';
 import type { MinigameGameProps } from './types';
 import './minigames.css';
 
@@ -54,6 +56,7 @@ export function MinigameLayer({ eventId, classState, player, act, onDone, catchU
   };
   if (eventId === 'L1-E1') return <Byeokrando key={eventId} {...props} />;
   if (eventId === 'L1-E5') return <TwoIslands key={eventId} {...props} />;
+  if (eventId === 'L4-E6') return <Containers key={eventId} me={player} act={act} worksheet="W16" onClose={onDone} />;
   const def = eventsById[eventId];
   return (
     <div class="st-placeholder" role="dialog" aria-label={`${def?.title ?? '미니게임'} 준비 중`} data-testid="minigame-placeholder" data-event={eventId}>

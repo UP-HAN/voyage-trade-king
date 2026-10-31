@@ -53,10 +53,16 @@ const awardName = (id: string) => metrics.find((m) => m.id === id)?.award ?? id;
 
 export function AwardsScene({ d }: SceneProps) {
   // 수상 회사가 없는 상(값이 0뿐인 지표 등)은 그리지 않는다
-  const awards = awardsWithWinners(d).sort((a, b) => AWARD_ORDER.indexOf(a.metric) - AWARD_ORDER.indexOf(b.metric));
+  const all = awardsWithWinners(d).sort((a, b) => AWARD_ORDER.indexOf(a.metric) - AWARD_ORDER.indexOf(b.metric));
+  // (작업 174) 시상식 차례 공개: 교사가 [다음 상]으로 한 장씩(도약상이 무역왕상 바로 앞 — AWARD_ORDER). 다 공개하면 전체 목록 + 완주 증서 수
+  const shown = d.wrap ? Math.min(all.length, Math.max(0, d.wrap.awardsShown)) : all.length;
+  // 진행 중 시상식은 마지막 상까지 한 장씩, 교사가 [상 전체 목록 보기]를 누르면(awardsList) 전체 목록
+  const revealing = d.wrapLive === 'awards' && !!d.wrap && !d.wrap.awardsList && (shown < all.length || all.length > 0);
+  if (revealing) return <AwardRevealScene d={d} all={all} shown={shown} />;
+  const awards = all.slice(0, shown);
   const after = afterWorksheets(d);
   return (
-    <div class="scr-scene scr-awards" data-testid="scene-awards">
+    <div class="scr-scene scr-awards" data-testid="scene-awards" data-mode="list">
       <p class="scr-kicker">결산 · 시상</p>
       <ul class="scr-awards__grid">
         {awards.map((a) => (
@@ -78,6 +84,45 @@ export function AwardsScene({ d }: SceneProps) {
         </p>
       )}
       <AfterWorksheetList rows={after} d={d} />
+    </div>
+  );
+}
+
+/** (작업 174) 시상식 한 장씩: 처음(0)은 결산 안내, 그다음은 방금 공개한 상 하나를 크게 */
+function AwardRevealScene({ d, all, shown }: { d: SceneProps['d']; all: ReturnType<typeof awardsWithWinners>; shown: number }) {
+  if (shown === 0) {
+    const last = d.scope.includes('L4');
+    return (
+      <div class="scr-scene scr-awards scr-awards--intro" data-testid="scene-awards" data-mode="intro" data-shown={0} data-total={all.length}>
+        <p class="scr-kicker">결산 · 시상식</p>
+        <h1 class="scr-h1">항해가 끝났어요</h1>
+        <div class="scr-panel scr-awards__intro">
+          {last && <p class="scr-awards__strong">마지막 항해예요. 배에 남은 화물은 산 값의 절반으로 계산해 최종 자산을 정해요.</p>}
+          <p>상은 최종 자산 하나로만 주지 않아요. 여러 기록을 보고 서로 다른 친구에게 상을 줘요.</p>
+          <p>
+            오늘 상은 모두 <b>{all.length}</b>가지예요. 한 가지씩 공개해요!
+          </p>
+        </div>
+      </div>
+    );
+  }
+  const a = all[shown - 1];
+  return (
+    <div class="scr-scene scr-awards scr-awards--one" data-testid="scene-awards" data-mode="one" data-shown={shown} data-total={all.length} data-metric={a.metric}>
+      <p class="scr-kicker">
+        시상식 · {shown}/{all.length}
+      </p>
+      <div class="scr-panel scr-awards__big" data-testid="award-card" data-metric={a.metric}>
+        <h2 class="scr-awards__bigname">{a.award || awardName(a.metric)}</h2>
+        <p class="scr-awards__why">{metrics.find((m) => m.id === a.metric)?.name ?? ''} 기록으로 받는 상</p>
+        <ul class="scr-awards__bigwinners">
+          {a.winners.map((w) => (
+            <li key={w.pid}>
+              <CompanyTag name={w.company} color={w.flag.color} emblem={w.flag.emblem} size={72} />
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

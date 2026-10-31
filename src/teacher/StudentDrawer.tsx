@@ -16,6 +16,8 @@ import { hasBadWord } from '../sync/company-name';
 import { MAX_SEAT, MIN_SEAT, type HostView } from '../sync/host-session';
 import type { TeacherActions } from './actions';
 import type { TeacherGame } from './game';
+import type { Player } from '../core';
+import { magazineFields } from '../data/magazine';
 import { grindText, moneyText } from './table';
 import { trapTab, type ConfirmOptions } from './ui';
 import { teacherTitle } from './teacher-terms';
@@ -226,6 +228,8 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
                   .join(', ')
               : '없음'}
           </p>
+          {/* (작업 174) 마무리 기록 — 교사 화면 학생 상세에서만(TV·다른 학생에게는 보이지 않음) */}
+          <WrapRecord g={g} />
           <h3>활동 기록(최근 8개)</h3>
           <ol class="t-log">
             {g.log.slice(-8).map((l, i) => (
@@ -315,6 +319,43 @@ export function StudentDrawer({ seat, game, view, actions, ask, toast, onClose, 
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** (작업 174) 마무리 기록: 컨테이너 싣기 결과·자기 평가, 잡지 표지 6칸, 되돌아보기 글(교사 화면 학생 상세에서만) */
+function WrapRecord({ g }: { g: Player['game'] }) {
+  const c = g.responses['L4-E6'] as { correct?: number; total?: number; wrongNos?: number[]; self?: number[] } | undefined;
+  const cover = g.cover as { fields?: string[]; bg?: number } | null | undefined;
+  const reflect = g.reflect as { answers?: string[] } | null | undefined;
+  if (!c && !(cover && Array.isArray(cover.fields)) && !(reflect && Array.isArray(reflect.answers))) return null;
+  return (
+    <div data-testid="drawer-wrap">
+      <h3>마무리 기록</h3>
+      {c && typeof c.correct === 'number' && (
+        <p data-testid="drawer-containers">
+          컨테이너 싣기 {c.total ?? 8}개 중 {c.correct}개 맞힘
+          {c.wrongNos?.length ? ` · 틀린 문장 ${c.wrongNos.join(', ')}번` : ''}
+          {c.self?.length ? ` · 자기 평가 ${c.self.map((s) => '★'.repeat(s)).join(' / ')}` : ''}
+        </p>
+      )}
+      {cover && Array.isArray(cover.fields) && (
+        <dl class="t-covers__fields" data-testid="drawer-cover">
+          {magazineFields.map((f, i) => (
+            <div key={f.no}>
+              <dt>{f.short}</dt>
+              <dd>{cover.fields![i] || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {reflect && Array.isArray(reflect.answers) && (
+        <ol data-testid="drawer-reflect">
+          {reflect.answers.map((a, i) => (
+            <li key={i}>{a || '(비어 있음)'}</li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

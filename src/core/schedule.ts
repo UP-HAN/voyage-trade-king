@@ -1105,6 +1105,7 @@ export function buildWrapup(playUnit: PlayUnit, scope: readonly LessonId[], afte
     if (s.optional) item.optional = true;
     if (s.id === 'awards') item.hideFlatMetrics = playUnit === 'lesson';
     if (s.id === 'reflect') item.questions = reflectN;
+    if (s.id === 'reflect' && s.questionTexts?.length) item.questionTexts = [...s.questionTexts];
     return item;
   });
 }

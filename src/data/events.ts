@@ -149,7 +149,7 @@ const L1_EVENTS: readonly GameEvent[] = [
     id: 'L1-E7', lesson: 'L1', kind: 'decision', required: true, trigger: { type: 'roundStart', round: 2 }, fake: false, gameRule: false,
     title: '흑연을 어디서 살까요?',
     body: '부산에서도 흑연을 살 수 있어요(국내산이라 비싸요). 상하이 흑연은 훨씬 싸요. 어디서 살지 골라 보세요. 사지 않아도 돼요. 흑연은 연필뿐만 아니라 스마트폰, 배터리의 원료로 쓰여요.',
-    unitOnlyNote: '흑연은 다음 구간(L2)에서 배터리를 만드는 재료가 돼요.',
+    unitOnlyNote: '흑연은 다음 구간(2차시)에서 배터리를 만드는 재료가 돼요.',
     textbook: [
       { pages: [99], note: '흑연은 연필뿐만 아니라 스마트폰, 배터리의 원료로 쓰이는 자원입니다. 과거 우리나라는 세계적인 흑연 생산국이었지만, 다른 나라에서 저렴한 가격의 흑연을 수입하면서 우리나라에서는 거의 생산하지 않게 됐습니다.' },
       { pages: [98], note: '한편 한 나라 안에서 구할 수 있더라도 여러 가지 이유로 다른 나라에서 생산한 물자나 서비스를 수입하기도 합니다.' },
@@ -391,7 +391,11 @@ const L4_EVENTS: readonly GameEvent[] = [
   }),
   // ── 마무리 단계 ──
   skeleton({
+    // (작업 174) 마무리 첫 활동 — 학생 화면 Containers.tsx(문장 8개 → 채점·해설 → 자기 평가 3문항), TV 문장별 정답률. 보상 없음
     id: 'L4-E6', lesson: 'L4', kind: 'minigame', required: true, trigger: { type: 'wrapup' }, title: '컨테이너 싣기', pages: [111], worksheetAfter: 'W16',
+    body: '옳은 문장이 적힌 컨테이너만 트럭에 실어요. 다 실으면 정답과 까닭을 확인하고, 스스로 평가해요.',
+    textbook: [{ pages: [111], note: '공부한 내용을 되돌아보고, 스스로 평가해 봅시다.' }],
+    teacherPrompts: ['틀린 문장은 어떻게 고치면 옳은 문장이 될까요?'],
     effects: [{ type: 'minigame', ref: 'containers' }], needsResponse: true, catchUp: 'replay', wrapRule: 'ifL4',
     tier: 'wrap', blocking: true, minutes: { full: 3, short: null }, shortForm: null, needsRounds: 0, anchor: 'afterPrev',
   }),
@@ -406,7 +410,11 @@ const L4_EVENTS: readonly GameEvent[] = [
     tier: 'wrap', blocking: true, minutes: { full: 3, short: null }, shortForm: null, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
+    // (작업 174) 기본은 종이(교과서 112~113쪽·학습지 ⑰), 교사가 [게임에서 써요]를 고르면 6칸 + 배경 + 미리보기(MagazineCover.tsx)
     id: 'L4-E8', lesson: 'L4', kind: 'decision', required: false, trigger: { type: 'wrapup' }, title: '잡지 표지 만들기', pages: [112, 113], worksheetAfter: 'W17',
+    body: '기업의 대표가 되어 우리 회사를 소개하는 잡지 표지를 만들어요. 대표 상품과 특징, 주요 수출국, 사회적 책임 목표, 근로자의 권리를 보호하려는 노력, 자랑하고 싶은 모습을 써요.',
+    textbook: [{ pages: [112, 113], note: '기업의 대표가 되어 기업 운영 계획을 세우고, 기업을 소개하는 잡지의 표지를 완성해 봅시다.' }],
+    teacherPrompts: ['우리 회사가 사회적 책임을 다하려면 무엇을 약속할 수 있을까요?'],
     needsResponse: true, catchUp: 'replay', wrapRule: 'optionalIfL4',
     tier: 'wrap', blocking: true, minutes: { full: 8, short: 0 }, shortForm: { blocking: false, note: '종이 활동으로 대체(교과서 112~113쪽)' }, needsRounds: 0, anchor: 'afterPrev',
   }),

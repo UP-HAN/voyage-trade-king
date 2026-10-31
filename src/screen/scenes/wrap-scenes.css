@@ -1,0 +1,188 @@
+/* 마무리 장면(작업 174): 컨테이너 싣기·되돌아보기·잡지 표지 갤러리. 크기는 110의 비례 단위 --u(1920×1080에서 --u = 19.2px) */
+.scr-scene.scr-wz {
+  justify-content: flex-start;
+  padding-top: calc(var(--u) * 3.2);
+  gap: calc(var(--u) * 0.8);
+}
+.scr-wz__count {
+  margin: 0;
+  font-size: calc(var(--u) * 2.2);
+  color: var(--parchment-light);
+}
+.scr-wz__count b {
+  font-size: calc(var(--u) * 3);
+  color: var(--sunset);
+}
+.scr-panel.scr-wz__list {
+  list-style: none;
+  margin: 0;
+  width: min(100%, calc(var(--u) * 90));
+  display: grid;
+  gap: calc(var(--u) * 0.35);
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 1.4);
+}
+.scr-wz__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: calc(var(--u) * 0.8);
+  font-size: calc(var(--u) * 1.75);
+  line-height: 1.25;
+}
+.scr-wz__text {
+  grid-column: 2;
+}
+.scr-wz__ox {
+  grid-column: 1;
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  border-radius: 50%;
+  border: calc(var(--u) * 0.22) solid currentColor;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: calc(var(--u) * 1.5);
+}
+.scr-wz__ox--o {
+  color: #2e7d8c;
+}
+.scr-wz__ox--x {
+  color: var(--stamp-red);
+}
+.scr-wz__bar {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.5);
+  width: calc(var(--u) * 20);
+}
+.scr-wz__bar b {
+  width: calc(var(--u) * 4.4);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.scr-wz__track {
+  flex: 1;
+  height: calc(var(--u) * 1.3);
+  border-radius: calc(var(--u) * 0.65);
+  background: var(--parchment-mid);
+  border: 2px solid var(--brass-dark);
+  overflow: hidden;
+}
+.scr-wz__fill {
+  display: block;
+  height: 100%;
+  background: var(--sea-teal);
+}
+.scr-wz__foot {
+  color: var(--parchment-light);
+}
+.scr-panel.scr-wz__qs {
+  margin: 0;
+  width: min(100%, calc(var(--u) * 80));
+  padding: calc(var(--u) * 1.4) calc(var(--u) * 2) calc(var(--u) * 1.4) calc(var(--u) * 4.4);
+  font-size: calc(var(--u) * 2.1);
+  line-height: 1.4;
+}
+.scr-wz__qs li + li {
+  margin-top: calc(var(--u) * 1);
+}
+.scr-panel.scr-wz__paper {
+  margin: calc(var(--u) * 2) 0 0;
+  font-size: calc(var(--u) * 2.6);
+  font-weight: 700;
+  text-align: center;
+}
+/* 갤러리: 왼쪽 글, 오른쪽 큰 표지(세로 1080 안에 잘리지 않게 — 표지 높이 = 너비 × 1.414) */
+.scr-scene.scr-wz--gallery {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 4);
+  padding: calc(var(--u) * 1.6) calc(var(--u) * 4);
+}
+.scr-wz__galleryside {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 1);
+  align-items: flex-start;
+}
+.scr-wz__galleryside .scr-kicker {
+  font-family: var(--font-title);
+  font-size: calc(var(--u) * 3.4);
+}
+.scr-wz__cover {
+  width: calc(var(--u) * 36);
+}
+.scr-wz__cover .mz-field__text {
+  font-size: 4.8cqw;
+}
+.scr-wz__cover .mz-field__label {
+  font-size: 3.4cqw;
+}
+
+/* 시상식 차례 공개(작업 174 — 큰 연출은 203): 안내 한 장 → 상 하나씩 크게 */
+.scr-awards--intro,
+.scr-awards--one {
+  justify-content: center;
+}
+.scr-awards__intro {
+  width: min(100%, calc(var(--u) * 76));
+  font-size: calc(var(--u) * 2);
+  display: grid;
+  gap: calc(var(--u) * 0.8);
+}
+.scr-awards__intro p {
+  margin: 0;
+}
+.scr-awards__strong {
+  padding-left: calc(var(--u) * 1);
+  border-left: calc(var(--u) * 0.4) solid var(--stamp-red);
+  font-weight: 700;
+}
+.scr-awards__big {
+  width: min(100%, calc(var(--u) * 70));
+  text-align: center;
+  animation: scr-award-in 0.45s ease-out;
+}
+.scr-awards__bigname {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: calc(var(--u) * 5.2);
+  color: var(--stamp-red);
+  line-height: 1.15;
+}
+.scr-awards__why {
+  margin: calc(var(--u) * 0.4) 0 calc(var(--u) * 1.2);
+  font-size: calc(var(--u) * 1.9);
+  color: var(--ink-soft);
+}
+.scr-awards__bigwinners {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--u) * 1.2) calc(var(--u) * 3);
+  font-size: calc(var(--u) * 2.6);
+}
+.scr-awards__bigwinners .flag-icon {
+  width: calc(var(--u) * 4);
+  height: auto;
+}
+@keyframes scr-award-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scr-awards__big {
+    animation: none;
+  }
+}

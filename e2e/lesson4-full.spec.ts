@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { OLD_TEACHER_TERMS } from '../src/teacher/teacher-terms';
 import { openTvMenu } from './support/voyage-ui';
+import { wrapRound } from './support/wrap174';
 
 /**
  * 작업 173 — 4차시 판(차시 한 판 L4) 끝에서 끝까지(`?sync=local` + 빌드본 미리보기 + Playwright 가짜 시계 — lesson3-full.spec.ts와 같은 기반).
@@ -284,7 +285,8 @@ async function tidy(s: Page, seen: Seen, label: string, plan: Plan, P: string) {
 
 const LOW_NAME = '바다상회';
 
-for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15, 'back']] as const) {
+
+for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15, 'back'], [25, 'all']] as const) {
   test(`4차시 ${minutes}분 ${part === 'front' ? '앞 시간' : part === 'back' ? '뒤 시간' : '두 시간 모두'} — 카드 큰 버튼만으로 끝까지`, async ({ browser, baseURL }) => {
     test.skip(!RUN, 'tests/e2e-preview.playwright.config.ts로 실행');
     test.setTimeout(900_000);
@@ -383,6 +385,11 @@ for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15,
         reflectQs = await s1.getByTestId('wrap-reflect').getAttribute('data-questions');
         await shot(s1, `${P}-student-reflect.png`);
       }
+      // ── (작업 174) 마무리: 학생 행동 + 교사 고르기 + TV 확인(e2e/support/wrap174.ts) ──
+      if (st === 'wrapup') {
+        const r = await wrapRound({ t, scr, students, seen, scenes, P, line, tick: (sec) => run(ctx, t, sec) });
+        if (r === 'continue') continue;
+      }
       const res = await pressBig(t);
       log.push(`${res.state}:${res.label}`);
       await run(ctx, t, 1);
@@ -391,7 +398,7 @@ for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15,
     test.info().annotations.push({ type: '누른 순서', description: log.join(' → ') });
     expect(errors, '페이지 오류').toEqual([]);
     const allLines = [...lines].join(' / ');
-    const wantWs = part === 'front' ? ['W13', 'W14', 'W15'] : [];
+    const wantWs = part !== 'back' ? ['W13', 'W14', 'W15'] : [];
     expect([...seen.worksheets].filter((w) => /^W1[3-5]$/.test(w)), `학습지 — ${log.join(' / ')}`).toEqual(wantWs);
     if (front) {
       // 1970년대 철강: TV 장면이 단계대로
@@ -412,14 +419,54 @@ for (const [minutes, part] of [[30, 'front'], [25, 'front'], [15, 'front'], [15,
       expect(seen.helpers.get('s2:factoryDecision') ?? '').toContain('낮은 임금');
       expect([...scenes]).toContain('steel');
       // 마무리: 컨테이너 OX·잡지 표지 없음, 되돌아보기 2문항
-      expect(wrapIds.filter((x) => x !== 'settle')).toEqual(['awards', 'reflect', 'afterWorksheet']);
-      if (reflectQs !== null) expect(reflectQs).toBe('2');
+      if (part === 'front') {
+        expect(wrapIds.filter((x) => x !== 'settle')).toEqual(['awards', 'reflect', 'afterWorksheet']);
+        if (reflectQs !== null) expect(reflectQs).toBe('2');
+      }
     } else {
       expect([...steelSteps]).toEqual([]);
       expect(allLines).not.toMatch(/철강|공장 결정|근로 환경|관세사/);
       expect(seen.cards.has('L4-E4')).toBe(false);
       expect(wrapIds.filter((x) => x !== 'settle')).toEqual(['containers', 'awards', 'reflect', 'magazine', 'afterWorksheet']);
     }
+    if (part === 'all') {
+      expect(wrapIds.filter((x) => x !== 'settle')).toEqual(['containers', 'awards', 'reflect', 'magazine', 'afterWorksheet']);
+    }
+    // (작업 174) 마무리 전체
+    const cards = [...seen.cards];
+    if (part === 'front') {
+      expect(cards.some((c) => c.startsWith('containers-done'))).toBe(false);
+      expect(cards).toContain('reflect-inputs:2');
+      expect(scenes.has('gallery')).toBe(false);
+    } else {
+      for (const l of ['s1', 's2', 's3']) {
+        expect(cards, `컨테이너 ${l}`).toContain(`containers-done:${l}`);
+        expect(cards, `잡지 표지 ${l}`).toContain(`magazine-sent:${l}`);
+      }
+      expect(cards).toContain('containers-score:s1:컨테이너 8개 중 8개 맞혔어요. 옳은 문장은 4개예요.');
+      expect(cards).toContain('containers-score:s3:컨테이너 8개 중 5개 맞혔어요. 옳은 문장은 4개예요.');
+      // TV 문장별 정답률(3명): 맞힌 회사 수 ÷ 다 실은 회사 수
+      expect(cards).toContain('tv-containers-pct:67,67,100,100,67,100,67,33');
+      expect(seen.helpers.get('s1:containerResult') ?? '').toContain('컨테이너 OX 8개 중 8개 맞혔어요');
+      expect(cards).toContain('reflect-inputs:3');
+      expect(cards).toContain('magazine-paper:s1');
+      expect(cards).toContain('tv-gallery');
+      expect(scenes.has('containers') && scenes.has('reflect') && scenes.has('gallery'), [...scenes].join(',')).toBe(true);
+    }
+    for (const l of ['s1', 's2', 's3']) expect(cards, `되돌아보기 ${l}`).toContain(`reflect-sent:${l}`);
+    expect(cards).toContain('reflect-copy');
+    // 시상 차례: 안내 → 한 장씩 → 전체 목록, 도약상은 무역왕상 바로 앞(뒤 시간 15분은 거래가 없어 받을 회사가 있는 상이 없을 수 있다 — 상이 있을 때만)
+    const anyAward = cards.some((c) => c.startsWith('tv-award:'));
+    if (part !== 'back' || anyAward) {
+      const one = cards.filter((c) => c.startsWith('tv-award:one:')).sort((a, b) => Number(a.split(':')[2]) - Number(b.split(':')[2])).map((c) => c.split(':')[3]);
+      expect(cards.some((c) => c.startsWith('tv-award:intro:'))).toBe(true);
+      expect(one.length).toBeGreaterThan(0);
+      if (one.includes('leap') && one.includes('finalAsset')) expect(one.indexOf('leap')).toBe(one.indexOf('finalAsset') - 1);
+      expect(cards).toContain('tv-award-list');
+      expect(cards.some((c) => c.startsWith('cheer:')), '내 상 축하 카드').toBe(true);
+    }
+    // 4차시 두 시간 모두는 공장 결정으로 사회적 책임 값이 달라 결산 요약에 보인다
+    if (part === 'all') expect(cards.find((c) => c.startsWith('metrics:')) ?? '').toContain('csr');
     expect(roundsDone.size).toBeGreaterThanOrEqual(2);
     await ctx.close();
   });

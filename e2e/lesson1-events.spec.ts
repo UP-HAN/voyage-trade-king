@@ -538,8 +538,8 @@ test('B. 단원 한 판: L1-E2 짧은 형태, L1-E4 전체, L1-E7 카드에 unit
     },
     600,
   );
-  await expect(s1.getByTestId('event-panel').getByTestId('card-unit-note')).toHaveText('흑연은 다음 구간(L2)에서 배터리를 만드는 재료가 돼요.');
-  await expect(screenEvent(scr, 'L1-E7').getByTestId('card-unit-note')).toHaveText('흑연은 다음 구간(L2)에서 배터리를 만드는 재료가 돼요.');
+  await expect(s1.getByTestId('event-panel').getByTestId('card-unit-note')).toHaveText('흑연은 다음 구간(2차시)에서 배터리를 만드는 재료가 돼요.');
+  await expect(screenEvent(scr, 'L1-E7').getByTestId('card-unit-note')).toHaveText('흑연은 다음 구간(2차시)에서 배터리를 만드는 재료가 돼요.');
   // 단원 한 판 효과 문구는 '이번 구간'
   await shot(s1, 'student-L1-E7-unit-note-1366.png');
   await shot(scr, 'screen-L1-E7-unit-note-1920.png');

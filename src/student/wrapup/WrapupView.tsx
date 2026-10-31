@@ -1,20 +1,27 @@
 /**
- * 마무리 단계 학생 화면(최소 형태, 작업 132 — 114 검증 반영). 마무리 전체(컨테이너 OX·잡지 표지·되돌아보기 입력)는 118이 이 틀을 넓힌다.
+ * 마무리 단계 학생 화면(작업 132 최소 형태 → 작업 174에서 마무리 전체로 넓힘).
  *
- * - 교사가 대시보드 마무리 목록에서 [시작]을 누른 단계(`PublicPayload.wrapLive`, 교사 화면 전용 진행 표시를 공개 상태에 실은 것)에 맞춰
- *   학생 화면이 바뀐다. 단계별 화면은 `WRAP_SECTIONS` 한 곳에 모은다(118이 단계를 더할 때 여기에 추가).
- *   - 'awards'(결산·시상, L4-E7): 내 회사 결산 요약(지표 값 — 판에서 값이 모두 같은 지표는 숨김) + 학급 시상(회사 이름만).
- *   - 'reflect'(되돌아보기, L4-E9): 되돌아보기 문항(차시 한 판 L1~L3은 앞 2문항, L4·단원 한 판은 3문항 — PRD 6.14.4)과
- *     쓰는 곳 안내(학습지 ⑱이 이번 판에 있으면 ⑱, 없으면 공책 등).
+ * - 교사가 대시보드 마무리 목록에서 [시작]한 단계(`PublicPayload.wrapLive`, 교사 화면 전용 진행 표시를 공개 상태에 실은 것)에 맞춰
+ *   학생 화면이 바뀐다. 단계별 화면은 `WRAP_SECTIONS` 한 곳에 모은다.
+ *   - 'containers'(컨테이너 싣기, L4-E6 — 작업 174): `Containers.tsx` — 문장 8개 싣기 → 채점·해설 → 자기 평가 3문항 → [마치기].
+ *   - 'awards'(결산·시상, L4-E7): 내 회사 결산 요약(지표 값 — 차시 한 판에서 사회적 책임·협력은 **판에서 실제로 값이 모두 같을 때만** 숨김,
+ *     작업 174) + 공개된 상만(교사가 TV에서 한 장씩 공개 — `wrap.awardsShown`) + 내가 받은 상이 공개되면 "축하해요!" 카드 + 항해 완주 증서.
+ *   - 'reflect'(되돌아보기, L4-E9): `Reflect.tsx` — 문항(차시 L1~L3·4차시 앞 시간 2문항, L4·단원 3문항)마다 한 줄 입력·[복사]·[다 썼어요].
+ *   - 'magazine'(잡지 표지, L4-E8 — 작업 174): `MagazineCover.tsx` — 종이면 안내 + 내 기록 도우미, 게임이면 6칸 + 배경 + 미리보기.
  *   - 그 밖(아직 시작 전·정산·끝나고 쓰기): "무역 시간이 끝났어요" 안내.
- * - 학생 상태는 바꾸지 않는다(보기 전용). 답은 종이에 쓴다.
+ * - 응답은 사건 응답(`respondEvent`)으로 보낸다(교사가 그 항목을 시작할 때 코어 사건이 함께 발동 — teacher/game.ts `fireWrapEvent`).
+ *   사고팔기 기록은 남기지 않는다(폭풍·보너스·개척 지표 영향 없음).
  */
 import type { MetricId } from '../../data/awards';
 import { metrics as METRICS } from '../../data/awards';
-import { eventsById } from '../../data/events';
-import { worksheetById } from '../../data/worksheet';
-import { metricValue, type PublicClass, type PublicState, type WrapItem } from '../../core';
+import { hasCertificate, metricValue, type Action, type ClassState, type PublicClass, type PublicState, type PublicWrap } from '../../core';
 import { playerForPredict, type MeView } from '../predict';
+import type { StudentActResult } from '../store';
+import { Containers } from './Containers';
+import { MagazineCover } from './MagazineCover';
+import { hiddenSummaryMetrics, revealedAwards, wrapItemOf } from './model';
+import { Reflect } from './Reflect';
+import './wrapup.css';
 
 /** 결산 요약에 보이는 지표(학생 자기 값 — PRD 6.14.2 "자기 지표 값은 언제나 보인다") */
 const SUMMARY_METRICS: readonly MetricId[] = ['finalAsset', 'exports', 'dex', 'quiz', 'explore', 'csr', 'coop'];
@@ -25,33 +32,48 @@ export interface WrapupViewProps {
   me: MeView;
   /** 교사가 [시작]한 마무리 단계 ID(없으면 null) */
   wrapLive: string | null;
+  /** (작업 174) 공개 마무리 정보(상 공개 수·잡지 표지 방식 등). 옛 상태에는 없음 */
+  wrap?: PublicWrap | null;
+  /** (작업 174) 응답 보내기(없으면 보기 전용) */
+  act?: (action: Action) => StudentActResult;
 }
 
-/** 되돌아보기 문항(앞 n개) */
-export function reflectQuestions(n: number): string[] {
-  const all = eventsById['L4-E9']?.reflectQuestions ?? [];
-  return all.slice(0, Math.max(0, Math.min(all.length, n)));
-}
+export type WrapSectionProps = Omit<WrapupViewProps, 'wrapLive'>;
+
+export { hiddenSummaryMetrics, reflectQuestions, reflectQuestionsOf, revealedAwards, wrapItemOf } from './model';
 
 function fmt(metric: MetricId, v: number): string {
   if (metric === 'leap') return `${Math.round(v * 100) / 100}`;
   return Math.round(v).toLocaleString('ko-KR');
 }
 
-function AwardsSection({ cls, pub, me }: Omit<WrapupViewProps, 'wrapLive'>) {
+function AwardsSection({ cls, pub, me, wrap }: WrapSectionProps) {
   const player = playerForPredict(me);
-  const item = (cls.schedule.wrapup ?? []).find((w) => w.id === 'awards');
-  // 차시 한 판: 판에서 값이 모두 같을 수 있는 지표(사회적 책임·협력)는 숨김(PRD 4.1.1 hideFlatMetrics)
-  const hideFlat = item?.hideFlatMetrics === true;
-  const rows = SUMMARY_METRICS.map((id) => METRICS.find((m) => m.id === id)!).filter((m) => m && !(hideFlat && m.mayBeFlat));
-  const awards = (pub?.awards ?? []).filter((a) => a.winners.length > 0);
-  const mine = awards.filter((a) => a.winners.some((w) => w.pid === me.pid)).map((a) => a.award);
+  const item = wrapItemOf(cls, 'awards');
+  const hidden = hiddenSummaryMetrics(item, pub);
+  const rows = SUMMARY_METRICS.map((id) => METRICS.find((m) => m.id === id)!).filter((m) => m && !hidden.has(m.id));
+  const shown = revealedAwards(pub, wrap);
+  const mine = shown.filter((a) => a.winners.some((w) => w.pid === me.pid)).map((a) => a.award);
+  const total = wrap ? wrap.awardsTotal : shown.length;
+  const allShown = shown.length >= total;
+  const lastVoyage = cls.settings.scope.includes('L4');
+  let cert = false;
+  try {
+    cert = hasCertificate(cls as unknown as ClassState, player);
+  } catch {
+    cert = false;
+  }
   return (
     <section class="st-wrap__sec" data-testid="wrap-awards">
       <h2 class="title-font">결산·시상</h2>
       <p class="st-wrap__lead">
         <b>{me.company.name}</b>의 항해 결산이에요. 공용 화면에서 시상식을 함께 봐요.
       </p>
+      {lastVoyage && (
+        <p class="st-wrap__strong" data-testid="wrap-half-cargo">
+          마지막 항해가 끝났어요. 배에 남은 화물은 산 값의 절반으로 계산해 최종 자산을 정해요.
+        </p>
+      )}
       <ul class="st-wrap__metrics" data-testid="wrap-metrics">
         {rows.map((m) => (
           <li key={m.id} data-metric={m.id}>
@@ -60,58 +82,52 @@ function AwardsSection({ cls, pub, me }: Omit<WrapupViewProps, 'wrapLive'>) {
         ))}
       </ul>
       {mine.length > 0 && (
-        <p class="st-wrap__mine" data-testid="wrap-my-awards">
-          축하해요! 우리 회사가 받은 상: {mine.join(', ')}
+        <div class="st-wrap__mine wz-cheer" data-testid="wrap-my-awards" role="status">
+          <span class="wz-cheer__kicker">축하해요!</span>
+          <b class="title-font">{mine.join(', ')}</b>
+        </div>
+      )}
+      {cert && (
+        <p class="st-wrap__cert" data-testid="wrap-certificate">
+          항해 완주 증서: 꼭 해야 할 임무를 모두 마쳤어요.
         </p>
       )}
-      {awards.length > 0 && (
+      {shown.length > 0 && (
         <ul class="st-wrap__awards" data-testid="wrap-award-list">
-          {awards.map((a) => (
-            <li key={a.metric}>
+          {shown.map((a) => (
+            <li key={a.metric} data-metric={a.metric}>
               <b>{a.award}</b> {a.winners.map((w) => w.company ?? '이름 짓는 중').join(', ')}
             </li>
           ))}
         </ul>
       )}
+      {!allShown && (
+        <p class="st-wrap__where" data-testid="wrap-awards-wait">
+          {shown.length ? '다음 상을 기다려요.' : '곧 시상식이 시작돼요. 공용 화면을 봐요.'}
+        </p>
+      )}
     </section>
   );
 }
 
-function ReflectSection({ cls }: { cls: PublicClass }) {
-  const item = (cls.schedule.wrapup ?? []).find((w): w is WrapItem => w.id === 'reflect');
-  const qs = reflectQuestions(item?.questions ?? 3);
-  const hasW18 = !!item?.worksheetIds.includes('W18');
-  const w18 = worksheetById.W18;
-  return (
-    <section class="st-wrap__sec" data-testid="wrap-reflect" data-questions={qs.length}>
-      <h2 class="title-font">되돌아보기</h2>
-      <p class="st-wrap__lead">항해를 되돌아보며 문항마다 한 줄씩 써요. 도감과 항해 기록장을 보면 쓰기 쉬워요.</p>
-      <ol class="st-wrap__qs" data-testid="wrap-reflect-questions">
-        {qs.map((q, i) => (
-          <li key={i}>{q}</li>
-        ))}
-      </ol>
-      <p class="st-wrap__where" data-testid="wrap-reflect-where">
-        {hasW18
-          ? `학습지 ${w18.label}(${w18.pagesLabel})에 한 줄씩 써요.`
-          : `오늘은 공책이나 선생님이 정한 곳에 한 줄씩 써요. 학습지 ${w18.label}(되돌아보기)은 단원 마지막 시간에 세 문항을 모두 써요.`}
-      </p>
-    </section>
-  );
+function wrapAct(p: WrapSectionProps): (action: Action) => StudentActResult {
+  return p.act ?? (() => 'blocked');
 }
 
-/** 마무리 단계별 학생 화면(118이 단계를 더할 자리) */
-export const WRAP_SECTIONS: Readonly<Record<string, (p: Omit<WrapupViewProps, 'wrapLive'>) => preact.JSX.Element>> = {
+/** 마무리 단계별 학생 화면 */
+export const WRAP_SECTIONS: Readonly<Record<string, (p: WrapSectionProps) => preact.JSX.Element>> = {
+  containers: (p) => <Containers me={p.me} act={wrapAct(p)} worksheet={wrapItemOf(p.cls, 'containers')?.worksheetIds.includes('W16') ? 'W16' : null} />,
   awards: (p) => <AwardsSection {...p} />,
-  reflect: (p) => <ReflectSection cls={p.cls} />,
+  reflect: (p) => <Reflect cls={p.cls} pub={p.pub} me={p.me} wrap={p.wrap ?? null} act={wrapAct(p)} />,
+  magazine: (p) => <MagazineCover cls={p.cls} pub={p.pub} me={p.me} wrap={p.wrap ?? null} act={wrapAct(p)} />,
 };
 
-export function WrapupView({ cls, pub, me, wrapLive }: WrapupViewProps) {
+export function WrapupView({ cls, pub, me, wrapLive, wrap, act }: WrapupViewProps) {
   const section = wrapLive ? WRAP_SECTIONS[wrapLive] : undefined;
   return (
     <section class={`st-over${section ? ' st-wrap' : ''}`} data-testid="trade-over" data-wrap={wrapLive ?? ''}>
       {section ? (
-        section({ cls, pub, me })
+        section({ cls, pub, me, wrap, act })
       ) : (
         <>
           <h1 class="title-font">무역 시간이 끝났어요</h1>

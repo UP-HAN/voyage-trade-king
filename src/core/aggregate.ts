@@ -13,7 +13,7 @@ import type { WorksheetId } from '../data/types';
 import { VOTE_OPTIONS, voteCounts } from './activities';
 import { boardFrom } from './worksheet-helpers';
 import { econGauge, publicPhone } from './phone';
-import { awards, hasCertificate, leaderboard, publicCompanyName } from './scoring';
+import { awards, flatMetrics, hasCertificate, leaderboard, publicCompanyName } from './scoring';
 import { parseVNDecision } from './factoryVN';
 import type { ClassState, HostSnapshot, LeaderEntry, Player, PublicClass, PublicPayload, PublicState, SessionMeta, VNFactoryCounts } from './types';
 
@@ -152,6 +152,24 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
   }
 
   const tradeOver = cs.phase === 'wrapup' || cs.phase === 'ended';
+
+  // (작업 174) 컨테이너 싣기 — 다 실은 회사 수와 문장별 맞힌 수(이름 없이)
+  let containers: PublicState['containers'] | undefined;
+  if (cs.firedEvents.includes('L4-E6')) {
+    const right = Array.from({ length: 8 }, () => 0);
+    let done = 0;
+    for (const p of list) {
+      const r = p.game.responses['L4-E6'];
+      if (!isObj(r) || typeof r.correct !== 'number') continue;
+      done += 1;
+      const wrong = new Set(Array.isArray(r.wrongNos) ? (r.wrongNos as unknown[]).map(Number) : []);
+      for (let n = 1; n <= 8; n++) if (!wrong.has(n)) right[n - 1] += 1;
+    }
+    containers = { done, total: list.length, right };
+  }
+  // (작업 174) 잡지 표지 — 다 쓴 회사 수만
+  const covers = cs.firedEvents.includes('L4-E8') ? { done: list.filter((p) => p.game.responses['L4-E8'] !== undefined).length, total: list.length } : undefined;
+
   return {
     joinedCount: list.length,
     onlineCount: list.filter((p) => p.online).length,
@@ -183,6 +201,9 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
     ...(cs.phone ? { phone: publicPhone(cs, list, (p) => publicCompanyName(p, nameReview)) } : {}),
     ...(econGauge(cs, list) ? { econGauge: econGauge(cs, list)! } : {}),
     ...(vnFactory ? { vnFactory } : {}),
+    ...(tradeOver ? { flatMetrics: flatMetrics(list) } : {}),
+    ...(containers ? { containers } : {}),
+    ...(covers ? { covers } : {}),
     // (작업 176) TV 띠용 한 비트: 이번 라운드에 누군가에게 폭풍이 지나갔다(누구인지·길·상품은 싣지 않음)
     ...(cs.settings.fairTrade !== false && cs.round > 0 && !tradeOver && list.some((p) => p.game.fairTrade?.lastStormRound === cs.round) ? { stormNews: true as const } : {}),
   };

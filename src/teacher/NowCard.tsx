@@ -110,6 +110,23 @@ export function NowCard({ card, onAction }: NowCardProps) {
               ))}
             </ul>
           )}
+          {card.extra && card.extra.length > 0 && (
+            <div class="t-now__extra" data-testid="now-extra" role="group" aria-label="고르기">
+              {card.extra.map((b) => (
+                <button
+                  key={b.testId ?? b.label}
+                  type="button"
+                  class={`t-now__chip${b.pressed ? ' t-now__chip--on' : ''}`}
+                  data-testid={b.testId}
+                  aria-pressed={b.pressed === undefined ? undefined : b.pressed ? 'true' : 'false'}
+                  disabled={b.disabled}
+                  onClick={() => void onAction(b)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          )}
           {card.secondary && <SmallButton b={card.secondary} onAction={onAction} />}
         </div>
         <div class={`t-now__acts${card.quiet ? ' t-now__acts--quiet' : ''}`}>

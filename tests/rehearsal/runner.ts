@@ -1159,6 +1159,7 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       await items.first().waitFor({ timeout: 10_000 }).catch(() => undefined);
       const nItems = await items.count();
       const wrapLog: string[] = [];
+      const wrapActs: string[] = [];
       if (nItems && (await items.first().getAttribute('data-status').catch(() => null)) !== 'live')
         await problem({ kind: 'teacher-guidance', severity: '문제', key: 'wrap-auto-start', title: '무역 시간이 끝났는데 첫 마무리 항목이 저절로 시작되지 않음', detail: `첫 마무리 항목 상태: ${await items.first().getAttribute('data-status').catch(() => '?')} — PRD 7.5.2.9는 저절로 시작.`, page: t });
       for (let i = 0; i < nItems; i++) {
@@ -1169,12 +1170,25 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
           if (!(await start.count())) continue;
           await start.click({ timeout: 5000 }).catch(() => undefined);
         }
-        const want = /결산|시상/.test(label) ? 'wrap-awards' : /되돌아/.test(label) ? 'wrap-reflect' : null;
+        const want = /결산|시상/.test(label) ? 'wrap-awards' : /되돌아/.test(label) ? 'wrap-reflect' : /컨테이너/.test(label) ? 'wrap-containers' : /잡지/.test(label) ? 'wrap-magazine' : null;
+        // (작업 174) 잡지 표지: 기본(무역 40분 미만 = 종이)을 본 뒤 교사가 [게임에서 써요]를 눌러 학생이 게임에서 쓴다
+        if (want === 'wrap-magazine') {
+          await sleep(800);
+          const game = t!.getByTestId('now-magazine-game');
+          if (await game.isVisible().catch(() => false)) await game.click({ timeout: 5000 }).catch(() => undefined);
+          await sleep(1500);
+        }
         if (want) {
           for (const s of slots.values()) {
             if (!s.page || s.gone) continue;
             const ok = await s.page.getByTestId(want).waitFor({ timeout: 15_000 }).then(() => true, () => false);
             if (!ok) await problem({ kind: 'missing-screen', severity: '문제', key: `wrap-${want}-${s.seat}`, title: `마무리 "${label}" [시작] 뒤 ${s.label} 화면이 바뀌지 않음`, detail: `15초 안에 ${want}가 보이지 않았어요.`, who: [s.label], page: s.page });
+            // (작업 174) 마무리 학생 행동: 컨테이너 싣기 → 자기 평가 → [마치기], 되돌아보기 입력 → [다 썼어요], 잡지 표지 6칸 → [다 썼어요]
+            else {
+              const err = await wrapStudentAct(s.page, want, s.seat).catch((e) => `예외: ${String(e).slice(0, 120)}`);
+              if (err) await problem({ kind: 'blocked-click', severity: '막힘', key: `wrap-act-${want}-${s.seat}`, title: `마무리 "${label}"에서 ${s.label}가 활동을 마치지 못함`, detail: err, who: [s.label], page: s.page });
+              else wrapActs.push(`${s.label}:${want.replace('wrap-', '')}`);
+            }
           }
         }
         wrapLog.push(label);
@@ -1183,6 +1197,8 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       }
       step(`마무리 진행: ${wrapLog.join(' → ') || '항목 없음'}`);
       metrics.wrapItems = wrapLog;
+      metrics.wrapActs = wrapActs;
+      if (wrapActs.length) step(`마무리 학생 활동: ${wrapActs.join(', ')}`);
       // 편지: 봇이 편지를 받았다면 브라우저 학생도 한 번은 편지 표시를 봤어야 한다
       const bsEnd = await botStatus();
       if (bsEnd.some((b) => b.letters > 0)) {
@@ -1502,4 +1518,41 @@ async function endRoomViaSettings(t: Page): Promise<boolean> {
     await t.getByTestId('confirm-ok').click({ timeout: 4000 }).catch(() => undefined);
   }
   return t.getByTestId('ended').waitFor({ timeout: 15_000 }).then(() => true, () => false);
+}
+
+/**
+ * (작업 174) 마무리 학생 행동(브라우저 학생). 마치면 null, 못 하면 까닭.
+ * - 컨테이너: 출석번호에 따라 1~2개 싣고 [다 실었어요] → [스스로 평가하기] → 별 3개 → [마치기] → 'containers-done'
+ * - 되돌아보기: 첫 칸에 한 줄 → [다 썼어요] → 'reflect-sent'
+ * - 잡지 표지(게임): 6칸 → [다 썼어요] → 'magazine-sent'(종이면 안내만 확인)
+ * - 결산·시상: 보기만
+ */
+async function wrapStudentAct(page: Page, want: string, seat: number): Promise<string | null> {
+  if (want === 'wrap-containers') {
+    if (await page.getByTestId('containers-done').isVisible().catch(() => false)) return null;
+    const picks = seat % 2 ? [1, 5] : [7];
+    for (const no of picks) await page.locator(`[data-testid="container"][data-no="${no}"][data-where="yard"]`).click({ timeout: 5000 });
+    await page.getByTestId('containers-submit').click({ timeout: 5000 });
+    await page.getByTestId('containers-next').click({ timeout: 5000 });
+    const n = await page.getByTestId('self-eval').count();
+    for (let i = 0; i < n; i++) await page.getByTestId('self-eval').nth(i).locator('[data-star="2"]').click({ timeout: 5000 });
+    await page.getByTestId('containers-finish').click({ timeout: 5000 });
+    return (await page.getByTestId('containers-done').waitFor({ timeout: 10_000 }).then(() => true, () => false)) ? null : '[마치기] 뒤 다 했어요 안내가 보이지 않음';
+  }
+  if (want === 'wrap-reflect') {
+    const inputs = page.getByTestId('reflect-input');
+    if (!(await inputs.count())) return '되돌아보기 입력 칸이 없음';
+    await inputs.first().fill('무역으로 여러 나라와 서로 기대며 이익을 얻었어요', { timeout: 5000 });
+    await page.getByTestId('reflect-submit').click({ timeout: 5000 });
+    return (await page.getByTestId('reflect-sent').waitFor({ timeout: 10_000 }).then(() => true, () => false)) ? null : '[다 썼어요] 뒤 보냈어요 안내가 보이지 않음';
+  }
+  if (want === 'wrap-magazine') {
+    const mode = await page.getByTestId('wrap-magazine').getAttribute('data-mode');
+    if (mode !== 'game') return (await page.getByTestId('magazine-paper').isVisible().catch(() => false)) ? null : '종이 안내가 보이지 않음';
+    const vals = ['반도체', '작고 빨라요', '베트남', '환경을 지켜요', '정당한 임금을 줘요', '협력해요'];
+    for (let i = 0; i < 6; i++) await page.locator(`[data-testid="magazine-input"][data-no="${i + 1}"]`).fill(vals[i]!, { timeout: 5000 });
+    await page.getByTestId('magazine-submit').click({ timeout: 5000 });
+    return (await page.getByTestId('magazine-sent').waitFor({ timeout: 10_000 }).then(() => true, () => false)) ? null : '[다 썼어요] 뒤 보냈어요 안내가 보이지 않음';
+  }
+  return null;
 }

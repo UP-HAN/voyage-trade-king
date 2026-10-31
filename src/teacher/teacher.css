@@ -191,6 +191,14 @@
 .t-panel__empty { margin: 0; color: var(--ink-soft); }
 .t-wrap__list { margin: 0; padding-left: 1.4em; }
 .t-wrap__list li { padding: 3px 0; }
+.t-covers { margin-top: 10px; border-top: 1px dashed var(--brass-dark); padding-top: 8px; }
+.t-covers__list { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
+.t-covers__list li { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.t-covers__list details { flex: 1; }
+.t-covers__fields { margin: 4px 0 0; display: grid; gap: 2px; font-size: 15px; }
+.t-covers__fields div { display: grid; grid-template-columns: 9em 1fr; gap: 6px; }
+.t-covers__fields dt { color: var(--ink-soft); }
+.t-covers__fields dd { margin: 0; }
 .t-ended { margin: 40px auto; padding: 24px 28px; max-width: 720px; border: 2px solid var(--brass); border-radius: 14px; background: var(--parchment-light); }
 
 /* 서랍·창 */
@@ -307,6 +315,10 @@
 .t-now__small { min-height: 34px; margin: 2px 6px 0 0; padding: 0 4px; border: 0; background: none; color: var(--sea-light); font: inherit; font-size: 16px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .t-now__small:disabled { color: #8a826f; cursor: not-allowed; }
 .t-now__small--tv { min-height: 28px; margin: 0; }
+.t-now__extra { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+.t-now__chip { min-height: 40px; padding: 4px 14px; border: 2px solid var(--brass-dark); border-radius: 20px; background: var(--parchment-light); color: var(--ink); font: inherit; font-size: 16px; cursor: pointer; }
+.t-now__chip--on { background: var(--sea); color: var(--parchment-light); border-color: var(--brass); font-weight: 700; }
+.t-now__chip:disabled { opacity: 0.5; cursor: not-allowed; }
 .t-now__acts { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .t-now__primary { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .t-now__big { min-height: 56px; min-width: 220px; padding: 8px 22px; font-size: 22px; font-weight: 700; }

@@ -30,6 +30,7 @@ import * as fairTradeMod from '../src/data/fairTrade';
 import * as phoneMod from '../src/data/phone';
 import * as steel1970Mod from '../src/data/steel1970';
 import * as vnFactoryMod from '../src/data/vnFactory';
+import * as magazineMod from '../src/data/magazine';
 import * as eventsMod from '../src/data/events';
 import * as goodsMod from '../src/data/goods';
 import * as lessonsMod from '../src/data/lessons';
@@ -64,6 +65,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'goods.ts': goodsMod,
   'lessons.ts': lessonsMod,
   'lessonParts.ts': lessonPartsMod,
+  // (작업 174) 잡지 표지 칸 이름·글자 수·배경
+  'magazine.ts': magazineMod,
   'letterSchedule.ts': letterScheduleMod,
   'letters.ts': lettersMod,
   'market.ts': marketMod,

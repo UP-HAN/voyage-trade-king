@@ -6,7 +6,7 @@
  * 여기에는 출석번호·학생별 자금·응답 여부 명단이 없다(103 aggregate). 이 파일은 그중 **화면에 쓸 것만 골라** 장면을 정한다.
  * 학생 표시는 늘 회사 이름 + 깃발(이름이 null이면 "이름 짓는 중")뿐이다.
  */
-import { tradeClock, type LeaderEntry, type PublicClass, type PublicState, type ScheduleItem } from '../core';
+import { tradeClock, type LeaderEntry, type PublicClass, type PublicState, type PublicWrap, type ScheduleItem } from '../core';
 import { metrics as METRICS, type MetricId } from '../data/awards';
 import { checkQuizFor } from '../data/checkQuiz';
 import { ruleCards, summaryCards } from '../data/dex';
@@ -34,7 +34,11 @@ export type SceneId =
   | 'pause'
   | 'awards'
   | 'ended'
-  | 'black';
+  | 'black'
+  // (작업 174) 마무리 단계: 컨테이너 싣기 · 되돌아보기 문항 · 잡지 표지 갤러리
+  | 'containers'
+  | 'reflect'
+  | 'gallery';
 
 export interface ScreenData {
   cls: PublicClass;
@@ -42,6 +46,10 @@ export interface ScreenData {
   choice: ScreenChoice;
   playUnit: string;
   scope: LessonId[];
+  /** (작업 174) 교사가 [시작]한 마무리 항목(없으면 null) */
+  wrapLive?: string | null;
+  /** (작업 174) 공개 마무리 정보(상 공개 수·컨테이너 결과·잡지 표지 방식·고른 표지) — 무역이 끝난 뒤에만 */
+  wrap?: PublicWrap | null;
 }
 
 const CHOICES: readonly ScreenChoice[] = ['auto', 'leaderboard', 'map', 'code', 'black'];
@@ -59,7 +67,9 @@ export function parseScreenData(publicState: unknown, classView: unknown): Scree
   const scopeRaw = Array.isArray(cv.scope) ? cv.scope : cls.settings?.scope;
   const scope = (Array.isArray(scopeRaw) ? scopeRaw : [cls.stage]).filter((s): s is LessonId => typeof s === 'string' && s in lessonsById);
   const playUnit = typeof cv.playUnit === 'string' ? cv.playUnit : (cls.settings?.playUnit ?? 'unit');
-  return { cls, pub, choice, playUnit, scope: scope.length ? scope : [cls.stage] };
+  const wrapLive = typeof publicState.wrapLive === 'string' ? publicState.wrapLive : null;
+  const wrap = isObj(publicState.wrap) ? (publicState.wrap as unknown as PublicWrap) : null;
+  return { cls, pub, choice, playUnit, scope: scope.length ? scope : [cls.stage], wrapLive, wrap };
 }
 
 // ─────────────────────────── 시계 ───────────────────────────
@@ -141,6 +151,35 @@ export function hasAwardWinners(d: ScreenData): boolean {
   return awardsWithWinners(d).length > 0;
 }
 
+/**
+ * (작업 174) 이미 공개한 상(발표 순서 앞에서부터 `wrap.awardsShown`개). 시상식을 시작하기 전에는 비어 있다(미리 보이지 않게).
+ * 마무리 정보가 없으면(옛 상태·시험용 자료) 전부.
+ */
+export function revealedAwardsOf(d: ScreenData) {
+  const all = awardsWithWinners(d);
+  return d.wrap ? all.slice(0, Math.max(0, d.wrap.awardsShown)) : all;
+}
+
+/** (작업 174) 마무리 사건(컨테이너·잡지·되돌아보기)은 공용 화면에서 사건 카드 대신 마무리 장면으로 */
+const WRAP_EVENT_IDS: ReadonlySet<string> = new Set(['L4-E6', 'L4-E7', 'L4-E8', 'L4-E9']);
+
+/** (작업 174) 마무리 항목별 장면(시작 전·정산·끝나고 쓰기면 null → 기본 규칙) */
+export function wrapScene(d: ScreenData): SceneId | null {
+  if (d.cls.phase !== 'wrapup') return null;
+  switch (d.wrapLive) {
+    case 'containers':
+      return 'containers';
+    case 'awards':
+      return hasAwardWinners(d) ? 'awards' : null;
+    case 'reflect':
+      return 'reflect';
+    case 'magazine':
+      return 'gallery';
+    default:
+      return null;
+  }
+}
+
 /** 순위판을 보여 줄 수 있는가(N>0) */
 export function leaderboardOn(d: ScreenData): boolean {
   return d.cls.settings.leaderboardTopN > 0;
@@ -161,11 +200,14 @@ export function pickScene(d: ScreenData, now: number): SceneId {
   if (cls.paused) return 'pause';
   if (cls.worksheet.current && cls.worksheet.current.length) return 'worksheet';
   if (liveItem(cls, (it) => it.kind === 'stageCover' && it.variant === 'summary')) return 'summary';
+  // (작업 174) 마무리 항목(컨테이너·시상·되돌아보기·잡지 표지)을 진행 중이면 그 장면
+  const ws = wrapScene(d);
+  if (ws) return ws;
   const ce = cls.currentEvent;
   // (작업 115 수정 1회차) 2차시~ 라운드 시작 임무(L2-E3·E4)·첫 입항 사건(L2-E5)은 학생 화면의 임무 패널 — TV는 라운드 해도 그대로
   const introDef = ce && !ce.closed ? eventsById[ce.id] : undefined;
   const missionIntro = !!introDef && introDef.lesson !== 'L1' && (introDef.kind === 'mission' || introDef.trigger.type === 'firstArrival');
-  if (ce && !ce.closed && !(missionIntro && cls.phase === 'round')) {
+  if (ce && !ce.closed && !(missionIntro && cls.phase === 'round') && !(cls.phase === 'wrapup' && WRAP_EVENT_IDS.has(ce.id))) {
     if (isCoverEvent(ce.id)) return 'cover';
     const def = eventsById[ce.id];
     if (def?.kind === 'vote' && pub.vote?.id === ce.id && pub.vote.revealed) return 'bars';
@@ -179,7 +221,8 @@ export function pickScene(d: ScreenData, now: number): SceneId {
     }
     return 'code';
   }
-  if (cls.phase === 'wrapup') return hasAwardWinners(d) ? 'awards' : leaderboardOn(d) ? 'leaderboard' : 'map';
+  // (작업 174) 시상식 전에는 상을 미리 보이지 않는다(공개한 상이 있을 때만 시상 장면)
+  if (cls.phase === 'wrapup') return revealedAwardsOf(d).length > 0 ? 'awards' : leaderboardOn(d) ? 'leaderboard' : 'map';
   // 라운드 사이·사건 뒤: 방금 끝난 사건 결과 막대 → 순위판 → 해도
   if (ce && ce.closed && hasResultBars(d, ce.id)) return 'bars';
   if (cls.phase === 'between' && leaderboardOn(d)) return 'leaderboard';

@@ -403,11 +403,24 @@ for (const [minutes, part] of [[25, 'front'], [25, 'back'], [25, 'all'], [15, 'f
           await t.bringToFront();
         }
       }
+      // (작업 174) 마무리: 학생 결산 요약 지표 줄·되돌아보기 입력 칸
+      if (st === 'wrapup') {
+        if (await s1.getByTestId('wrap-metrics').isVisible().catch(() => false)) {
+          const ids = await s1.locator('[data-testid="wrap-metrics"] li').evaluateAll((els) => els.map((e) => e.getAttribute('data-metric') ?? ''));
+          seen.cards.add(`metrics:${ids.join(',')}`);
+        }
+        if (await s1.getByTestId('wrap-reflect').isVisible().catch(() => false)) seen.cards.add(`reflect-inputs:${await s1.getByTestId('reflect-input').count()}`);
+      }
       const res = await pressBig(t);
       log.push(`${res.state}:${res.label}`);
       await run(ctx, t, 1);
     }
     await expect(t.getByTestId('now-card')).toHaveAttribute('data-state', 'ended');
+    // (작업 174) 결산 요약: 3차시 판은 협력 값이 회사마다 다르면(광물 협력 참여 1·3번) 협력 줄이 보인다. 되돌아보기는 2문항 + 입력 칸
+    const metricsSeen = [...seen.cards].find((c) => c.startsWith('metrics:')) ?? '';
+    expect(metricsSeen).toContain('finalAsset');
+    if (front) expect(metricsSeen).toContain('coop');
+    expect([...seen.cards]).toContain('reflect-inputs:2');
     test.info().annotations.push({ type: '누른 순서', description: log.join(' → ') });
     expect(errors, '페이지 오류').toEqual([]);
     // 학습지: 그 시간 번호만

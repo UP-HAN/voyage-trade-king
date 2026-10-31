@@ -10,7 +10,7 @@ import type { NameStatus } from '../sync/app-messages';
 import type { HostView } from '../sync/host-session';
 import { goodsById } from '../data/goods';
 import { portsById } from '../data/ports';
-import type { TeacherGame } from './game';
+import { coverOf, liveWrapStep, magazineModeOf, type TeacherGame } from './game';
 
 export interface StudentRow {
   seat: number;
@@ -118,6 +118,13 @@ function worksheetAllDone(g: TeacherGame, p: Player, ws: readonly string[]): boo
  */
 export function nowTaskOf(g: TeacherGame, p: Player | undefined): NowTask {
   const c = g.class;
+  // (작업 174) 마무리: 지금 항목에서 할 일(컨테이너 싣기·되돌아보기·잡지 표지). 되돌아보기는 내용 대신 '썼어요'만(내용은 학생 상세에서만)
+  if (p && c.phase === 'wrapup') {
+    const live = liveWrapStep(g);
+    if (live === 'containers') return p.game.responses['L4-E6'] !== undefined ? { text: '다 실었어요', done: true } : { text: '컨테이너 싣는 중', done: false };
+    if (live === 'reflect') return p.game.responses['L4-E9'] !== undefined ? { text: '되돌아보기 썼어요', done: true } : { text: '되돌아보기 쓰는 중', done: false };
+    if (live === 'magazine' && magazineModeOf(g) === 'game') return coverOf(p) ? { text: '표지 다 썼어요', done: true } : { text: '표지 쓰는 중', done: false };
+  }
   if (!p || c.tradeEnded || c.phase === 'wrapup' || c.phase === 'ended') return { text: '·', done: null };
   if (!p.company.founded) return { text: '회사 만드는 중', done: false };
   if (c.clock.startedAt === null) return { text: '회사 만듦', done: true };

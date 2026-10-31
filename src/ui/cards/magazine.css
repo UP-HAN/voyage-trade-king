@@ -1,0 +1,135 @@
+/* 잡지 표지 「이달의 기업」(작업 174) — 부모 너비에 맞춰 비례(cqw). 학생 미리보기·공용 화면 갤러리 공통 */
+.mz-wrap {
+  container-type: inline-size;
+  width: 100%;
+}
+.mz-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1240 / 1754;
+  overflow: hidden;
+  border-radius: 1.2cqw;
+  border: 0.5cqw solid var(--ink, #2b2318);
+  box-shadow: 0 1cqw 3cqw rgba(0, 0, 0, 0.35);
+  color: var(--ink, #2b2318);
+  font-family: var(--font-body, sans-serif);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  padding: 4cqw 4.5cqw 3cqw;
+  box-sizing: border-box;
+  gap: 1.4cqw;
+}
+.mz-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.mz-bg__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mz-cover > :not(.mz-bg) {
+  position: relative;
+  z-index: 1;
+}
+.mz-head {
+  text-align: center;
+  background: rgba(255, 250, 238, 0.82);
+  border-radius: 1cqw;
+  padding: 1.6cqw 2cqw 1.8cqw;
+}
+.mz-kicker {
+  margin: 0;
+  font-size: 4.2cqw;
+  letter-spacing: 0.04em;
+}
+.mz-title {
+  margin: 0.6cqw 0 0;
+  font-size: 11.5cqw;
+  line-height: 1.05;
+  color: #8a2f1c;
+}
+.mz-company {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqw;
+  background: rgba(255, 250, 238, 0.82);
+  border-radius: 1cqw;
+  padding: 1.4cqw 2cqw;
+}
+.mz-company .flag-icon {
+  width: 9cqw;
+  height: auto;
+}
+.mz-company__name {
+  font-size: 7cqw;
+  line-height: 1.1;
+  word-break: keep-all;
+}
+.mz-main,
+.mz-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2cqw;
+}
+.mz-main {
+  align-self: start;
+}
+.mz-side {
+  align-self: end;
+  padding-right: 22cqw; /* 선장 그림 자리 */
+}
+.mz-field {
+  background: rgba(255, 250, 238, 0.88);
+  border-left: 1.2cqw solid #8a2f1c;
+  border-radius: 0.8cqw;
+  padding: 0.9cqw 1.8cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3cqw;
+}
+.mz-field__label {
+  font-size: 3cqw;
+  color: var(--ink-soft, #6b5a3f);
+}
+.mz-field__text {
+  font-size: 4.3cqw;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.mz-field--hero .mz-field__text {
+  font-size: 6.4cqw;
+  font-family: var(--font-title, serif);
+}
+.mz-field--empty .mz-field__text {
+  color: rgba(43, 35, 24, 0.35);
+}
+.mz-cover > .mz-captain {
+  position: absolute;
+  right: 3cqw;
+  bottom: 9cqw;
+  width: 20cqw;
+  height: auto;
+  z-index: 1;
+  border: 0.6cqw solid var(--ink, #2b2318);
+  border-radius: 1.2cqw;
+  background: #efe2bf;
+}
+.mz-record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6cqw 2.4cqw;
+  align-items: baseline;
+  background: rgba(43, 35, 24, 0.86);
+  color: #efe2bf;
+  border-radius: 0.8cqw;
+  padding: 1cqw 2cqw;
+  font-size: 3cqw;
+}
+.mz-record b {
+  color: #dcaa48;
+}

@@ -18,7 +18,7 @@ import type { LessonId, WorksheetId } from '../data/types';
 import { worksheetById } from '../data/worksheet';
 import { parseScreenData, pickScene, type SceneId } from '../screen/model';
 import type { HostView } from '../sync/host-session';
-import { liveWrapStep, publicView, screenView, type TeacherGame } from './game';
+import { awardsListShown, awardsRevealed, coverOf, liveWrapStep, magazineModeOf, publicView, screenView, wrapAwardList, type MagazineMode, type TeacherGame } from './game';
 import { eventDefOf, isTier1, itemLabel, minSecText, mmss, ROUND_NOW_BLOCK_TEXT, worksheetNo } from './schedule-view';
 import { respondedToCurrent } from './table';
 import { eul, lessonText, MANUAL_HINT, SCENE_CHOICE_TEXT, teacherTitle } from './teacher-terms';
@@ -74,7 +74,11 @@ export type NowActionKind =
   | 'showNoWorksheet' // 학생 표를 '학습지 안 씀'으로
   | 'showFold' // 접힘 영역 펼치기([보기])
   | 'oneMoreRound' // (작업 172) 스마트폰이 덜 모였을 때 [라운드 하나 더](무역 시간을 라운드 하나만큼 늘림)
-  | 'eventStep'; // (작업 173) 1970년대 철강: 투표 끝내고 결과 → 회상 → 실제 사례(eventStep)
+  | 'eventStep' // (작업 173) 1970년대 철강: 투표 끝내고 결과 → 회상 → 실제 사례(eventStep)
+  | 'containersResult' // (작업 174) 컨테이너 싣기 문장별 정답률을 TV에
+  | 'awardNext' // (작업 174) 시상식 다음 상 공개
+  | 'magazineMode' // (작업 174) 잡지 표지 종이/게임(`mode`)
+  | 'coverNext'; // (작업 174) 다 쓴 표지 가운데 다음 것을 TV에
 
 export type FoldId = 'time' | 'order' | 'entry' | 'worksheet' | 'more';
 
@@ -95,6 +99,10 @@ export interface NowButton {
   nextWrapId?: string;
   /** showFold 대상 */
   fold?: FoldId;
+  /** (작업 174) 고르기 버튼이 지금 골라져 있나(aria-pressed) */
+  pressed?: boolean;
+  /** (작업 174) magazineMode 대상 */
+  mode?: MagazineMode;
 }
 
 export interface NowSub {
@@ -137,6 +145,8 @@ export interface NowCard {
   sub: NowSub[];
   primary: NowButton | null;
   secondary: NowButton | null;
+  /** (작업 174) 카드 안 고르기 버튼 줄(잡지 표지 종이/게임 등). 없으면 안 그림 */
+  extra?: NowButton[];
   notes: NowNote[];
   tv: TvChip;
   /** [잠깐 멈춤]을 보이는가(무역 시작 뒤 수업 끝 전, 멈춤·연결 문제 상태가 아닐 때) */
@@ -380,9 +390,9 @@ export function wrapHelp(w: WrapItem): NowSub {
     case 'afterWorksheet':
       return { text: `학습지 ${w.worksheetIds.map(worksheetNo).join('') || ''}를 항해 기록장을 보며 써요`.replace('학습지 를', '학습지를'), pdfLink: true };
     case 'containers':
-      return { text: `컨테이너 이야기를 함께 봐요${w.worksheetIds.length ? ` · 학습지 ${w.worksheetIds.map(worksheetNo).join('')}` : ''}` };
+      return { text: `학생 화면에서 옳은 문장 컨테이너만 트럭에 싣고 스스로 평가해요${w.worksheetIds.length ? ` · 끝나면 학습지 ${w.worksheetIds.map(worksheetNo).join('')}` : ''}` };
     case 'magazine':
-      return { text: `잡지 표지 원고를 써요${w.worksheetIds.length ? ` · 학습지 ${w.worksheetIds.map(worksheetNo).join('')}` : ''}`, pdfLink: true };
+      return { text: `잡지 표지 「이달의 기업」(교과서 112~113쪽)${w.worksheetIds.length ? ` · 학습지 ${w.worksheetIds.map(worksheetNo).join('')}` : ''}`, pdfLink: true };
     default:
       return { text: '마지막 라운드까지 정산했어요' };
   }
@@ -393,7 +403,7 @@ export function wrapSteps(c: Pick<ClassState, 'schedule'>): WrapItem[] {
   return (c.schedule.wrapup ?? []).filter((w) => w.id !== 'settle');
 }
 
-function wrapCard(g: TeacherGame): Pick<NowCard, 'tag' | 'line' | 'sub' | 'primary' | 'secondary' | 'lineTestId'> {
+function wrapCard(g: TeacherGame): Pick<NowCard, 'tag' | 'line' | 'sub' | 'primary' | 'secondary' | 'lineTestId' | 'extra'> {
   const steps = wrapSteps(g.class);
   const wp = g.wrapProgress ?? {};
   const liveId = liveWrapStep(g);
@@ -405,13 +415,51 @@ function wrapCard(g: TeacherGame): Pick<NowCard, 'tag' | 'line' | 'sub' | 'prima
     const k = steps.indexOf(live) + 1;
     const next = steps.slice(k).find((w) => !wp[w.id]) ?? null;
     const sub: NowSub[] = [wrapHelp(live)];
+    const players = Object.values(g.players);
+    const doneOf = (id: string) => players.filter((p) => p.game.responses[id] !== undefined).length;
+    // (작업 174) 항목별 진행: 다 한 학생 수, 큰 버튼 하나로 차례대로(결과 보기 → 다음으로, 상 하나씩 → 다음으로)
+    let step: NowButton | null = null;
+    let extra: NowButton[] | undefined;
+    if (live.id === 'containers') {
+      sub.unshift({ text: `다 실은 학생 ${doneOf('L4-E6')}/${players.length}`, strong: true, testId: 'now-wrap-count' });
+      if (!g.containersResult) step = { label: 'TV에 결과 보기', kind: 'containersResult', testId: 'now-containers-result', tone: 'primary' };
+      else sub.push({ text: 'TV에 문장별 정답률이 나와 있어요. 틀린 문장을 어떻게 고치면 옳을지 함께 이야기해요' });
+    }
+    if (live.id === 'awards') {
+      const total = wrapAwardList(g).length;
+      const shown = awardsRevealed(g);
+      sub.unshift({ text: total ? `TV에 상 ${shown}/${total} 공개` : '이번 판에는 받을 회사가 있는 상이 없어요', strong: true, testId: 'now-wrap-count' });
+      if (shown < total) step = { label: shown === 0 ? '첫 상 공개' : `다음 상 공개 (${shown + 1}/${total})`, kind: 'awardNext', testId: 'now-award-next', tone: 'primary' };
+      else if (total && !awardsListShown(g)) step = { label: '상 전체 목록 보기', kind: 'awardNext', testId: 'now-award-next', tone: 'primary' };
+    }
+    if (live.id === 'reflect') {
+      sub.unshift({ text: `되돌아보기를 보낸 학생 ${doneOf('L4-E9')}/${players.length} · 쓰지 않아도 넘어갈 수 있어요`, strong: true, testId: 'now-wrap-count' });
+    }
+    if (live.id === 'magazine') {
+      const mode = magazineModeOf(g);
+      extra = [
+        { label: '종이로 해요(교과서 112~113쪽·학습지 ⑰)', kind: 'magazineMode', mode: 'paper', pressed: mode === 'paper', testId: 'now-magazine-paper' },
+        { label: '게임에서 써요', kind: 'magazineMode', mode: 'game', pressed: mode === 'game', testId: 'now-magazine-game' },
+      ];
+      if (mode === 'game') {
+        const written = players.filter((p) => coverOf(p)).length;
+        sub.unshift({ text: `잡지 표지를 다 쓴 학생 ${written}/${players.length}`, strong: true, testId: 'now-wrap-count' });
+        sub.push({ text: '오른쪽 [마무리 순서]에서 TV에 보일 표지를 골라요. 고른 표지만 TV에 나와요' });
+        if (written) extra.push({ label: g.coverPick ? '다음 표지 TV에' : '첫 표지 TV에', kind: 'coverNext', testId: 'now-cover-next' });
+      } else {
+        sub.unshift({ text: '학생 화면에 교과서·학습지 안내와 내 기록이 떠요', strong: true, testId: 'now-wrap-count' });
+      }
+    }
     if (next) sub.push({ text: `다음: ${next.label}` });
+    const nextBtn: NowButton | null = next ? { label: `다음으로: ${next.label}`, kind: 'wrapNext', testId: 'now-wrap-next', wrapId: live.id, nextWrapId: next.id, tone: 'primary' } : null;
+    const skip: NowButton | null = next ? { label: '이 항목 건너뛰기', kind: 'wrapSkip', testId: 'now-wrap-skip', wrapId: live.id, nextWrapId: next.id } : null;
     return {
       tag: `마무리 ${k}/${n}`,
       line: `${live.label} 하는 중`,
       sub,
-      primary: next ? { label: `다음으로: ${next.label}`, kind: 'wrapNext', testId: 'now-wrap-next', wrapId: live.id, nextWrapId: next.id, tone: 'primary' } : end,
-      secondary: next ? { label: '이 항목 건너뛰기', kind: 'wrapSkip', testId: 'now-wrap-skip', wrapId: live.id, nextWrapId: next.id } : save,
+      primary: step ?? nextBtn ?? end,
+      secondary: step ? (nextBtn ? { ...nextBtn, tone: undefined, testId: 'now-wrap-next-small' } : save) : (skip ?? save),
+      extra,
     };
   }
   const pending = steps.find((w) => !wp[w.id]) ?? null;
@@ -450,6 +498,9 @@ const SCENE_TEXT: Readonly<Record<SceneId, string>> = {
   awards: '시상식',
   ended: '끝 화면',
   black: '검은 화면',
+  containers: '컨테이너 싣기',
+  reflect: '되돌아보기 문항',
+  gallery: '잡지 표지',
 };
 
 /** 지금 공용 화면에 나오는 장면 이름(공용 화면 규칙 `pickScene`을 읽기만 한다) */
@@ -512,7 +563,7 @@ export function notesOf(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
 
 // ─────────────────────────── 카드 ───────────────────────────
 
-type Body = Pick<NowCard, 'state' | 'tag' | 'line' | 'sub' | 'primary' | 'secondary'> & {
+type Body = Pick<NowCard, 'state' | 'tag' | 'line' | 'sub' | 'primary' | 'secondary' | 'extra'> & {
   lineTestId?: string; eventId?: string; keyExtra?: string;
   /** (작업 162) 자동 진행이어도 조용한 카드로 그리지 않는다(순서를 다 함 — 선생님이 [마무리로]를 눌러야 함) */
   loud?: boolean;
@@ -578,7 +629,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
   // 4. 마무리
   if (c.tradeEnded) {
     const w = wrapCard(g);
-    return { state: 'wrapup', ...w, keyExtra: `${liveWrapStep(g) ?? ''}` };
+    return { state: 'wrapup', ...w, keyExtra: `${liveWrapStep(g) ?? ''}:${awardsRevealed(g)}:${awardsListShown(g) ? 'L' : ''}:${g.containersResult ? 1 : 0}:${magazineModeOf(g)}:${g.coverPick ?? ''}` };
   }
   // 5. (작업 162) 옛 '무역 시간 끝' 카드는 없앴다 — 추천 시간이 지나도 지금 상황(결과·학습지·활동·라운드) 카드가 그대로 나오고,
   //    늦음 줄이 "추천 시간이 지났어요 · n분 더 하는 중"으로 알린다. 판을 끝내는 것은 [마무리로]뿐
@@ -857,6 +908,7 @@ export function nowCard(g: TeacherGame, view: NowView, now: number, ui: NowUi): 
     sub,
     primary: b.primary,
     secondary: b.secondary,
+    ...(b.extra?.length ? { extra: b.extra } : {}),
     notes: notesOf(g, view, now, ui),
     tv: tvChipOf(g, now, ui.screenConnected),
     showPause,

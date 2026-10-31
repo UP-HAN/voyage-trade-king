@@ -22,6 +22,7 @@ import { SteelScene, steelPicker } from './SteelScene';
 import { AwardsScene, BlackScene, EndedScene, PauseScene, RulesScene } from './MiscScenes';
 import type { SceneProps } from './types';
 import { AfterWorksheetScene, pickAfterWorksheetScene, WorksheetScene } from './WorksheetScene';
+import { ContainersScene, GalleryScene, ReflectScene } from './WrapScenes';
 
 export type { SceneProps } from './types';
 
@@ -39,6 +40,10 @@ const SCENES: Record<string, ComponentType<SceneProps>> = {
   awards: AwardsScene,
   ended: EndedScene,
   black: BlackScene,
+  // (작업 174) 마무리: 컨테이너 싣기 · 되돌아보기 · 잡지 표지 갤러리(고르기는 model.ts wrapScene — 기본 규칙 안)
+  containers: ContainersScene,
+  reflect: ReflectScene,
+  gallery: GalleryScene,
 } satisfies Record<SceneId, ComponentType<SceneProps>>;
 
 // 작업 113이 채울 미니게임 결과 장면(자동 고르기 규칙은 113이 addScenePicker로 더함)

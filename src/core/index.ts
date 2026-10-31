@@ -37,7 +37,7 @@ export {
   applyVNDecision, applyVNImprove, applyVNReport, isBadChoice, parseVNDecision, VN_FACTORY, vnFactoryOutcome, type EnvChoice,
   type VNDecision, type Wage,
 } from './factoryVN';
-export { AUTO_PORT, canRespond, closeEventForAll, defaultOptionId, isNoResponse, TECH_RACE, VOTE_OPTIONS, voteCounts, voteResult } from './activities';
+export { AUTO_PORT, canRespond, clipText, closeEventForAll, COVER_BG_COUNT, COVER_FIELD_MAX, defaultOptionId, isNoResponse, REFLECT_MAX, TECH_RACE, VOTE_OPTIONS, voteCounts, voteResult } from './activities';
 export {
   createHostReducer, createSessionReducer, hostReduce, playerView, toSessionOutputs, type HostHooks, type SessionLikeOutput,
 } from './host';

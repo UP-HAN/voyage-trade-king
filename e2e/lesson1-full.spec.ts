@@ -301,10 +301,20 @@ test('A. 차시 한 판 L1 15분 — 로컬 중계 서버 + /voyage/ 하위 경�
   await expect(s1.getByTestId('wrap-awards')).toBeVisible({ timeout: 15_000 });
   await expect(s1.getByTestId('wrap-metrics')).toContainText('최종 자산');
   await shot(s1, 'A06b-student-wrap-awards-1366.png');
+  // (작업 174) 시상식은 TV에서 상을 한 장씩 공개 — 카드 큰 버튼 [첫 상 공개] → [다음 상 공개] … → [다음으로: 되돌아보기]
+  for (let k = 0; k < 10 && (await t.getByTestId('now-award-next').count()); k++) {
+    await t.getByTestId('now-award-next').click();
+    await t.waitForTimeout(700);
+  }
   await expect(t.getByTestId('now-wrap-next')).toHaveText(/다음으로: 되돌아보기/);
   await t.getByTestId('now-wrap-next').click();
   await expect(wrapItem('결산·시상')).toHaveAttribute('data-status', 'done');
   await expect(s1.getByTestId('wrap-reflect')).toHaveAttribute('data-questions', '2', { timeout: 15_000 });
+  // (작업 174) 되돌아보기: 문항마다 한 줄 입력 칸 + [복사] + [다 썼어요]
+  await expect(s1.getByTestId('reflect-input')).toHaveCount(2);
+  await s1.getByTestId('reflect-input').first().fill('도자기를 팔아 이익이 컸어요');
+  await s1.getByTestId('reflect-submit').click();
+  await expect(s1.getByTestId('reflect-sent')).toBeVisible();
   await shot(s1, 'A06c-student-wrap-reflect-1366.png');
   await wrapItem('되돌아보기').getByRole('button', { name: '끝' }).click();
   await expect(s1.getByTestId('trade-over')).toHaveAttribute('data-wrap', '');
