@@ -25,7 +25,8 @@ export function itemLabel(it: ScheduleItem): string {
       return `라운드 ${it.round ?? it.refId}`;
     case 'event': {
       const d = eventDefOf(it);
-      return d ? teacherTitle(d.title) : it.refId;
+      // (작업 172) 나눠 고르기가 바꾼 이름이 있으면 그것(3차시 L3-E5)
+      return it.title ? teacherTitle(it.title) : d ? teacherTitle(d.title) : it.refId;
     }
     case 'worksheet': {
       if (it.placement === 'during') return `학습지 ${worksheetNo(it.refId)}${DURING_MARK} 지금 바로 쓰기`;

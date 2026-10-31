@@ -192,8 +192,12 @@ describe('일찍 끝낸 라운드(10초 이상) — 표본 sweep', () => {
         snap = r.snapshot;
         let done = planDone(snap.class);
         // 마지막 라운드 뒤에 남은 계획(구간 끝 활동·학습지)이 있으면 그것을 마친 뒤 '순서를 다 함'(작업 162: 결산은 교사가)
+        // (작업 172) 마지막 라운드에 붙은 결정(3차시 기술 경쟁 등)을 라운드 끝에 마감하면 결과를 20초 보여 준 뒤 끝난다 — 그 시간도 기다린다
+        //   (결과 표시는 계획 항목이 아니므로 '남은 계획 끝' 검사에는 넣지 않는다)
+        const ru = snap.class.currentEvent?.resultUntil;
         const tailEnd = Math.max(e, ...snap.class.schedule.items.filter((it) => it.status === 'pending' || it.status === 'live').filter((it) => it.form !== 'dropped' && it.kind !== 'letter').map((it) => it.at + it.durSec));
-        for (let t = e + 1; t <= tailEnd + 2; t++) {
+        const waitEnd = Math.max(tailEnd, typeof ru === 'number' ? Math.ceil((ru - T0) / 1000) : 0);
+        for (let t = e + 1; t <= waitEnd + 2; t++) {
           const x = hostReduce(snap, { type: 'tick' }, T0 + t * 1000, hooks);
           snap = x.snapshot;
           if (planDone(snap.class)) done = true;

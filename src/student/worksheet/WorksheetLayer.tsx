@@ -32,7 +32,7 @@ import {
 import { DURING_AFTER_NEWS_TEXT } from '../../data/schedule';
 import { bundleTitle, duringLabel, worksheetById, worksheetFor } from '../../data/worksheet';
 import type { LessonId, WorksheetId } from '../../data/types';
-import { lessonPartRulesOf, WS6_ALONG_TEXT, type LessonPart } from '../../data/lessonParts';
+import { dexHeldBack, lessonPartRulesOf, WS6_ALONG_TEXT, type LessonPart } from '../../data/lessonParts';
 import { alongPlanned } from './along';
 import { resentWorksheets } from '../../core/host';
 import { fx } from '../../ui/common/fx';
@@ -205,7 +205,7 @@ function ToolOverlay({
   entry: LogbookEntry;
   onClose: () => void;
 }) {
-  if (which === 'dex') return <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings?.comeback)} fairTrade={cls.settings?.fairTrade !== false} onClose={onClose} />;
+  if (which === 'dex') return <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings?.comeback)} fairTrade={cls.settings?.fairTrade !== false} hide={dexHeldBack(lessonPartRulesOf(cls.settings))} onClose={onClose} />;
   if (which === 'letters') {
     return (
       <div class="lt-dock ws-letters">

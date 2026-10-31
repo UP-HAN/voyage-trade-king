@@ -365,6 +365,17 @@ export function tradeErrorText(code: string): string {
     // (작업 115) 부산 공장
     case 'NO_INPUT':
       return '재료가 모자라요';
+    // (작업 172) 부산 조립장
+    case 'PART_FULL':
+      return '이 부품은 다 모였어요';
+    case 'PART_CAP':
+      return '한 사람은 한 부품에 2상자까지 넣어요';
+    case 'PHONE_DONE':
+      return '스마트폰 완성! 부품을 더 넣지 않아도 돼요';
+    case 'NO_PROJECT':
+      return '아직 스마트폰 프로젝트가 시작되지 않았어요';
+    case 'NOT_A_PART':
+      return '스마트폰 부품이 아니에요';
     case 'NOT_AT_BUSAN':
       return '공장은 부산 항구에 있어요';
     case 'NO_FACTORY':

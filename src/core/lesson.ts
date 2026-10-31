@@ -43,9 +43,14 @@ export const CLOCK_TEACHER_ACTIONS = ['startTrade', 'extend', 'shorten'] as cons
 /** (작업 111) 마감한 뒤 결과를 보여 주는 시간(초) — 확인 퀴즈 정답률·해설, 결정 분포, 투표 결과 [게임 설정] */
 export const EVENT_RESULT_SHOW_SEC = 20;
 
-/** 결과(정답률·분포 막대)가 있는 사건인가: 확인 퀴즈·투표·선택지가 있는 개인 결정 */
-export function hasResultView(def: EventDef | undefined): boolean {
-  return !!def && (def.kind === 'checkQuiz' || def.kind === 'vote' || (def.kind === 'decision' && !!def.options?.length));
+/**
+ * 결과(정답률·분포 막대)가 있는 사건인가: 확인 퀴즈·투표·선택지가 있는 개인 결정.
+ * (작업 172) 짧은 형태의 확인 퀴즈(3차시 경쟁 세 가지 '카드만')는 문항이 없어 결과도 없다
+ */
+export function hasResultView(def: EventDef | undefined, short = false): boolean {
+  if (!def) return false;
+  if (def.kind === 'checkQuiz') return !short;
+  return def.kind === 'vote' || ((def.kind === 'decision' || def.kind === 'article') && !!def.options?.length);
 }
 
 /** 마감한 사건의 결과를 지금 보여 주는 중인가 */
@@ -84,6 +89,23 @@ const err = (cls: ClassState, error: string): TeacherResult => ({ class: cls, er
 function fire(cs: ClassState, def: EventDef, short: boolean, now: number): TeacherResult {
   const side: SideEffect[] = [];
   let cls: ClassState = { ...cs };
+  // (작업 172) 응답이 필요 없는 비차단 임무(3차시 스마트폰 시작 L3-E2)가 같은 라운드에 열린 비차단 결정(L3-E1 짧게 등)을 닫지 않게 —
+  // 임무는 발동 기록·개인 효과(임무 시작·부품 팀 배정)만 하고 지금 사건 카드는 그대로 둔다
+  const open = cls.currentEvent && !cls.currentEvent.closed ? cls.currentEvent : null;
+  const openDef = open ? eventsById[open.id] : undefined;
+  // (1차시 L1-E6 첫 출항 임무는 예전처럼 열린 결정을 닫는다 — 2차시부터의 '임무 패널' 사건만)
+  const quiet = def.kind === 'mission' && def.lesson !== 'L1' && !def.needsResponse && !isBlocking(def, short)
+    && !!open && !!openDef && openDef.needsResponse && !isBlocking(openDef, open.short) && open.id !== def.id;
+  if (quiet) {
+    return ok(
+      {
+        ...cls,
+        firedEvents: cls.firedEvents.includes(def.id) ? cls.firedEvents : [...cls.firedEvents, def.id],
+        shortEvents: short ? [...new Set([...cls.shortEvents, def.id])] : cls.shortEvents.filter((x) => x !== def.id),
+      },
+      [{ type: 'eventFired', id: def.id }],
+    );
+  }
   if (cls.currentEvent && !cls.currentEvent.closed) {
     side.push({ type: 'eventClosed', id: cls.currentEvent.id });
   }
@@ -244,7 +266,7 @@ export function applyTeacherAction(cs: ClassState, action: TeacherAction, now: n
       if (!ev || ev.closed) return err(cs, 'NO_OPEN_EVENT');
       // [마감]은 결과 공개와 함께(reveal) — 공용 화면에 선택 분포·정답률 막대(작업 111)
       // 결과가 있는 사건은 마감하면 늘 결과를 공개하고 EVENT_RESULT_SHOW_SEC 동안 보여 준다([결과 공개]를 먼저 누르지 않았어도)
-      const withResult = hasResultView(eventsById[ev.id]);
+      const withResult = hasResultView(eventsById[ev.id], ev.short);
       const revealed = ev.revealed === true || action.reveal === true || withResult;
       let cls: ClassState = {
         ...cs,

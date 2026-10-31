@@ -27,6 +27,7 @@ import * as checkQuizMod from '../src/data/checkQuiz';
 import * as containersMod from '../src/data/containers';
 import * as dexMod from '../src/data/dex';
 import * as fairTradeMod from '../src/data/fairTrade';
+import * as phoneMod from '../src/data/phone';
 import * as eventsMod from '../src/data/events';
 import * as goodsMod from '../src/data/goods';
 import * as lessonsMod from '../src/data/lessons';
@@ -65,6 +66,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
   'letters.ts': lettersMod,
   'market.ts': marketMod,
   'missions.ts': missionsMod,
+  // (작업 172) 3차시 학급 스마트폰·경제 게이지·광물 협력 상수
+  'phone.ts': phoneMod,
   'ports.ts': portsMod,
   'recipes.ts': recipesMod,
   'routes.ts': routesMod,

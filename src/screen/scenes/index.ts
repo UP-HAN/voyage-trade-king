@@ -17,6 +17,7 @@ import { EventScene } from './EventScene';
 import { LeaderboardScene } from './LeaderboardScene';
 import { MapScene } from './MapScene';
 import { MinigameResultScene, minigameResultPicker } from './MinigameResultScene';
+import { PhoneScene, phonePicker } from './PhoneScene';
 import { AwardsScene, BlackScene, EndedScene, PauseScene, RulesScene } from './MiscScenes';
 import type { SceneProps } from './types';
 import { AfterWorksheetScene, pickAfterWorksheetScene, WorksheetScene } from './WorksheetScene';
@@ -71,3 +72,7 @@ addScenePicker(minigameResultPicker);
 // (작업 115) L2-E6 세관 게시판: 열려 있는 동안 사건 카드 대신 학급 집계 막대 + 교과서 100쪽 비교
 SCENES.customs = CustomsScene;
 addScenePicker(customsPicker);
+
+// (작업 172) L3-E5 우리 반 스마트폰 결과 + 경제 게이지: 열려 있는 동안 사건 카드 대신 부품 막대·게이지
+SCENES.phone = PhoneScene;
+addScenePicker(phonePicker);

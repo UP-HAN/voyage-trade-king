@@ -6,7 +6,7 @@
 import { previewSchedule, tryBuildSchedule, type IncidentFreq, type VoyageMode, type ItemForm, type PlayUnit, type ScheduleInput, type ScheduleItem, type SchedulePreview, type TopN, type WorksheetPlacement } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { eventsById } from '../data/events';
-import { LESSON_PART_LESSON, type LessonPart } from '../data/lessonParts';
+import { hasLessonParts, type LessonPart } from '../data/lessonParts';
 import { lessons, lessonsById } from '../data/lessons';
 import { activityRatio as RATIO, FULL_UNIT_READY, incidentCountRule, playUnits, READY_LESSONS_BEFORE_FULL, tradeMinutes as TRADE_MINUTES } from '../data/schedule';
 import type { LessonId } from '../data/types';
@@ -69,18 +69,47 @@ export function defaultSetup(): SetupValues {
   };
 }
 
-/** (작업 154) 2차시 나눠 고르기를 보이는 판: 차시 한 판 + 2차시 */
+/** (작업 154·172) 나눠 고르기를 보이는 판: 차시 한 판 + 나눠 고르기가 있는 차시(2·3차시 — `LESSON_PART_LESSONS`) */
 export function lessonPartAvailable(v: Pick<SetupValues, 'playUnit' | 'lesson'>): boolean {
-  return v.playUnit === 'lesson' && v.lesson === LESSON_PART_LESSON;
+  return v.playUnit === 'lesson' && hasLessonParts(v.lesson);
 }
 
-/** (작업 154) 이 판의 나눠 고르기 값: 2차시 차시 판이면 고른 값, 아니면 'all' */
+/** (작업 154) 이 판의 나눠 고르기 값: 나눠 고르기가 있는 차시 판이면 고른 값, 아니면 'all' */
 export function lessonPartOf(v: Pick<SetupValues, 'playUnit' | 'lesson' | 'lessonPart'>): LessonPart {
   return lessonPartAvailable(v) ? v.lessonPart : 'all';
 }
 
-/** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1·2차시(3·4차시·단원 한 판은 '준비 중') */
-export const FREE_VOYAGE_LESSONS: readonly LessonId[] = ['L1', 'L2'];
+/**
+ * (작업 172) 3차시 판에서 학급 스마트폰(L3-E2·E5, 라운드 2개 이상)이 들어가는 가장 짧은 무역 시간(분, 1분 단위).
+ * 실제 배치 계산으로 찾는다. 뒤 시간 판(스마트폰 없음)·어느 시간에도 안 들어가면 null.
+ */
+export function phoneMinMinutes(part: LessonPart, base: Partial<Pick<SetupValues, 'activityRatio' | 'worksheetMode'>> = {}): number | null {
+  if (part === 'back') return null;
+  for (let m = TRADE_MINUTES.customMin; m <= 50; m++) {
+    const r = tryBuildSchedule({ playUnit: 'lesson', scope: ['L3'], tradeMinutes: m, lessonPart: part, activityRatio: base.activityRatio, worksheetMode: base.worksheetMode ?? 'auto', seed: 0 });
+    if (r.ok && r.schedule.activities.some((a) => a.id === 'L3-E5' && a.form !== 'dropped')) return m;
+  }
+  return null;
+}
+
+/**
+ * (172 검증 반영) 3차시 '두 시간 모두' 판에서 스마트폰(L3-E2·E5)이 전체 형태(필요 수량 그대로·결과 3분)로 들어가는 가장 짧은 무역 시간(분).
+ * 실제 배치 계산. 50분까지 없으면 null
+ */
+export function phoneFullMinutes(part: LessonPart, base: Partial<Pick<SetupValues, 'activityRatio' | 'worksheetMode'>> = {}): number | null {
+  // 예산 사다리 때문에 시간이 늘어도 짧은 형태로 돌아가는 구간이 있다(두 시간 모두 21분은 전체, 25·30분은 짧게) —
+  // 그래서 'N분 이상이면 늘 전체 형태'인 가장 작은 N을 50분부터 거꾸로 찾는다
+  let found: number | null = null;
+  for (let m = 50; m >= TRADE_MINUTES.customMin; m--) {
+    const r = tryBuildSchedule({ playUnit: 'lesson', scope: ['L3'], tradeMinutes: m, lessonPart: part, activityRatio: base.activityRatio, worksheetMode: base.worksheetMode ?? 'auto', seed: 0 });
+    if (r.ok && r.schedule.activities.some((a) => a.id === 'L3-E5' && a.form === 'full')) found = m;
+    else break;
+  }
+  return found;
+}
+
+/** (작업 151) 자유 항해를 고를 수 있는 판: 차시 한 판 1·2·3차시(작업 172 — 4차시·단원 한 판은 아직 '라운드마다') */
+export const FREE_VOYAGE_LESSONS: readonly LessonId[] = ['L1', 'L2', 'L3'];
 
 export function freeVoyageAvailable(v: Pick<SetupValues, 'playUnit' | 'lesson'>): boolean {
   return v.playUnit === 'lesson' && !!v.lesson && FREE_VOYAGE_LESSONS.includes(v.lesson);
@@ -209,7 +238,7 @@ function orderLabel(it: ScheduleItem, playUnit: PlayUnit): string | null {
       return playUnit === 'lesson' ? '차시 표지' : `${lessonName(it.stage)} 표지`;
     case 'event': {
       const d = eventDefOf(it);
-      return d ? teacherTitle(d.title) : null;
+      return it.title ? teacherTitle(it.title) : d ? teacherTitle(d.title) : null;
     }
     case 'round':
       return `라운드 ${it.round ?? it.refId}`;

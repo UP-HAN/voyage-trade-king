@@ -65,17 +65,18 @@ export function myExportTypeGoods(player: HelperPlayer | null | undefined): Part
   return out;
 }
 
-export function Dex({ collected, comeback, onClose, player, fairTrade = false }: { collected: readonly string[]; comeback: boolean; onClose: () => void; player?: HelperPlayer | null; fairTrade?: boolean }) {
+export function Dex({ collected, comeback, onClose, player, fairTrade = false, hide = [] }: { collected: readonly string[]; comeback: boolean; onClose: () => void; player?: HelperPlayer | null; fairTrade?: boolean; /** (작업 172) 이 판에 없는 카드(3차시 나눠 고르기) */ hide?: readonly string[] }) {
   const [tab, setTab] = useState<DexTab>('goods');
   const [open, setOpen] = useState<DexCardView | null>(null);
   const have = new Set(collected);
+  const shown = (t: Exclude<DexTab, 'rules'>) => dexCards(t).filter((c) => !hide.includes(c.id));
   const mine = myExportTypeGoods(player);
   const count = (t: DexTab) => {
     if (t === 'rules') {
       const n = visibleRuleCards(comeback).length;
       return `${n}/${n}`;
     }
-    const all = dexCards(t);
+    const all = shown(t);
     return `${all.filter((c) => have.has(c.id)).length}/${all.length}`;
   };
 
@@ -100,7 +101,7 @@ export function Dex({ collected, comeback, onClose, player, fairTrade = false }:
         <RuleCards comeback={comeback} fairTrade={fairTrade} />
       ) : (
         <ul class="st-dex-grid" data-testid="dex-grid">
-          {dexCards(tab).map((c) => {
+          {shown(tab).map((c) => {
             const got = have.has(c.id);
             return (
               <li key={c.id}>
@@ -135,7 +136,8 @@ export function Dex({ collected, comeback, onClose, player, fairTrade = false }:
       {open && (
         <Modal title={open.title} onClose={() => setOpen(null)} testId="dex-detail">
           {open.image && <Img path={open.image} alt={open.title} fallbackLabel={open.title} class="st-dex-detail__img" />}
-          {open.sub && <p class="st-dex-detail__sub">{open.sub}</p>}
+          {/* (작업 172) 얻는 방법 앞의 사건 ID('L3-E1 ')는 개발 표기라 학생 화면에서 뗀다 */}
+          {open.sub && <p class="st-dex-detail__sub">{open.sub.replace(/^L\d-[A-Z0-9]+(?:·L?\d?-?[A-Z0-9]+)*\s*/, '')}</p>}
           <p>{open.text}</p>
           {open.examples && (
             <ul>

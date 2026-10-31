@@ -3,11 +3,13 @@
  * 벽란도 맞힌 수 분포·두 섬 성공 수·확인 퀴즈 정답률도 같은 막대로 그린다.
  * 학급 활동 장면(115~118: 세관 게시판·스마트폰 부품·경제 게이지·OX 정답률)은 `BarsView`에 `BarsModel`을 넘겨 다시 쓸 수 있다.
  */
+import { eventsById } from '../../data/events';
+import { voteResultLine } from '../../ui/cards';
 import { barsFor, type BarsModel } from '../model';
 import { Bar } from '../parts';
 import type { SceneProps } from './types';
 
-export function BarsView({ m }: { m: BarsModel }) {
+export function BarsView({ m, result }: { m: BarsModel; result?: string | null }) {
   return (
     <div class="scr-scene scr-bars" data-testid="scene-bars" data-event={m.eventId} data-count-only={m.countOnly ? '1' : '0'}>
       <p class="scr-kicker">{m.title}</p>
@@ -26,6 +28,11 @@ export function BarsView({ m }: { m: BarsModel }) {
           ))}
         </div>
       )}
+      {result && (
+        <p class="scr-lead scr-bars__result" data-testid="bars-result">
+          {result}
+        </p>
+      )}
     </div>
   );
 }
@@ -41,5 +48,8 @@ export function BarsScene({ d }: SceneProps) {
       </div>
     );
   }
-  return <BarsView m={m} />;
+  // (작업 172) 투표: 마감 뒤 결과 한 줄(과반 찬성이면 채택, 동점은 채택하지 않음)
+  const def = eventsById[id];
+  const result = def?.kind === 'vote' && d.pub.vote?.id === id ? voteResultLine(def, d.pub.vote.result) : null;
+  return <BarsView m={m} result={result} />;
 }

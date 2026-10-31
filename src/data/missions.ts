@@ -29,6 +29,13 @@ export const missions: readonly Mission[] = [
     pages: [104], fake: false, persistsAcrossStages: true,
     reward: [{ type: 'dexCard', card: 'relay' }],
   },
+  {
+    // (작업 172) 학급 스마트폰 프로젝트(L3-E2~E5, p.106) — 진행은 core/phone.ts(우리 팀 부품을 구하면 1단계, 조립장에 넣으면 2단계)
+    id: 'M-PHONE', eventId: 'L3-E2', lesson: 'L3', title: '우리 반 스마트폰 부품 모으기', short: '스마트폰 부품',
+    steps: ['우리 팀 부품을 사거나 만들어요', '부산 [조립장]에 넣어요'],
+    pages: [106], fake: false, persistsAcrossStages: true,
+    reward: [],
+  },
 ];
 
 export const missionsById: Readonly<Record<string, Mission>> = Object.fromEntries(missions.map((m) => [m.id, m]));

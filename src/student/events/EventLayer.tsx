@@ -16,9 +16,10 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Action, Answer, PublicClass } from '../../core';
 import { checkQuizFor } from '../../data/checkQuiz';
 import { eventsById } from '../../data/events';
-import { lessonPartRulesOf, type LessonPartRule } from '../../data/lessonParts';
+import { coverTextFor, dexHeldBack, lessonPartRulesOf, type LessonPartRule } from '../../data/lessonParts';
 import { MinigameLayer } from '../../minigames/MinigameLayer';
-import { CheckQuizCard, DecisionCard, EventCard, decisionModel, eventCardModel, linkPages, splitSentences } from '../../ui/cards';
+import { AiGraph, CheckQuizCard, DecisionCard, EventCard, VoteCard, decisionModel, eventCardModel, linkPages, splitSentences, voteResultLine } from '../../ui/cards';
+import { ArticleRead, PhoneResultBody, PhoneTeamLine, phoneResultPages, techResultLine } from './L3Cards';
 import { Dex } from '../Dex';
 import { toggleAllowed } from '../guard';
 import { LayerFrame } from '../layer';
@@ -42,7 +43,7 @@ export function EventLayer({ store, st }: EventLayerProps) {
   const me = st.peer.me;
   const cls = st.peer.public?.class ?? null;
   if (!me || !cls) return null;
-  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} board={st.peer.public?.public?.customsBoard ?? null} />;
+  return <EventLayerInner store={store} me={me} cls={cls} pid={st.peer.pid} code={st.peer.code} board={st.peer.public?.public?.customsBoard ?? null} pub={st.peer.public?.public ?? null} />;
 }
 
 const WAIT_TEXT = '선생님이 다음으로 넘어갈 때까지 기다려요';
@@ -61,7 +62,7 @@ function decisionChoice(me: MeView, id: string): { choice: string | null; noResp
   return { choice: typeof r.choice === 'string' ? r.choice : null, noResponse: r.noResponse === true };
 }
 
-function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null; board: PublicState['customsBoard'] }) {
+function EventLayerInner({ store, me, cls, pid, code, board, pub }: { store: StudentStore; me: MeView; cls: PublicClass; pid: string | null; code: string | null; board: PublicState['customsBoard']; pub: PublicState | null }) {
   const [queue, setQueue] = useState<CatchUpItem[]>([]);
   const [queueTotal, setQueueTotal] = useState(0);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -177,10 +178,15 @@ function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentS
         panel = <MissionPanel me={me} lesson={live.def.lesson} part={lessonPartRulesOf(cls.settings)} folded={folded} setFolded={setFolded} onClose={() => dismiss(`missions:${live.def.lesson}`)} />;
       }
     } else if (live.blocking) {
-      modal = <LiveBlocking live={live} me={me} cls={cls} scope={scope} board={board} picked={picked} setPicked={setPicked} send={send} respond={respond} onDex={() => setDexOpen(true)} />;
+      modal = <LiveBlocking live={live} me={me} cls={cls} scope={scope} board={board} pub={pub} picked={picked} setPicked={setPicked} send={send} respond={respond} onDex={() => setDexOpen(true)} />;
     } else if (!dismissed.has(live.id)) {
       panel = <LivePanel live={live} me={me} cls={cls} scope={scope} folded={folded} setFolded={setFolded} respond={respond} dismiss={dismiss} />;
     }
+  }
+  // (작업 172) 3차시 스마트폰 임무 패널: 같은 라운드에 열린 결정 패널(광물 협력 짧게 등)에 가려 못 봤거나 늦게 들어왔으면,
+  // 다른 패널·카드가 없을 때 '3차시 임무' 패널을 한 번 보인다([확인]하면 닫힘)
+  if (!panel && !modal && !(live && live.blocking) && me.game.missions['M-PHONE'] && me.game.phone && !dismissed.has('missions:L3') && (phase === 'round' || phase === 'between')) {
+    panel = <MissionPanel me={me} lesson="L3" part={lessonPartRulesOf(cls.settings)} folded={folded} setFolded={setFolded} onClose={() => dismiss('missions:L3')} />;
   }
 
   // (수정 1회차) 마감한 확인 퀴즈·결정: 결과 표시 시간 동안 내 결과·해설·쪽수
@@ -197,13 +203,36 @@ function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentS
           </div>
         </LayerFrame>
       );
+    } else if (result.shape === 'vote') {
+      // (작업 172) 투표 공통 카드: 마감 뒤 학급 결과 한 줄(누가 어디에 투표했는지는 없음)
+      const r = me.game.responses[result.id] as Record<string, unknown> | undefined;
+      modal = (
+        <LayerFrame name="event">
+          <div class="ev-center ev-center--scroll">
+            <VoteCard def={result.def} voted={typeof r?.vote === 'string' ? r.vote : null} result={voteResultLine(result.def, cls.votes[result.id]?.result) ?? '투표를 마감했어요. TV에서 결과를 봐요.'}>
+              <div class="vc__foot">
+                <button type="button" class="btn btn--secondary" data-testid="event-result-close" onClick={() => dismiss('result:' + result.id)}>
+                  닫기
+                </button>
+              </div>
+            </VoteCard>
+          </div>
+        </LayerFrame>
+      );
     } else {
       const { choice, noResponse } = decisionChoice(me, result.id);
+      const tech = result.id === 'L3-E3' ? techResultLine(me) : null;
       const card = (
         <DecisionCard model={decisionModel(result.def, { scope, facts: optionFacts(result.id, cls, me) })} chosen={choice} noResponse={noResponse} panel={!result.blocking}>
           <p class="ev-result-note" data-testid="event-result">
             마감했어요.{choice ? '' : ' 이번에는 고르지 않았어요.'}
           </p>
+          {tech && (
+            <p class={'ev-tech' + (tech.won ? ' is-won' : '')} data-testid="tech-result" data-won={tech.won ? '1' : '0'}>
+              {tech.fake && <span class="ev-summary__fake">[가상 뉴스] </span>}
+              {tech.text}
+            </p>
+          )}
           <div class="vc__foot">
             <button type="button" class="btn btn--secondary" data-testid="event-result-close" onClick={() => dismiss(`result:${result.id}`)}>
               닫기
@@ -240,7 +269,7 @@ function EventLayerInner({ store, me, cls, pid, code, board }: { store: StudentS
       <Tutorial me={me} cls={cls} pid={pid} code={code} />
       {panel}
       {modal}
-      {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} fairTrade={cls.settings.fairTrade !== false} onClose={() => setDexOpen(false)} />}
+      {dexOpen && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls.settings.comeback)} fairTrade={cls.settings.fairTrade !== false} hide={dexHeldBack(lessonPartRulesOf(cls.settings))} onClose={() => setDexOpen(false)} />}
     </>
   );
 }
@@ -272,6 +301,7 @@ function LiveBlocking({
   cls,
   scope,
   board,
+  pub,
   picked,
   setPicked,
   send,
@@ -283,6 +313,7 @@ function LiveBlocking({
   cls: PublicClass;
   scope: readonly ('L1' | 'L2' | 'L3' | 'L4')[];
   board?: PublicState['customsBoard'];
+  pub?: PublicState | null;
   picked: Record<string, Answer>;
   setPicked: (f: (p: Record<string, Answer>) => Record<string, Answer>) => void;
   send: (a: Action) => boolean;
@@ -321,11 +352,33 @@ function LiveBlocking({
       </LayerFrame>
     );
   }
+  if (live.shape === 'vote') {
+    // (작업 172) 투표 공통 카드: 질문·두 버튼 → "투표했어요 · 결과를 기다려요"
+    const r = me.game.responses[live.id] as Record<string, unknown> | undefined;
+    return (
+      <LayerFrame name="event">
+        <div class="ev-center ev-center--scroll">
+          <VoteCard def={def} voted={typeof r?.vote === 'string' ? r.vote : null} onVote={(v) => respond(live.id, { vote: v })}>
+            {r && (
+              <div class="ev-inline-wait" data-testid="event-waiting">
+                <span>{WAIT_TEXT}</span>
+              </div>
+            )}
+          </VoteCard>
+        </div>
+      </LayerFrame>
+    );
+  }
+  if (live.shape === 'decision' && def.kind === 'article' && decisionChoice(me, live.id).choice === null) {
+    // (작업 172) 교과서 속 기사(L3-E1): 밑줄 긋기 → 결정
+    return <ArticleDecision live={live} me={me} cls={cls} scope={scope} respond={respond} />;
+  }
   if (live.shape === 'decision') {
     const { choice, noResponse } = decisionChoice(me, live.id);
     return (
       <LayerFrame name="event">
         <div class="ev-center ev-center--scroll">
+          {live.id === 'L3-E3' && !choice && <AiGraph />}
           <DecisionCard
             model={decisionModel(def, { scope, facts: optionFacts(live.id, cls, me) })}
             chosen={choice}
@@ -350,11 +403,27 @@ function LiveBlocking({
   // (작업 115) 공용 화면 중심 활동(L2-E6 세관 게시판): 확인한 뒤에도 TV를 보며 기다리는 동안 학급 집계 한 줄 + 기다림 안내
   if (done && def.kind === 'screen' && !def.isCover) {
     return (
-      <Waiting title={def.title} onDex={onDex}>
-        <p class="ev-wait__board" data-testid="event-wait-board">
-          {def.id === 'L2-E6' ? helperText('customsBoard', board ?? null) : 'TV 화면을 함께 봐요.'}
-        </p>
+      <Waiting title={coverTextFor(def, cls.settings).title} onDex={onDex}>
+        {def.id === 'L3-E5' ? (
+          <PhoneResultBody cls={cls} pub={pub} />
+        ) : (
+          <p class="ev-wait__board" data-testid="event-wait-board">
+            {def.id === 'L2-E6' ? helperText('customsBoard', board ?? null) : 'TV 화면을 함께 봐요.'}
+          </p>
+        )}
       </Waiting>
+    );
+  }
+  // (작업 172) 우리 반 스마트폰 결과·경제 게이지: TV와 같은 내용 + [확인]
+  if (def.id === 'L3-E5') {
+    return (
+      <LayerFrame name="event">
+        <div class="ev-center ev-center--scroll">
+          <EventCard model={{ ...eventCardModel(def, { short: live.short, scope, settings: cls.settings }), paragraphs: [], quotes: [], pages: phoneResultPages(cls) }} onConfirm={() => respond(live.id, { seen: true })}>
+            <PhoneResultBody cls={cls} pub={pub} />
+          </EventCard>
+        </div>
+      </LayerFrame>
     );
   }
   if (done && !def.needsResponse) return null;
@@ -476,9 +545,10 @@ function LivePanel({
           noResponse={noResponse}
           onDecide={(c, reason) => respond(live.id, { choice: c, ...(reason ? { reason } : {}) })}
         >
+          {!choice && live.id === 'L3-E3' && <AiGraph small />}
           {choice && (
             <>
-              <p class="ev-panel__note">결정은 기록만 해요. 흑연은 시장에서 직접 사요.</p>
+              <p class="ev-panel__note">{PANEL_NOTE[live.id] ?? '결정은 기록만 해요. 흑연은 시장에서 직접 사요.'}</p>
               <div class="vc__foot">
                 <button type="button" class="btn btn--secondary" data-testid="event-panel-close" onClick={() => dismiss(live.id)}>
                   닫기
@@ -495,6 +565,28 @@ function LivePanel({
       {fold}
       <EventCard panel model={eventCardModel(def, { short: live.short, scope, settings: cls.settings })} onConfirm={() => respond(live.id, { seen: true })} />
     </aside>
+  );
+}
+
+/** (작업 172) 비차단 결정 패널의 고른 뒤 한 줄(사건별 — 없으면 1차시 흑연 문구) */
+const PANEL_NOTE: Readonly<Record<string, string>> = {
+  'L3-E1': '함께했다면 자카르타에서 니켈을 싸게 살 수 있어요.',
+  'L3-E3': '연구비는 다른 회사가 볼 수 없어요. 마감하면 결과가 나와요.',
+};
+
+/** (작업 172) L3-E1 전체 형태: 기사 밑줄 → 결정 카드 */
+function ArticleDecision({ live, me, cls, scope, respond }: { live: LiveEvent; me: MeView; cls: PublicClass; scope: readonly ('L1' | 'L2' | 'L3' | 'L4')[]; respond: (id: string, r: Record<string, unknown>) => boolean }) {
+  const [read, setRead] = useState(false);
+  return (
+    <LayerFrame name="event">
+      <div class="ev-center ev-center--scroll">
+        {!read ? (
+          <ArticleRead onDone={() => setRead(true)} />
+        ) : (
+          <DecisionCard model={decisionModel(live.def, { scope, facts: optionFacts(live.id, cls, me) })} chosen={null} onDecide={(c, reason) => respond(live.id, { choice: c, ...(reason ? { reason } : {}) })} />
+        )}
+      </div>
+    </LayerFrame>
   );
 }
 
@@ -553,6 +645,8 @@ function MissionPanel({
           ) : (
             <b class="ev-first__main">먼저 할 일: 위에서 첫 번째 임무부터 해요</b>
           )}
+          {/* (작업 172) 3차시: 우리 팀 스마트폰 부품 */}
+          <PhoneTeamLine me={me} />
         </div>
         <ol class="ev-missions">
           {list.map(([id, m]) => {

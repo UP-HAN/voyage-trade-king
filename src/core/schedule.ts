@@ -97,7 +97,7 @@ export interface ScheduleInput {
   overrides?: Readonly<Record<string, ItemForm>>;
   /** 편지 배달 켜기(기본 켬) */
   letters?: boolean;
-  /** (작업 154) 차시 한 판 2차시 나눠 고르기(기본 'all'). 차시 한 판 + ['L2']일 때만 효과 */
+  /** (작업 154·172) 차시 한 판 나눠 고르기(기본 'all'). 차시 한 판 + 규칙이 있는 차시(2·3차시)일 때만 효과 */
   lessonPart?: LessonPart;
   seed?: number;
   /** (P1) 돌발 사건 빈도 — 개수만 계산, 배치는 extraPlacers */
@@ -366,6 +366,8 @@ interface Cand {
   form: ItemForm;
   /** 교사가 고정한 형태 */
   pin: ItemForm | null;
+  /** (작업 172) 고정 형태가 교사가 아니라 나눠 고르기 규칙(forceShort)에서 왔다 — 배치표 항목에 '교사가 정함'(pinned)을 붙이지 않는다 */
+  auto?: boolean;
   reason: ActivityStatus['reason'];
 }
 
@@ -404,6 +406,12 @@ interface StageParams {
   midTail?: { id: string; keep: number };
   /** (작업 168) 고정 라운드 바꾸기(사건 ID → 'round:N', 2차시 뒤 시간 L2-E4 = 라운드 3) */
   anchorOverride?: Readonly<Record<string, string>>;
+  /** (작업 172) 교사가 정하지 않았으면 늘 짧은 형태로 넣는 활동(3차시 경쟁 세 가지 카드 L3-E6 등) */
+  forceShort?: readonly string[];
+  /** (작업 172) '라운드 부족' 판정의 최소 라운드 수 바꾸기(3차시 뒤 시간 경제 게이지 L3-E5 = 0) */
+  needsRoundsOverride?: Readonly<Record<string, number>>;
+  /** (작업 172) 활동 이름 바꾸기(배치표 항목 title) */
+  titles?: Readonly<Record<string, string>>;
 }
 
 interface StagePlan {
@@ -610,15 +618,21 @@ function makeCands(p: StageParams): Cand[] {
     .map(({ id, pin }) => ({ def: eventsById[id], id, pin }))
     .filter((x) => x.def && isTier(x.def.tier) && !x.def.isCover && !LINKED_EVENTS[x.id])
     .sort((a, b) => allEvents.indexOf(a.def) - allEvents.indexOf(b.def))
-    .map(({ def, id, pin }) => ({
-      id,
-      def,
-      tier: def.tier as 1 | 2 | 3,
-      priority: def.priority ?? 0,
-      form: 'full' as ItemForm,
-      pin: def.tier === 1 && pin === 'dropped' ? null : pin,
-      reason: null,
-    }));
+    .map(({ def, id, pin }) => {
+      const own = def.tier === 1 && pin === 'dropped' ? null : pin;
+      // (작업 172) 나눠 고르기 forceShort: 교사가 정하지 않았으면 짧은 형태로 고정(교사 [넣기/빼기]가 이긴다)
+      const auto = own === null && !!p.forceShort?.includes(id) && canShorten(def);
+      return {
+        id,
+        def,
+        tier: def.tier as 1 | 2 | 3,
+        priority: def.priority ?? 0,
+        form: 'full' as ItemForm,
+        pin: auto ? ('short' as ItemForm) : own,
+        ...(auto ? { auto: true } : {}),
+        reason: null,
+      };
+    });
 }
 
 function planStage(p: StageParams): StagePlan {
@@ -663,7 +677,7 @@ function planStage(p: StageParams): StagePlan {
   run();
   // 라운드가 모자라는 2등급: 빼고(사유 '라운드 부족') 그 구간 채우기를 처음부터 다시(최대 2번, 시간 0이면 다시 하지 않음)
   for (let redo = 0; ; redo++) {
-    const viol = cands.filter((c) => c.form !== 'dropped' && c.tier !== 1 && c.def.needsRounds > p.playedRounds + k && !forced.has(c.id));
+    const viol = cands.filter((c) => c.form !== 'dropped' && c.tier !== 1 && (p.needsRoundsOverride?.[c.id] ?? c.def.needsRounds) > p.playedRounds + k && !forced.has(c.id));
     if (!viol.length) break;
     viol.forEach((c) => forced.add(c.id));
     if (redo >= 2 || viol.every((c) => costIn(c.def, c.form) === 0)) {
@@ -677,7 +691,7 @@ function planStage(p: StageParams): StagePlan {
   }
   for (const c of cands) {
     if (c.form !== 'dropped') c.reason = null;
-    else c.reason = forced.has(c.id) ? 'needsRounds' : c.pin === 'dropped' ? 'teacher' : 'budget';
+    else c.reason = forced.has(c.id) ? 'needsRounds' : c.pin === 'dropped' && !c.auto ? 'teacher' : 'budget';
   }
   if (fill.overflow) warnings.push(RAISE_WARNING);
   let roundSecs = splitEven(tradeSec, k);
@@ -694,7 +708,7 @@ function planStage(p: StageParams): StagePlan {
   const byId = new Map(cands.map((c) => [c.id, c]));
   let t = p.startSec;
 
-  const evItem = (c: Cand | { id: string; def: EventDef; form: ItemForm; tier: 1 | 2 | 3; pin: ItemForm | null }, at: number, durSec: number): ScheduleItem => ({
+  const evItem = (c: Cand | { id: string; def: EventDef; form: ItemForm; tier: 1 | 2 | 3; pin: ItemForm | null; auto?: boolean }, at: number, durSec: number): ScheduleItem => ({
     id: `ev:${c.id}`,
     kind: 'event',
     refId: c.id,
@@ -705,7 +719,8 @@ function planStage(p: StageParams): StagePlan {
     status: 'pending',
     blocking: blockingIn(c.def, c.form),
     tier: c.tier,
-    ...(c.pin !== null ? { pinned: true } : {}),
+    ...(c.pin !== null && !c.auto ? { pinned: true } : {}),
+    ...(p.titles?.[c.id] ? { title: p.titles[c.id] } : {}),
   });
 
   // 학습지(중간마다): 사건 뒤 번호
@@ -1124,6 +1139,10 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
   const midTail = keep !== null ? { id: CUSTOMS_BOARD_EVENT, keep } : undefined;
   const anchorOverride = lessonPartRuleOf(input)?.anchorOverride;
   const hasOverride = !!anchorOverride && Object.keys(anchorOverride).length > 0;
+  // (작업 172) 3차시: 경쟁 세 가지 카드 늘 짧게, 뒤 시간 경제 게이지는 라운드 수와 상관없이
+  const forceShort = lessonPartRuleOf(input)?.forceShort ?? [];
+  const needsRoundsOverride = lessonPartRuleOf(input)?.needsRoundsOverride;
+  const titles = lessonPartRuleOf(input)?.titles;
   for (const s of specs) {
     const planWith = (wsPolicy: 'auto' | WorksheetPlacement) => planStage({
       stage: s.stage,
@@ -1148,6 +1167,9 @@ function planStages(input: NormalizedInput, specs: readonly StageSpec[], startSe
       noDuring: lessonGame,
       ...(midTail ? { midTail } : {}),
       ...(hasOverride ? { anchorOverride } : {}),
+      ...(forceShort.length ? { forceShort } : {}),
+      ...(needsRoundsOverride ? { needsRoundsOverride } : {}),
+      ...(titles ? { titles } : {}),
     });
     const plan = lessonGame && input.worksheetMode === 'auto' ? lessonAutoPlan(planWith, s) : planWith(input.worksheetMode);
     out.items.push(...plan.items);
@@ -1182,23 +1204,24 @@ function sortItems(items: ScheduleItem[]): ScheduleItem[] {
   return items.map((it, i) => ({ it, i })).sort((a, b) => a.it.at - b.it.at || a.i - b.i).map((x) => x.it);
 }
 
-function activitiesOf(cands: readonly Cand[]): ActivityStatus[] {
+function activitiesOf(cands: readonly Cand[], exclude: readonly string[] = [], titles: Readonly<Record<string, string>> = {}): ActivityStatus[] {
   const list: ActivityStatus[] = cands.map((c) => ({
     id: c.id,
     stage: c.def.lesson,
-    title: c.def.title,
+    title: titles[c.id] ?? c.def.title,
     tier: c.tier,
     priority: c.def.priority ?? null,
     form: c.form,
     blocking: blockingIn(c.def, c.form),
     minutes: c.form === 'dropped' ? 0 : c.form === 'short' ? (c.def.minutes.short ?? 0) : c.def.minutes.full,
-    pinned: c.pin !== null,
+    pinned: c.pin !== null && !c.auto,
     reason: c.form === 'dropped' ? c.reason : null,
   }));
   // 따라가는 활동도 목록에
   for (const [f, lead] of Object.entries(LINKED_EVENTS)) {
     const l = list.find((x) => x.id === lead);
-    if (!l) continue;
+    // (작업 172) 나눠 고르기로 빠진 따라가는 활동(3차시 뒤 시간 L3-E2)은 목록에도 없다
+    if (!l || exclude.includes(f)) continue;
     const def = eventsById[f];
     list.push({
       id: f, stage: def.lesson, title: def.title, tier: def.tier as 1 | 2 | 3, priority: def.priority ?? null, form: l.form,
@@ -1244,7 +1267,7 @@ export function buildSchedule(raw: ScheduleInput): Schedule {
   const where: Partial<Record<WorksheetId, WorksheetWhere>> = { ...plan.where };
   const wrapup = buildWrapup(input.playUnit, input.scope, plan.afterWs);
   for (const w of wrapup) for (const id of w.worksheetIds) if (!where[id]) where[id] = 'wrap';
-  const activities = activitiesOf(plan.cands);
+  const activities = activitiesOf(plan.cands, scheduleDropOf(part), part?.titles);
   return {
     input,
     items,
@@ -1519,7 +1542,7 @@ export function reschedule(
       upcoming: [],
     },
     stages: plan.stages,
-    activities: activitiesOf(plan.cands),
+    activities: activitiesOf(plan.cands, scheduleDropOf(part), part?.titles),
     totalRounds,
     letterCount: liveFixed + letters.count,
     warnings,

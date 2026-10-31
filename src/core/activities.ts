@@ -11,6 +11,8 @@ import { byeokrando, byeokrandoItems, type ByeokrandoItemId } from '../data/byeo
 import { checkQuiz } from '../data/checkQuiz';
 import { CORRECT_CONTAINER_NOS } from '../data/containers';
 import { eventsById } from '../data/events';
+import { econGaugeOf, lessonPartRulesOf } from '../data/lessonParts';
+import { MINERAL_COOP } from '../data/phone';
 import { tariffs } from '../data/market';
 import { scoringConstants } from '../data/awards';
 import { afterExchange, isSuccess, produce, twoIslands } from '../data/twoIslands';
@@ -49,7 +51,10 @@ export function applyFiredEventToPlayer(cs: ClassState, p: Player, def: EventDef
     if (e.type === 'dexCard' && !def.needsResponse && def.trigger.type !== 'firstArrival') grantDex(p, e.card, events);
   }
   if (def.id === 'L4-E3') applyVNReport(p, vnDecisionOf(p), events);
-  void cs;
+  // (작업 172) 경제 게이지(L3-E5 안)가 있는 판만 '수출이 늘어나면' 카드(3차시 앞 시간 판은 게이지가 없다)
+  if (def.id === 'L3-E5' && econGaugeOf(lessonPartRulesOf(cs.settings)) !== 'none') grantDex(p, 'export-growth', events);
+  // (작업 172) 경쟁 세 가지 카드(L3-E6)는 카드만(차시 판)이든 확인 퀴즈(단원 한 판)든 '시설 건설 경쟁' 카드를 준다
+  if (def.id === 'L3-E6') grantDex(p, 'competition-facility', events);
 }
 
 function vnDecisionOf(p: Player): VNDecision | null {
@@ -129,13 +134,31 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
       p.game.responses[eventId] = { choice };
       return null;
     }
+    case 'L3-E1': {
+      // (작업 172) 광물 협력: 함께하면 −50만 원(쓸 수 있는 돈이 모자라면 가진 만큼), 협력 +10, 남은 판 동안 자카르타 니켈 사는 값 20% 싸게
+      const choice = String(r.choice ?? '');
+      if (!def.options?.some((o) => o.id === choice)) return 'BAD_RESPONSE';
+      if (choice === 'join') {
+        const pay = Math.min(MINERAL_COOP.cost, Math.max(0, spendable(cs, p)));
+        p.game.money -= pay;
+        if (pay) events.push({ type: 'money', amount: -pay, reason: 'mineralCoop' });
+        p.game.metrics.coop += MINERAL_COOP.coop;
+        p.game.effects.nickelDiscount = true;
+      }
+      p.game.decisions[eventId] = choice;
+      p.game.responses[eventId] = { choice };
+      grantDex(p, 'interdependence', events);
+      return null;
+    }
     case 'L3-E3': {
-      const invest = Number(r.invest);
+      // (작업 172) 결정 카드(선택지 '0'·'100'·'200'·'300')로 보낸 choice 도 받는다. 응답 계약은 { invest } 그대로(+ 화면용 choice)
+      const invest = Number(r.invest ?? r.choice);
       if (!(TECH_RACE.options as readonly number[]).includes(invest)) return 'BAD_RESPONSE';
       if (spendable(cs, p) < invest) return 'NO_MONEY';
       p.game.money -= invest;
       if (invest) events.push({ type: 'money', amount: -invest, reason: 'techRace' });
-      p.game.responses[eventId] = { invest };
+      p.game.responses[eventId] = { invest, choice: String(invest) };
+      grantDex(p, 'competition-tech', events);
       return null;
     }
     case 'L4-E2': {
@@ -190,9 +213,11 @@ export function respondToEvent(cs: ClassState, p: Player, eventId: string, respo
     }
     default: {
       if (VOTE_OPTIONS[eventId]) {
-        const vote = String(r.vote ?? '');
+        // (작업 172) 투표 공통 카드는 { vote }를 보낸다(옛 결정 카드 모양 { choice }도 받는다)
+        const vote = String(r.vote ?? r.choice ?? '');
         if (!VOTE_OPTIONS[eventId].includes(vote)) return 'BAD_RESPONSE';
         p.game.responses[eventId] = { vote };
+        for (const e of def.effects) if (e.type === 'dexCard') grantDex(p, e.card, events);
         return null;
       }
       if (def.options?.length) {
@@ -225,6 +250,8 @@ export function answerCheckQuiz(cs: ClassState, p: Player, qid: string, answer: 
   const ev = cs.currentEvent;
   const def = ev ? eventsById[ev.id] : undefined;
   if (!ev || ev.closed || !def || def.kind !== 'checkQuiz') return 'CLOSED';
+  // (작업 172) 짧은 형태(3차시 경쟁 세 가지 '카드만')는 문항을 내지 않는다
+  if (ev.short && def.shortForm) return 'CLOSED';
   const q = checkQuiz.find((x) => x.id === qid);
   if (!q || q.lesson !== def.lesson) return 'NO_QUESTION';
   if (p.game.checkQuiz[qid]) return 'ANSWERED';
@@ -282,9 +309,10 @@ export function closeEventForAll(cs: ClassState, players: Record<string, Player>
     cls = { ...cls, votes: { ...cls.votes, [eventId]: { revealed: true, result } } };
     if (eventId === 'L3-E4' && result === 'yes') {
       // 모두 50만 원씩(모자라면 가진 만큼) → 부산 한도 +50%
+      // (작업 172) 쓸 수 있는 돈(자유 항해 = 자금 − 낼 운항비) 기준, 모자라면 가진 만큼(음수 금지)
       for (const p of list) {
         const key = seatKey(p.seat);
-        const pay = Math.min(AUTO_PORT.cost, Math.max(0, p.game.money));
+        const pay = Math.min(AUTO_PORT.cost, Math.max(0, spendable(cs, p)));
         const np = clone(p);
         np.game.money -= pay;
         np.rev += 1;
@@ -304,7 +332,8 @@ export function closeEventForAll(cs: ClassState, players: Record<string, Player>
   // (작업 111) 개인 결정 마감: 응답하지 않은 학생은 '응답 없음'으로 기록하고 기본 선택지('사지 않기' 등 id 'none')를 넣는다.
   // 늦게 들어온 학생(마감 뒤 입장)은 기록이 없으므로 따라잡기로 직접 고른다.
   const def = eventsById[eventId];
-  const fallback = def && def.kind === 'decision' && !VOTE_OPTIONS[eventId] ? defaultOptionId(def) : null;
+  // (작업 172) 기사 + 결정(L3-E1 광물 협력)도 같은 규칙
+  const fallback = def && (def.kind === 'decision' || def.kind === 'article') && !VOTE_OPTIONS[eventId] ? defaultOptionId(def) : null;
   if (def && fallback) {
     const refs = def.effects.filter((e): e is Extract<typeof e, { type: 'decision' }> => e.type === 'decision').map((e) => e.ref);
     for (const p of list) {
@@ -329,13 +358,17 @@ export function closeEventForAll(cs: ClassState, players: Record<string, Player>
     const cutoff = positive.length ? positive[Math.min(k, positive.length) - 1].v : Infinity;
     for (const { p, v } of invests) {
       const key = seatKey(p.seat);
-      const np = clone(p);
-      if (v > 0 && v >= cutoff) {
+      const np = clone(out[key] ?? p);
+      const won = v > 0 && v >= cutoff;
+      if (won) {
         if (!np.game.unlockedRecipes.includes('aichip')) np.game.unlockedRecipes.push('aichip');
         push(key, { type: 'recipeUnlocked', recipe: 'aichip' });
       } else {
         np.game.effects.chipPenaltyUntilRound = cls.round + TECH_RACE.penaltyRounds;
       }
+      // (작업 172) ⑪ 도우미(gotAiChip)가 읽게 결과를 응답에 남긴다. 응답하지 않은 학생은 '응답 없음'(0원)
+      const prev = np.game.responses[eventId];
+      np.game.responses[eventId] = isObj(prev) ? { ...prev, won } : { invest: 0, choice: '0', won: false, noResponse: true };
       np.rev += 1;
       out[key] = np;
     }

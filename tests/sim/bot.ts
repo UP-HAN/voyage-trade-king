@@ -2,9 +2,12 @@
  * 작업 114 시뮬레이션 봇(화면 없는 학생): 학생 저장소 상태(public·me)만 보고 무작위로 행동 하나를 고른다.
  * Memory 시뮬레이션(tests/sim)과 실제 중계 서버 e2e의 헤드리스 봇(e2e/support/bot-harness.ts)이 같이 쓴다 — node 전용 코드 없음.
  */
-import { AVATAR_IDS, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, isPortClosed, marketView, voyageCostFor, type Action, type PublicPayload } from '../../src/core';
+import { AVATAR_IDS, cargoCapacity, FLAG_COLOR_IDS, FLAG_EMBLEM_IDS, isPortClosed, marketView, voyageCostFor, type Action, type PublicPayload } from '../../src/core';
 
 import { mailbox } from '../../src/core/letters';
+import { depositMax, heldQty, phoneOpen } from '../../src/core/phone';
+import { PHONE_PARTS } from '../../src/data/phone';
+import type { GoodId, PortId } from '../../src/data/types';
 import { byeokrandoItems } from '../../src/data/byeokrando';
 import { checkQuiz } from '../../src/data/checkQuiz';
 import { eventsById } from '../../src/data/events';
@@ -18,6 +21,64 @@ const BOT_SAILS_PER_ROUND = 3;
 /** 봇이 보는 학생(저장소 + 오류 기록) */
 export interface BotStudent {
   store: StudentStore;
+  /** (작업 172) 3차시 스마트폰 부품 모으기에 마음 쓰는 정도(0~1, 기본 0.6). 0이면 부품을 모으지 않는다 */
+  phoneFocus?: number;
+}
+
+/** (작업 172) 스마트폰 부품을 사는 곳(배터리는 재료를 사서 부산 공장에서) */
+const PART_SOURCE: Readonly<Record<string, PortId>> = { chip: 'BUS', chem: 'YOK', program: 'LAX', nickel: 'JKT', graphite: 'SHA' };
+const BATTERY_INPUTS: readonly GoodId[] = ['graphite', 'nickel', 'chem'];
+
+/**
+ * (작업 172) 학급 스마트폰 프로젝트 봇: 부산이면 가진 부품을 넣고, 부품이 있으면 부산으로, 없으면 덜 모인 부품(우리 팀 먼저)을 사러 간다.
+ * 행동이 없으면 null(무작위 행동으로).
+ */
+function phoneAction(cs: ReturnType<typeof classForPredict>, p: ReturnType<typeof playerForPredict>, free: boolean, money: number, rand: () => number): Action | null {
+  if (!phoneOpen(cs) || !cs.phone) return null;
+  const here = p.game.port;
+  const need = (g: GoodId) => {
+    const x = cs.phone!.parts[g];
+    return x ? Math.max(0, x.need - x.have) : 0;
+  };
+  const go = (port: PortId): Action | null => {
+    if (port === here) return null;
+    if (!cs.openPorts.includes(port)) return null;
+    if (free) return { type: 'sailTo', port };
+    return p.game.dest === port ? (p.game.ready ? null : { type: 'setReady' }) : { type: 'setDestination', port };
+  };
+  if (here === 'BUS') {
+    for (const g of PHONE_PARTS) if (depositMax(cs, p, g) > 0) return { type: 'depositPart', good: g, qty: depositMax(cs, p, g) };
+  }
+  if (PHONE_PARTS.some((g) => need(g) > 0 && heldQty(p, g) > 0)) return go('BUS');
+  const team = p.game.phone?.team;
+  const missing = PHONE_PARTS.filter((g) => need(g) > 0);
+  if (!missing.length) return null;
+  // 배가 가득 차 부품을 살 수 없으면 여기서 팔 수 있는 다른 짐을 먼저 판다
+  const used = p.game.cargo.reduce((n, l) => n + l.qty, 0);
+  if (used >= cargoCapacity(p)) {
+    const keep = new Set<GoodId>([...missing, ...BATTERY_INPUTS]);
+    const view = marketView(cs, p, here);
+    const lot = p.game.cargo.find((l) => !keep.has(l.good) && l.boughtAt !== here && view.some((q) => q.good === l.good && q.sell !== null && !q.cannotSell));
+    if (lot) return { type: 'sell', good: lot.good, qty: lot.qty };
+    const extra = p.game.cargo.find((l) => BATTERY_INPUTS.includes(l.good) && l.qty > 1 && l.boughtAt !== here && view.some((q) => q.good === l.good && q.sell !== null && !q.cannotSell));
+    if (extra) return { type: 'sell', good: extra.good, qty: extra.qty - 1 };
+  }
+  const target = team && need(team) > 0 ? team : missing[Math.floor(rand() * missing.length)]!;
+  if (target === 'battery') {
+    const lack = BATTERY_INPUTS.find((g) => heldQty(p, g) < 1);
+    if (!lack) return here === 'BUS' ? null : go('BUS'); // 재료가 다 있으면 부산 공장(공장 생산은 아래 무작위 행동이 한다)
+    const src = PART_SOURCE[lack]!;
+    if (here === src) return { type: 'buy', good: lack, qty: 1 };
+    return go(src);
+  }
+  const src = PART_SOURCE[target]!;
+  if (here === src) {
+    const view = marketView(cs, p, here).find((q) => q.good === target);
+    if (!view || view.buy === null || view.buyLeft <= 0) return null;
+    const qty = Math.max(1, Math.min(need(target), view.buyLeft, Math.floor(money / view.buy), 3));
+    return view.buy <= money ? { type: 'buy', good: target, qty } : null;
+  }
+  return go(src);
 }
 
 export const COMPANY_NAMES = [
@@ -82,6 +143,10 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
         return { type: 'respondEvent', eventId: ev.id, response: { answers } };
       }
       if (ev.id === 'L1-E5') return { type: 'respondEvent', eventId: ev.id, response: { example: true } };
+      // (작업 172) 짧은 형태 확인 퀴즈(3차시 경쟁 세 가지 '카드만')는 카드 확인
+      if (def.kind === 'checkQuiz' && ev.short && def.shortForm) return { type: 'respondEvent', eventId: ev.id, response: { seen: true } };
+      // (작업 172) 학급 투표는 { vote }
+      if (def.kind === 'vote' && def.options?.length) return { type: 'respondEvent', eventId: ev.id, response: { vote: def.options[Math.floor(rand() * def.options.length)]!.id } };
       if (def.kind === 'checkQuiz') {
         const q = checkQuiz.find((x) => x.lesson === def.lesson && !me.game.checkQuiz[x.id]);
         if (q) return { type: 'answerCheckQuiz', qid: q.id, answer: rand() < 0.7 ? q.answer : typeof q.answer === 'number' ? (q.answer + 1) % Math.max(2, q.choices?.length ?? 3) : q.answer === 'O' ? 'X' : 'O' };
@@ -106,13 +171,18 @@ export function botAction(s: BotStudent, rand: () => number): Action | null {
   if (cls.phase !== 'round') return null;
   // 라운드: 사고팔기 → 목적지 → 출항 준비
   if (me.game.ready) return null;
-  if (rand() < 0.5) return null;
   const c = classForPredict(cls);
   const p = playerForPredict(me);
-  const view = marketView(c, p, me.game.port);
   // (작업 151) 자유 항해: 쓸 수 있는 돈 = 자금 − 낼 운항비, 라운드마다 1~3번 [여기로 출발]
   const free = cls.settings.voyageMode === 'free';
   const money = free ? me.game.money - (me.game.fareDue ?? 0) : me.game.money;
+  // (작업 172) 3차시 스마트폰 부품 모으기(넣기·사러 가기) — 프로젝트가 열린 판에서만 난수를 쓴다(1·2차시 봇 동작은 그대로)
+  if (phoneOpen(c) && rand() < (s.phoneFocus ?? 0.6)) {
+    const pa = phoneAction(c, p, free, money, rand);
+    if (pa && !(pa.type === 'sailTo' && (me.game.sailsThisRound ?? 0) >= BOT_SAILS_PER_ROUND)) return pa;
+  }
+  if (rand() < 0.5) return null;
+  const view = marketView(c, p, me.game.port);
   // (작업 115) 2차시~: 부산에서 재료가 있으면 공장에서 만든다
   if (cls.features.includes('factory') && me.game.port === 'BUS' && rand() < 0.6) {
     const can = factoryCards(c, p).find((f) => f.max > 0);

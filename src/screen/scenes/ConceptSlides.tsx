@@ -27,7 +27,10 @@ const PAIR_MAX_CHARS = 60;
 
 /** 공용 화면에서 슬라이드로 보여 줄 사건인가: 개념 사건 + 가운데 차단 카드(L2-E5 같은 비차단 패널은 제외) */
 export function isConceptSlideEvent(def: GameEvent | undefined, short: boolean): boolean {
-  if (!def || def.kind !== 'concept' || def.isCover) return false;
+  if (!def || def.isCover) return false;
+  // (작업 172) 짧은 형태 확인 퀴즈(3차시 경쟁 세 가지 '카드만')도 개념 카드 슬라이드로
+  const cards = def.kind === 'concept' || (def.kind === 'checkQuiz' && short && !!def.shortForm);
+  if (!cards) return false;
   return isBlocking(def, short);
 }
 

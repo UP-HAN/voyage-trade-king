@@ -153,7 +153,8 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
   if (sit) {
     // 상황 카드: 상황마다 같은 순서의 교과서 인용을 붙인다(L1-E4 p.97). 짧은 형태는 1장
     situations = sit.items.map((title, i) => ({ title, quote: quotesAll[i] ?? null }));
-    if (short) situations = situations.slice(0, 1);
+    // 짧은 형태 상황 카드 1장은 개념 사건(L1-E4)만 — (작업 172) 3차시 경쟁 세 가지(L3-E6 '카드만')는 세 장 모두
+    if (short && def.kind === 'concept') situations = situations.slice(0, 1);
     paragraphs = sit.lead ? [sit.lead] : [];
     quotes = [];
   } else if (short && def.id === 'L1-E2') {
@@ -172,7 +173,8 @@ export function eventCardModel(def: GameEvent, opts: CardModelOptions = {}): Eve
     id: def.id,
     band,
     bandText: BAND_TEXT[band],
-    kindLabel: sit ? '상황 카드' : (KIND_LABEL[def.kind] ?? null),
+    // (작업 172) 짧은 형태 확인 퀴즈(3차시 '카드만')는 문항이 없다 — '개념 카드'
+    kindLabel: def.kind === 'checkQuiz' && short ? '개념 카드' : sit ? '상황 카드' : (KIND_LABEL[def.kind] ?? null),
     title: cover.title,
     paragraphs,
     situations,

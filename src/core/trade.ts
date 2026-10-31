@@ -148,7 +148,7 @@ function syncStatuses(ctx: Ctx): void {
  */
 function closeAtSec(it: ScheduleItem): number {
   const def = it.kind === 'event' ? eventsById[it.refId] : undefined;
-  if (def && hasResultView(def) && it.durSec >= EVENT_RESULT_SHOW_SEC * 2) return it.at + it.durSec - EVENT_RESULT_SHOW_SEC;
+  if (def && hasResultView(def, it.form === 'short') && it.durSec >= EVENT_RESULT_SHOW_SEC * 2) return it.at + it.durSec - EVENT_RESULT_SHOW_SEC;
   return it.at + it.durSec;
 }
 

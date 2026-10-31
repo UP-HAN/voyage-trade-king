@@ -436,3 +436,14 @@
   font-weight: 400;
   color: var(--ink-soft);
 }
+
+/* ─── (작업 172) 3차시 카드 조각 ─── */
+.ev-phone { margin: 8px 0; }
+.ev-phone__line { font-weight: 700; font-size: 1.1em; margin: 6px 0; }
+.ev-phone__line.is-done { color: #2f6e45; }
+.ev-phone__parts { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 4px 0; padding: 0; list-style: none; }
+.ev-phone__parts li.is-done { font-weight: 700; color: #2f6e45; }
+.ev-phone__end, .ev-phone__gauge { margin: 6px 0; }
+.ev-phone__gauge { font-weight: 700; }
+.ev-tech { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: rgba(150, 60, 40, 0.1); }
+.ev-tech.is-won { background: rgba(61, 139, 90, 0.15); }

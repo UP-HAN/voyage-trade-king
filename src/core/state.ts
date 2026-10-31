@@ -4,7 +4,7 @@
  */
 import { fairTradeRules } from '../data/fairTrade';
 import { goodsUnlockedBy } from '../data/goods';
-import { isLessonPart, lessonPartRules, portsHeldBack } from '../data/lessonParts';
+import { goodsHeldBack, isLessonPart, lessonPartRules, lessonPartRulesOf, portsHeldBack } from '../data/lessonParts';
 import { incidentCountRule, roundLength, stageStartByLesson, tradeMinutes, WORKSHEET_WAIT_SEC_DEFAULT } from '../data/schedule';
 import { STARTING_PORT, STARTING_SHIP } from '../data/ships';
 import { awardRules, leaderboardRules, scoringConstants } from '../data/awards';
@@ -24,9 +24,11 @@ import type {
   LettersState,
   Metrics,
   NameStatus,
+  PhoneProject,
   PlayUnit,
   Player,
   PlayerGame,
+  PlayerPhone,
   ScheduleState,
   SessionMeta,
   StuckState,
@@ -92,9 +94,11 @@ export function stageRoundIndex(cs: ClassState): number {
   return cs.round - cs.stageFirstRound + 1;
 }
 
-/** 지금 공개된 상품(구간 진행 순서 기준) */
+/** 지금 공개된 상품(구간 진행 순서 기준). (작업 172) 나눠 고르기로 숨긴 상품(3차시 앞 시간 AI 반도체)은 뺀다 */
 export function visibleGoods(cs: ClassState): GoodId[] {
-  return goodsUnlockedBy(cs.stage);
+  const held = goodsHeldBack(lessonPartRulesOf(cs.settings));
+  const all = goodsUnlockedBy(cs.stage);
+  return held.length ? all.filter((g) => !held.includes(g)) : all;
 }
 
 export function isEffectActive(e: ActiveEffect, cs: ClassState): boolean {
@@ -375,6 +379,8 @@ export function normalizePlayer(raw: unknown): Player {
       chipPenaltyUntilRound: numOrNull(eff.chipPenaltyUntilRound),
       // (작업 176) 옛 상태에는 없음 → null
       storm: normalizeStorm(eff.storm),
+      // (작업 172) 광물 협력 니켈 할인 — 받은 학생만 칸이 있다
+      ...(eff.nickelDiscount === true ? { nickelDiscount: true } : {}),
     },
     metrics: {
       exports: num(m.exports, 0),
@@ -404,6 +410,8 @@ export function normalizePlayer(raw: unknown): Player {
     ...(Array.isArray(g.gullHints) ? { gullHints: normalizeGullHints(g.gullHints) } : {}),
     // (작업 176) 같은 거래 반복·다양한 무역 기록 — 옛 상태에는 없음 → 빈 기록
     fairTrade: normalizeFairTrade(g.fairTrade, arr(g.log)),
+    // (작업 172) 스마트폰 부품 팀 — 배정된 학생만
+    ...(normalizePlayerPhone(g.phone) ? { phone: normalizePlayerPhone(g.phone)! } : {}),
   };
   // 옛 필드(name: 실명·별명 등)는 옮기지 않는다
   return {
@@ -516,6 +524,36 @@ export function normalizeClass(raw: unknown, meta?: Pick<SessionMeta, 'playUnit'
     shortEvents: arr(r.shortEvents),
     votes: rec(r.votes),
     tradeEnded: bool(r.tradeEnded, false),
+    // (작업 172) 학급 스마트폰 프로젝트 — 시작한 판만
+    ...(normalizePhoneProject(r.phone) ? { phone: normalizePhoneProject(r.phone)! } : {}),
+  };
+}
+
+const countRec = (v: unknown): Partial<Record<GoodId, number>> => {
+  const out: Partial<Record<GoodId, number>> = {};
+  if (isObj(v)) for (const [k, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n) && n >= 0) out[k as GoodId] = n;
+  return out;
+};
+
+/** (작업 172) 학급 스마트폰 프로젝트 읽기(모양이 틀리면 null) */
+export function normalizePhoneProject(v: unknown): PhoneProject | null {
+  if (!isObj(v) || !isObj(v.parts)) return null;
+  const parts: PhoneProject['parts'] = {};
+  for (const [k, x] of Object.entries(v.parts)) {
+    if (!isObj(x)) continue;
+    parts[k as GoodId] = { need: Math.max(0, num(x.need, 0)), have: Math.max(0, num(x.have, 0)) };
+  }
+  return { parts, startedRound: num(v.startedRound, 0), half: bool(v.half, false), completedRound: numOrNull(v.completedRound) };
+}
+
+/** (작업 172) 학생 스마트폰 기록 읽기(팀이 없으면 null) */
+export function normalizePlayerPhone(v: unknown): PlayerPhone | null {
+  if (!isObj(v) || typeof v.team !== 'string') return null;
+  return {
+    team: v.team as GoodId,
+    deposited: countRec(v.deposited),
+    coop: Math.max(0, num(v.coop, 0)),
+    fromPort: typeof v.fromPort === 'string' ? (v.fromPort as PortId) : null,
   };
 }
 

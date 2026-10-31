@@ -6,7 +6,9 @@ import './cards.css';
 
 export { EventCard, type EventCardProps } from './EventCard';
 export { DecisionCard, type DecisionCardProps } from './DecisionCard';
-export { ArticleCard, type ArticleCardProps } from './ArticleCard';
+export { ArticleCard, isTargetSentence, type ArticleCardProps } from './ArticleCard';
+export { VoteCard, voteParts, voteResultLine, type VoteCardProps } from './VoteCard';
+export { AiGraph } from './AiGraph';
 export { CheckQuizCard, answerLabel, explainText, type CheckQuizCardProps } from './CheckQuizCard';
 export { CardArt, CardBandLine, CardQuoteBox, type CardSize } from './parts';
 export * from './model';

@@ -16,11 +16,19 @@ export interface ArticleCardProps {
   onToggle?: (sentence: string) => void;
   children?: ComponentChildren;
   testId?: string;
+  /** (작업 172) 정답 문장(밑줄 찾기 대상 `underlineTargets`)에 표시 — 맞히지 않아도 넘어갈 수 있게 표시만 */
+  showTargets?: boolean;
 }
 
-export function ArticleCard({ article, size = 'student', underlined = [], onToggle, children, testId = 'article-card' }: ArticleCardProps) {
+/** (작업 172) 이 문장이 밑줄 찾기 대상(정답 문장 조각을 품은 문장)인가 */
+export function isTargetSentence(article: TextbookArticle, sentence: string): boolean {
+  return article.underlineTargets.some((t) => sentence.includes(t.sentence) || t.sentence.includes(sentence));
+}
+
+export function ArticleCard({ article, size = 'student', underlined = [], onToggle, children, testId = 'article-card', showTargets = false }: ArticleCardProps) {
   const sentences = splitSentences(article.body);
   const marked = new Set(underlined);
+  const tgt = (s: string) => (showTargets && isTargetSentence(article, s) ? ' is-target' : '');
   return (
     <CardFrame size={size} band="article" testId={testId} id={article.id} extraClass="vc--article">
       <CardBandLine band="article" text={BAND_TEXT.article} pages={article.pages} />
@@ -34,7 +42,7 @@ export function ArticleCard({ article, size = 'student', underlined = [], onTogg
               <button
                 key={i}
                 type="button"
-                class={`vc__sentence${marked.has(s) ? ' is-marked' : ''}`}
+                class={`vc__sentence${marked.has(s) ? ' is-marked' : ''}${tgt(s)}`}
                 aria-pressed={marked.has(s)}
                 data-testid="article-sentence"
                 onClick={() => onToggle(s)}
@@ -42,7 +50,7 @@ export function ArticleCard({ article, size = 'student', underlined = [], onTogg
                 {s}
               </button>
             ) : (
-              <span key={i} class={`vc__sentence${marked.has(s) ? ' is-marked' : ''}`}>
+              <span key={i} class={`vc__sentence${marked.has(s) ? ' is-marked' : ''}${tgt(s)}`} data-target={showTargets && isTargetSentence(article, s) ? '1' : undefined}>
                 {s}{' '}
               </span>
             ),

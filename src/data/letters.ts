@@ -303,7 +303,7 @@ const L2: readonly LetterQuestion[] = [
   }),
 ];
 
-/** L3: 스마트폰 상호 의존, 인도네시아 협력, 수출 증가와 일자리, 경쟁 3종, 생성형 인공지능 — 8문항(4·4) */
+/** L3: 스마트폰 상호 의존, 인도네시아 협력, 수출 증가와 일자리, 경쟁 3종, 생성형 인공지능 — 10문항(5·5, 작업 172에서 106쪽 2문항 추가) */
 const L3: readonly LetterQuestion[] = [
   L({
     id: 'L3-01', lesson: 'L3', format: 'customs', type: 'choice3', difficulty: 'easy', topic: '스마트폰 상호 의존',
@@ -366,6 +366,22 @@ const L3: readonly LetterQuestion[] = [
     choices: ['산업 성장 → 일자리 증가 → 소득 증가', '소득 감소 → 일자리 감소 → 산업 성장', '일자리 감소 → 산업 성장 → 소득 증가'], answer: 0,
     explain: '수출이 늘어나면 더 많은 물자나 서비스를 생산해야 하므로 산업이 성장해요. 이에 따라 일자리가 늘어나고 사람들의 소득도 증가하게 돼요. (교과서 107쪽)',
     pages: [107], fake: false, dexCard: 'export-growth',
+  }),
+  // (작업 172) 3차시 앞 시간 판(106쪽) 단독 10통 — 뒤 시간 고유 문항을 빼면 보통 문항이 모자라 106쪽 문항 2개를 더했다(lessonParts.ts 앞 시간 편지)
+  L({
+    id: 'L3-09', lesson: 'L3', format: 'gullNews', type: 'choice3', difficulty: 'normal', topic: '스마트폰 상호 의존(학급 스마트폰)',
+    passage: '우리 반이 스마트폰을 만들려고 반도체·배터리·니켈·흑연 같은 부품을 여러 나라 항구에서 모아 부산 조립장에 넣었어요.',
+    prompt: '이 이야기처럼 여러 나라의 우수한 물자를 한데 모아 새로운 제품을 만드는 모습은 무엇을 보여 줄까요?',
+    choices: ['무역을 통한 나라 사이의 상호 의존', '나라 사이의 수입 제한', '한 나라만으로 만드는 제품'], answer: 0,
+    explain: '무역이 활발해지면서 여러 나라의 우수한 물자를 한데 모아서 새로운 제품을 생산하기도 해요. 이렇게 무역을 통해 서로 기대는 관계를 상호 의존이라고 해요. (교과서 106쪽)',
+    pages: [106], fake: true, dexCard: 'interdependence',
+  }),
+  L({
+    id: 'L3-10', lesson: 'L3', format: 'customs', type: 'ox', difficulty: 'easy', topic: '자유로운 거래',
+    prompt: '무역이 활발해지면서 세계 여러 나라는 물자와 서비스를 자유롭게 거래하고 있어요.',
+    answer: 'O',
+    explain: '무역이 활발해지면서 세계 여러 나라는 물자와 서비스를 자유롭게 거래하고 있어요. 이 과정에서 여러 나라가 각자 잘하는 분야를 중심으로 협력하기도 해요. (교과서 106쪽)',
+    pages: [106], fake: false, dexCard: 'interdependence',
   }),
 ];
 

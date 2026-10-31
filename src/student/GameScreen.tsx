@@ -5,6 +5,8 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { canTrade, fairTradeOn, nextRoundWait, predict, voyageCostFor, type PublicClass } from '../core';
 import { eventsById } from '../data/events';
 import { missionsById } from '../data/missions';
+import { goodsById } from '../data/goods';
+import { dexHeldBack, lessonPartRulesOf } from '../data/lessonParts';
 import { portLabel } from '../data/ports';
 import type { PortId } from '../data/types';
 import { flagHex } from '../ui/common/FlagIcon';
@@ -163,7 +165,7 @@ export type RoundSteps = {
  * traded 는 이번 라운드 기록만 센다.
  */
 export function roundSteps(cls: PublicClass, me: MeView): RoundSteps {
-  const traded = me.game.log.some((l) => l.round === cls.round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce'));
+  const traded = me.game.log.some((l) => l.round === cls.round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'deposit'));
   if (isFreeVoyage(cls)) {
     // (작업 151) 자유 항해: ① 사고팔기 → ② [여기로 출발] → 도착하면 다시 ①. 출항 준비 단계가 없다(작업 153 추가: 횟수 제한 없음)
     return {
@@ -182,7 +184,7 @@ export function roundSteps(cls: PublicClass, me: MeView): RoundSteps {
 
 /** (작업 151) 이번 라운드 마지막 기록이 항해인가(도착 뒤 아직 사고팔지 않음 → 다시 ①) */
 function lastIsVoyage(round: number, me: MeView): boolean {
-  const log = me.game.log.filter((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'voyage'));
+  const log = me.game.log.filter((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'deposit' || l.kind === 'voyage'));
   return log.length > 0 && log[log.length - 1]!.kind === 'voyage';
 }
 
@@ -346,14 +348,52 @@ function PickPanel({ info, onConfirm, onClose }: { info: PickInfo; onConfirm: ()
   );
 }
 
-function MissionBar({ me, onHintAgain }: { me: MeView; onHintAgain?: () => void }) {
+/**
+ * (작업 172) 스마트폰 부품 칩 "스마트폰 부품 · 반도체 3/8"(학급 진행 — 공개 상태의 학급 스마트폰 프로젝트). 다 모였으면 "스마트폰 완성!"
+ */
+export function phoneChipText(cls: Pick<PublicClass, 'phone'> | null | undefined, me: MeView): string | null {
+  const team = me.game.phone?.team;
+  const ph = cls?.phone;
+  if (!team || !ph) return null;
+  if (ph.completedRound !== null) return '스마트폰 부품 · 스마트폰 완성!';
+  const x = ph.parts[team];
+  const name = goodsById[team]?.name ?? team;
+  return x ? `스마트폰 부품 · ${name} ${Math.min(x.have, x.need)}/${x.need}` : `스마트폰 부품 · ${name}`;
+}
+
+function PhoneChip({ cls, me, solo }: { cls: PublicClass | null | undefined; me: MeView; solo: boolean }) {
+  const text = phoneChipText(cls, me);
+  if (!text) return null;
+  const m = me.game.missions['M-PHONE'];
+  const done = cls?.phone?.completedRound !== null && cls?.phone?.completedRound !== undefined;
+  return (
+    <div class={`st-mission${solo ? '' : ' st-mission--chip'}${done ? ' is-complete' : ''}`} data-testid="mission-M-PHONE" data-status={m?.status ?? 'active'} data-team={me.game.phone?.team} title="부산 [조립장]에 우리 팀 부품을 넣어요">
+      <span class="st-mission__title" data-testid="phone-chip">
+        {text}
+      </span>
+    </div>
+  );
+}
+
+function MissionBar({ me, cls, onHintAgain }: { me: MeView; cls?: PublicClass | null; onHintAgain?: () => void }) {
   // (작업 160b) 받은 갈매기 힌트가 있으면 임무 줄 끝에 "갈매기 힌트 다시 보기"
   const again = onHintAgain && lastGullHint(me) ? <GullHintAgain onClick={onHintAgain} /> : null;
+  // (작업 172) 스마트폰 부품 임무는 학급 진행 칩으로(단계 막대 대신)
+  const hasPhone = !!me.game.missions['M-PHONE'] && !!phoneChipText(cls, me);
   // (작업 115) 임무가 여럿이면(2차시 3종) 한 줄에 칩으로: 제목 줄임 + 단계 칸
-  const many = Object.entries(me.game.missions).filter(([id]) => missionsById[id]);
-  if (many.length > 1) {
+  const many = Object.entries(me.game.missions).filter(([id]) => missionsById[id] && !(hasPhone && id === 'M-PHONE'));
+  if (hasPhone && many.length === 0) {
     return (
       <div class="st-missions" data-testid="missions">
+        <PhoneChip cls={cls} me={me} solo />
+        {again}
+      </div>
+    );
+  }
+  if (many.length > 1 || hasPhone) {
+    return (
+      <div class="st-missions" data-testid="missions">
+        {hasPhone && <PhoneChip cls={cls} me={me} solo={false} />}
         {many.map(([id, m]) => {
           const def = missionsById[id]!;
           const complete = m.status === 'done';
@@ -437,7 +477,7 @@ function BottomBar({ store, st, onPort, now, onHintAgain }: { store: StudentStor
   return (
     <footer class="st-bottom" data-testid="bottom-bar">
       {trading && cls && <RoundStepsBar cls={cls} me={me} />}
-      <MissionBar me={me} onHintAgain={onHintAgain} />
+      <MissionBar me={me} cls={cls} onHintAgain={onHintAgain} />
       <div class="st-bottom__dest" data-testid="bottom-status">
         {status}
         {sending && (
@@ -655,7 +695,7 @@ export function GameScreen({ store, st }: { store: StudentStore; st: StudentStat
           </div>
         )}
         {showBottom && <BottomBar store={store} st={st} now={now} onPort={() => setView('port')} onHintAgain={() => setHintAgain(true)} />}
-        {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} fairTrade={fairTradeOn(cls?.settings)} onClose={() => setDex(false)} />}
+        {dex && <Dex player={me} collected={me.game.metrics.dex} comeback={Boolean(cls?.settings?.comeback)} fairTrade={fairTradeOn(cls?.settings)} hide={dexHeldBack(lessonPartRulesOf(cls?.settings))} onClose={() => setDex(false)} />}
         {/* (작업 134) 처음 입항 항구 카드: 라운드 중에는 아래 화면을 막지 않는 작은 카드(왼쪽 위) — 거래 버튼·결정 패널을 가리지 않게 */}
         {portCard && !tradeOver && <PortCardModal port={portCard} soft={phase === 'round' || isTradingPhase(cls)} onClose={() => setPortCard(null)} />}
       </div>

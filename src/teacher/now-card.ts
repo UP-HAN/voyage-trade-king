@@ -70,7 +70,8 @@ export type NowActionKind =
   | 'openScreen' // 공용 화면 창 열기
   | 'autoScene' // TV 장면 '알아서 바꾸기'로
   | 'showNoWorksheet' // 학생 표를 '학습지 안 씀'으로
-  | 'showFold'; // 접힘 영역 펼치기([보기])
+  | 'showFold' // 접힘 영역 펼치기([보기])
+  | 'oneMoreRound'; // (작업 172) 스마트폰이 덜 모였을 때 [라운드 하나 더](무역 시간을 라운드 하나만큼 늘림)
 
 export type FoldId = 'time' | 'order' | 'entry' | 'worksheet' | 'more';
 
@@ -212,7 +213,7 @@ const firable = (it: ScheduleItem) => it.status === 'pending' && it.form !== 'dr
 
 /** (작업 151) 이번 라운드에 사고팔기(사기·팔기·생산)를 했는가 — 자유 항해 카드·학생 표 */
 export function tradedThisRound(round: number, p: { game: { log: readonly { round: number; kind: string }[] } }): boolean {
-  return p.game.log.some((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce'));
+  return p.game.log.some((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'deposit'));
 }
 
 /** (작업 151) 이번 라운드 항해 횟수(자유 항해 기록 기준) */
@@ -248,6 +249,20 @@ function newsLine(c: ClassState, id: string): string {
   const def = eventsById[id];
   if (def && def.lesson !== 'L1' && (def.kind === 'mission' || def.trigger.type === 'firstArrival')) return `학생 화면에 '${lessonText(def.lesson)} 임무' 안내가 떠 있어요`;
   return `학생 화면에 '${eventTitle(c, id)}' 소식이 떠 있어요`;
+}
+
+/**
+ * (작업 172) 3차시 활동마다 교사 카드 한 줄(쉬운 말). 없으면 "○○ 하는 중".
+ */
+export const RESPOND_LINE: Readonly<Record<string, string>> = {
+  'L3-E1': '학생들이 광물 협력 기사를 읽고 있어요',
+  'L3-E3': '학생들이 기술 연구비를 정하고 있어요(다른 회사는 볼 수 없어요)',
+  'L3-E4': '자동화 항만 투표',
+};
+
+/** (작업 172) 응답 받는 활동의 큰 버튼 이름(투표는 '마감하고 결과 보기') */
+function closeLabel(id: string): string {
+  return eventsById[id]?.kind === 'vote' ? '투표 끝내고 결과 보기' : '다음으로';
 }
 
 /** 라운드 앞 사전 활동(표지·편지·라운드 안 비차단 활동 제외) */
@@ -583,11 +598,13 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         if (total > 0 && responded >= total) sub.push({ text: '모두 응답했어요', strong: true, testId: 'now-all-responded' });
         else if (responded * 2 < total) sub.push({ text: "아직 응답 안 한 학생은 '응답 없음'이 돼요" });
       }
-      const withResult = hasResultView(eventsById[ce.id]);
+      const withResult = hasResultView(eventsById[ce.id], ce.short);
+      const isVote = eventsById[ce.id]?.kind === 'vote';
+      const line = RESPOND_LINE[ce.id] ? (isVote ? `${RESPOND_LINE[ce.id]} ${responded}/${total}` : `${RESPOND_LINE[ce.id]} · 응답 ${responded}/${total}`) : `${title} 하는 중`;
       return {
-        state: 'respond', tag: stageTag(c, live ?? null), line: `${title} 하는 중`, lineTestId: 'tl-responses',
+        state: 'respond', tag: stageTag(c, live ?? null), line, lineTestId: 'tl-responses',
         sub,
-        primary: manual && next ? manualNext(next) : { label: '다음으로', kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' },
+        primary: manual && next ? manualNext(next) : { label: closeLabel(ce.id), kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' },
         // 작은 글자 버튼 하나: 결과 화면이 있으면 [TV에 결과 보여 주기], 없고 라운드 1 전이면 [라운드 바로 시작](수정 1회차)
         secondary: withResult && !ce.revealed ? { label: 'TV에 결과 보여 주기', kind: 'reveal', testId: 'btn-reveal-event' } : preRoundNow(c, next, now),
         keyExtra: ce.id, eventId: ce.id,
@@ -605,6 +622,9 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         sub.push(notDone(Object.values(g.players).filter((p) => p.game.responses[id] === undefined).length, (n) => `카드를 아직 안 읽은 학생 ${n}명`, '모두 카드를 읽었어요'));
       }
       if (cover) sub.push({ text: '차시 질문을 함께 읽어요' });
+      // (작업 172) 우리 반 스마트폰 결과: 덜 모였으면 [라운드 하나 더](선생님이 고를 때만 — 실패로 끝내지 않음)
+      const phoneShort = id === 'L3-E5' && !!c.phone && c.phone.completedRound === null;
+      if (id === 'L3-E5' && c.phone) sub.push({ text: c.phone.completedRound !== null ? '스마트폰 완성! 모두 협력 +20·자금 +50만 원을 받았어요' : '부품이 덜 모였어요 · 라운드를 하나 더 하면 더 모을 수 있어요', testId: 'now-phone' });
       sub.push(autoNext(c, live ? live.at + live.durSec : null, next, now));
       return {
         state: 'card', tag: stageTag(c, live ?? null), line: `${eul(name)} TV에 보여 주는 중`,
@@ -612,7 +632,7 @@ function body(g: TeacherGame, view: NowView, now: number, ui: NowUi): Body {
         primary: next
           ? manual ? manualNext(next) : { label: '다음으로', kind: 'next', testId: 'now-next', itemId: next.id, tone: 'primary' }
           : id ? { label: '다음으로', kind: 'closeEvent', testId: 'btn-close-event', tone: 'primary' } : null,
-        secondary: preRoundNow(c, next, now),
+        secondary: phoneShort ? { label: '라운드 하나 더', kind: 'oneMoreRound', testId: 'now-one-more-round' } : preRoundNow(c, next, now),
         keyExtra: id ?? summary!.id,
       };
     }

@@ -26,11 +26,11 @@ const opt = (name) => {
 };
 const flag = (name) => argv.includes(name);
 
-const ALL = ['a', 'b', 'c', 'd', 'e', 'f'];
+const ALL = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'g2'];
 const scenarios = (opt('--scenario') ?? ALL.join(',')).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const bad = scenarios.filter((s) => !ALL.includes(s));
 if (bad.length) {
-  console.error(`알 수 없는 시나리오: ${bad.join(', ')} (a~f)`);
+  console.error(`알 수 없는 시나리오: ${bad.join(', ')} (a~f, g, g2)`);
   process.exit(2);
 }
 const target = opt('--target') ?? '';

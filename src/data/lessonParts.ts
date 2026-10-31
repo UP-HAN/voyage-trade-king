@@ -1,12 +1,13 @@
 /**
  * (v0.3.9, 작업 154, PRD 4.1.1 '2차시 나눠 고르기'·4.4 L2·16.1 결정 38)
  * 차시 한 판 2차시를 '앞 시간 / 뒤 시간 / 두 시간 모두'로 나눠 고르는 규칙 — 한 곳에 둔다.
+ * (작업 172) 차시별 규칙표로 넓혔다: 2차시(값은 그대로)·3차시(교사 결정 2026-10-30 — 앞 = 106쪽, 뒤 = 107쪽). 173이 4차시를 더한다.
  *
- * - 규칙은 **차시 한 판 + 범위가 정확히 ['L2']** 일 때만 쓴다(`lessonPartRules`). 그 밖(단원 한 판·연속 구간·1·3·4차시)은 null.
+ * - 규칙은 **차시 한 판 + 범위가 정확히 차시 하나 + 그 차시에 규칙이 있을 때**만 쓴다(`lessonPartRules`). 그 밖(단원 한 판·연속 구간·1·4차시)은 null.
  * - 빠지는 사건·학습지·편지는 배치 후보·은행에서 아예 뺀다(데이터 항목 자체는 지우지 않는다 — 단원 한 판이 그대로 쓴다).
  * - 확인 퀴즈(L2-E7)는 세 가지 모두 뺀다(수업 정리는 교사의 외부 퀴즈).
  */
-import type { LessonId, PortId, WorksheetId } from './types';
+import type { GoodId, LessonId, PortId, WorksheetId } from './types';
 
 export type LessonPart = 'all' | 'front' | 'back';
 
@@ -25,6 +26,8 @@ export interface LessonPartCover {
 
 export interface LessonPartRule {
   part: LessonPart;
+  /** (작업 172) 이 규칙의 차시 */
+  lesson: LessonId;
   /** 배치 후보에서 빼는 사건 */
   dropEvents: readonly string[];
   /** 배치·끝나고 쓰기에서 빼는 학습지 */
@@ -60,6 +63,42 @@ export interface LessonPartRule {
   fireAfterW06: readonly string[];
   /** (작업 168) 배치 고정 라운드 바꾸기(사건 ID → 'round:N'). 뒤 시간: 수출국 4유형 임무 L2-E4 = 라운드 3 시작 */
   anchorOverride: Readonly<Record<string, string>>;
+  /**
+   * (작업 172) 늘 짧은 형태로 넣는 활동(교사 [넣기/짧게/빼기]가 없을 때). 3차시: 경쟁 세 가지 카드(L3-E6 — 확인 퀴즈 없이 카드만),
+   * 뒤 시간은 경제 게이지(L3-E5)도. 없으면 빈 목록(2차시 그대로)
+   */
+  forceShort?: readonly string[];
+  /** (작업 172) '라운드 부족' 판정에 쓰는 최소 라운드 수 바꾸기(사건 ID → 수). 3차시 뒤 시간 L3-E5(게이지만) = 0 */
+  needsRoundsOverride?: Readonly<Record<string, number>>;
+  /**
+   * (작업 172) 경제 게이지(L3-E5 안, p.107): 'withPhone' = 스마트폰 결과 뒤(두 시간 모두), 'stageEnd' = 게이지만(뒤 시간 — 경쟁 카드 바로 앞),
+   * 'none' = 없음(앞 시간). 없으면 'withPhone'(단원 한 판과 같음)
+   */
+  econGauge?: 'withPhone' | 'stageEnd' | 'none';
+  /** (작업 172) 이 판 시장·도감에 보이지 않는 상품(3차시 앞 시간: AI 반도체 — 기술 경쟁이 없음) */
+  hideGoods?: readonly GoodId[];
+  /**
+   * (작업 172) 활동 이름 바꾸기(사건 ID → 이름). 3차시 L3-E5는 앞 시간 '우리 반 스마트폰 결과', 뒤 시간 '경제 게이지' —
+   * 교사 오늘 순서·미리보기·학생 카드에 다른 시간 내용 이름이 보이지 않게
+   */
+  titles?: Readonly<Record<string, string>>;
+  /** (작업 172) 이 판 도감에 보이지 않는 카드(상품 'good:x'·개념 카드 ID) — 다른 시간 활동이 주는 카드 */
+  hideDex?: readonly string[];
+}
+
+/** (작업 172) 이 판 도감에서 숨기는 카드 */
+export function dexHeldBack(rule: LessonPartRule | null | undefined): readonly string[] {
+  return rule?.hideDex ?? [];
+}
+
+/** (작업 172) 이 판에 보이지 않는 상품(3차시 앞 시간 AI 반도체) */
+export function goodsHeldBack(rule: LessonPartRule | null | undefined): readonly GoodId[] {
+  return rule?.hideGoods ?? [];
+}
+
+/** (작업 172) 경제 게이지 자리 — 규칙이 없으면(단원 한 판·연속 구간) 스마트폰 결과 뒤 */
+export function econGaugeOf(rule: LessonPartRule | null | undefined): 'withPhone' | 'stageEnd' | 'none' {
+  return rule?.econGauge ?? 'withPhone';
 }
 
 /** (작업 167) 싱가포르가 열리는 학습지 팝업(이 번호가 든 팝업이 닫히면 열림 — 'afterW06'일 때) */
@@ -75,8 +114,14 @@ export function portsHeldBack(rule: LessonPartRule | null | undefined): PortId[]
 /** 세관 게시판 사건(작업 165 — 마지막 라운드 n개 앞으로 옮기는 대상) */
 export const CUSTOMS_BOARD_EVENT = 'L2-E6';
 
-/** 교사 판 설정 버튼 문구(그대로 쓴다) */
-export const LESSON_PART_TEXT: Record<LessonPart, { title: string; sub: string; preview: string }> = {
+export interface LessonPartText {
+  title: string;
+  sub: string;
+  preview: string;
+}
+
+/** 교사 판 설정 버튼 문구(그대로 쓴다) — 2차시 */
+export const LESSON_PART_TEXT: Record<LessonPart, LessonPartText> = {
   front: {
     title: '앞 시간 — 우리나라 무역의 특징',
     sub: '교과서 100~102쪽 · 부산 공장, 자원 수입 → 생산 → 수출, 세관 게시판 · 학습지 ⑤⑥',
@@ -94,14 +139,54 @@ export const LESSON_PART_TEXT: Record<LessonPart, { title: string; sub: string; 
   },
 };
 
-/** 나눠 고르기가 있는 차시 */
-export const LESSON_PART_LESSON: LessonId = 'L2';
-/** 표지 사건(덮어쓰기 대상) */
-export const LESSON_PART_COVER_EVENT = 'L2-E1';
+/** (작업 172) 3차시 판 설정 버튼 문구(화면에는 차시 번호 대신 교과서 쪽) */
+export const LESSON_PART_TEXT_L3: Record<LessonPart, LessonPartText> = {
+  front: {
+    title: '앞 시간 — 서로 기대는 무역',
+    sub: '교과서 106쪽 · 광물 협력 기사, 우리 반 스마트폰 · 학습지 ⑨⑩',
+    preview: '3차시 앞 시간: 서로 기대는 무역 (교과서 106쪽)',
+  },
+  back: {
+    title: '뒤 시간 — 서로 겨루는 무역',
+    sub: '교과서 107쪽 · AI 기술 경쟁, 자동화 항만 투표, 경제 게이지, 경쟁 세 가지 · 학습지 ⑪⑫',
+    preview: '3차시 뒤 시간: 서로 겨루는 무역 (교과서 107쪽)',
+  },
+  all: {
+    title: '두 시간 내용 모두 한 판에',
+    sub: '교과서 106~107쪽 · 학습지 ⑨~⑫',
+    preview: '3차시 두 시간 모두 (교과서 106~107쪽)',
+  },
+};
 
-const RULES: Record<LessonPart, LessonPartRule> = {
+/** (작업 172) 차시별 판 설정 버튼 문구 */
+export const LESSON_PART_TEXTS: Readonly<Partial<Record<LessonId, Record<LessonPart, LessonPartText>>>> = {
+  L2: LESSON_PART_TEXT,
+  L3: LESSON_PART_TEXT_L3,
+};
+
+/** 차시의 판 설정 버튼 문구(규칙이 없는 차시면 2차시 문구 — 부르는 쪽이 `hasLessonParts`로 먼저 거른다) */
+export function lessonPartText(lesson: LessonId | null | undefined, part: LessonPart): LessonPartText {
+  return (lesson ? LESSON_PART_TEXTS[lesson] : undefined)?.[part] ?? LESSON_PART_TEXT[part];
+}
+
+/** (작업 172) 나눠 고르기가 있는 차시(173이 L4를 더한다) */
+export const LESSON_PART_LESSONS: readonly LessonId[] = ['L2', 'L3'];
+/** (옛 이름, 작업 154) 2차시 — 새 코드는 `LESSON_PART_LESSONS`·`hasLessonParts`를 쓴다 */
+export const LESSON_PART_LESSON: LessonId = 'L2';
+/** (옛 이름) 2차시 표지 사건 — 새 코드는 `LESSON_PART_COVER_EVENTS` */
+export const LESSON_PART_COVER_EVENT = 'L2-E1';
+/** (작업 172) 차시별 표지 사건(덮어쓰기 대상). events.ts COVER_EVENT_IDS 와 같은 값 — 순환 import 를 피해 여기 둔다(시험이 같은지 검사) */
+export const LESSON_PART_COVER_EVENTS: Readonly<Record<LessonId, string>> = { L1: 'L1-COVER', L2: 'L2-E1', L3: 'L3-COVER', L4: 'L4-COVER' };
+
+/** (작업 172) 3차시 앞 시간 고유 편지(스마트폰·인도네시아 협력) */
+const L3_FRONT_LETTERS: readonly string[] = ['L3-01', 'L3-02', 'L3-05', 'L3-09', 'L3-10'];
+/** (작업 172) 3차시 뒤 시간 고유 편지(생성형 인공지능·경쟁 3종·수출 증가) */
+const L3_BACK_LETTERS: readonly string[] = ['L3-03', 'L3-04', 'L3-06', 'L3-07', 'L3-08'];
+
+const L2_RULES: Record<LessonPart, LessonPartRule> = {
   front: {
     part: 'front',
+    lesson: 'L2',
     dropEvents: ['L2-E4', 'L2-E5', 'L2-E7'],
     dropWorksheets: ['W07', 'W08'],
     dropLetters: ['L2-03', 'L2-06', 'L2-07', 'L2-08'],
@@ -122,6 +207,7 @@ const RULES: Record<LessonPart, LessonPartRule> = {
   },
   back: {
     part: 'back',
+    lesson: 'L2',
     dropEvents: ['L2-E2', 'L2-E3', 'L2-E6', 'L2-E7'],
     dropWorksheets: ['W05', 'W06'],
     dropLetters: ['L2-01', 'L2-02', 'L2-05'],
@@ -144,6 +230,7 @@ const RULES: Record<LessonPart, LessonPartRule> = {
   },
   all: {
     part: 'all',
+    lesson: 'L2',
     dropEvents: ['L2-E7'],
     dropWorksheets: [],
     // (작업 167) 싱가포르·수출국 4유형·박람회 편지는 ⑥ 뒤에야 열리는 내용 — ⑥ 뒤에는 라운드가 없으므로 앞 시간과 같이 뺀다
@@ -161,17 +248,112 @@ const RULES: Record<LessonPart, LessonPartRule> = {
   },
 };
 
+/**
+ * (작업 172, 교사 결정 2026-10-30) 3차시 나눠 고르기.
+ * - 앞 시간(106쪽): 표지, 광물 협력(L3-E1), 우리 반 스마트폰(L3-E2·E5 — 결과 장면에서 경제 게이지는 뺀다), 학습지 ⑨⑩.
+ * - 뒤 시간(107쪽): 표지, AI 기술 경쟁(L3-E3), 자동화 항만 투표(L3-E4), 경제 게이지(L3-E5 게이지만, 구간 끝), 경쟁 세 가지 카드(L3-E6 카드만), ⑪⑫.
+ * - 두 시간 모두: 위 전부(L3-E5에서 스마트폰 결과 → 경제 게이지).
+ * - 차시 한 판 3차시는 확인 퀴즈 문항을 내지 않고 경쟁 세 가지 카드만 짧은 형태(1분)로 늘 넣는다(교사 확정 2026-10-30).
+ * - 편지는 2차시 선례처럼 다른 시간 고유 문항을 양쪽 다 뺀다(두 시간 모두는 3차시 전체).
+ */
+const L3_RULES: Record<LessonPart, LessonPartRule> = {
+  front: {
+    part: 'front',
+    lesson: 'L3',
+    dropEvents: ['L3-E3', 'L3-E4', 'L3-E6'],
+    dropWorksheets: ['W11', 'W12'],
+    dropLetters: L3_BACK_LETTERS,
+    startCargo: false,
+    hideRelay: false,
+    cover: {
+      title: 'L3. 서로 기대어 만들어요',
+      body: '여러 나라의 우수한 물자를 한데 모으면 새로운 제품을 만들 수 있어요. 우리 반이 부품을 모아 스마트폰을 만들어 봐요.',
+      teacherPrompts: ['스마트폰 한 대를 만드는 데 왜 여러 나라의 물자가 필요할까요?'],
+      pages: '106',
+      question: '여러 나라는 무역으로 어떻게 서로 기댈까요?',
+    },
+    missionFirst: '먼저 할 일: 우리 팀 부품을 사거나 만들어서 부산 [조립장]에 넣어요',
+    optionalTag: false,
+    customsBeforeLastRounds: null,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: {},
+    forceShort: [],
+    econGauge: 'none',
+    hideGoods: ['aichip'],
+    titles: { 'L3-E5': '우리 반 스마트폰 결과' },
+    hideDex: ['good:aichip', 'competition-tech', 'competition-facility', 'competition-env', 'export-growth'],
+  },
+  back: {
+    part: 'back',
+    lesson: 'L3',
+    dropEvents: ['L3-E1', 'L3-E2'],
+    dropWorksheets: ['W09', 'W10'],
+    dropLetters: L3_FRONT_LETTERS,
+    startCargo: false,
+    hideRelay: false,
+    cover: {
+      title: 'L3. 서로 겨뤄요',
+      body: '세계 여러 나라는 더 많은 이익을 얻으려고 여러 분야에서 서로 경쟁해요. 우리 회사도 기술과 무역 환경을 두고 겨뤄 봐요.',
+      teacherPrompts: ['나라들은 무엇을 두고 서로 겨룰까요?'],
+      pages: '107',
+      question: '세계 여러 나라는 무역으로 무엇을 두고 겨룰까요?',
+    },
+    missionFirst: null,
+    optionalTag: true,
+    customsBeforeLastRounds: null,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: {},
+    forceShort: ['L3-E5', 'L3-E6'],
+    needsRoundsOverride: { 'L3-E5': 0 },
+    econGauge: 'stageEnd',
+    titles: { 'L3-E5': '경제 게이지 — 수출이 늘어나면' },
+    hideDex: ['interdependence'],
+  },
+  all: {
+    part: 'all',
+    lesson: 'L3',
+    dropEvents: [],
+    dropWorksheets: [],
+    dropLetters: [],
+    startCargo: false,
+    hideRelay: false,
+    cover: null,
+    missionFirst: '먼저 할 일: 우리 팀 부품을 사거나 만들어서 부산 [조립장]에 넣어요',
+    optionalTag: false,
+    customsBeforeLastRounds: null,
+    singapore: 'open',
+    scheduleOnlyDrop: [],
+    fireAfterW06: [],
+    anchorOverride: {},
+    forceShort: ['L3-E6'],
+    econGauge: 'withPhone',
+  },
+};
+
+const RULES: Readonly<Partial<Record<LessonId, Record<LessonPart, LessonPartRule>>>> = { L2: L2_RULES, L3: L3_RULES };
+
+/** (작업 172) 이 차시에 나눠 고르기가 있는가 */
+export function hasLessonParts(lesson: LessonId | null | undefined): boolean {
+  return !!lesson && LESSON_PART_LESSONS.includes(lesson) && !!RULES[lesson];
+}
+
 export function isLessonPart(v: unknown): v is LessonPart {
   return v === 'all' || v === 'front' || v === 'back';
 }
 
 /**
- * 이 판의 나눠 고르기 규칙. 차시 한 판이고 범위가 정확히 ['L2']일 때만 규칙, 그 밖은 null(아무것도 빼지 않음).
+ * 이 판의 나눠 고르기 규칙. 차시 한 판이고 범위가 정확히 차시 하나이며 그 차시에 규칙이 있을 때만 규칙, 그 밖은 null(아무것도 빼지 않음).
  * `part`가 없거나 틀리면 'all'.
  */
 export function lessonPartRules(playUnit: string | null | undefined, scope: readonly LessonId[] | null | undefined, part?: LessonPart | null): LessonPartRule | null {
-  if (playUnit !== 'lesson' || !scope || scope.length !== 1 || scope[0] !== LESSON_PART_LESSON) return null;
-  return RULES[isLessonPart(part) ? part : 'all'];
+  if (playUnit !== 'lesson' || !scope || scope.length !== 1) return null;
+  const lesson = scope[0];
+  if (!hasLessonParts(lesson)) return null;
+  return RULES[lesson]![isLessonPart(part) ? part : 'all'];
 }
 
 /** 설정 객체에서 바로(ClassSettings·공개 settings 공용) */
@@ -186,8 +368,11 @@ export function coverTextFor<T extends { id: string; title: string; body: string
   settings: { playUnit: string; scope: readonly LessonId[]; lessonPart?: LessonPart | null } | null | undefined,
 ): { title: string; body: string; teacherPrompts: readonly string[] } {
   const base = { title: def.title, body: def.body, teacherPrompts: def.teacherPrompts ?? [] };
-  if (def.id !== LESSON_PART_COVER_EVENT) return base;
-  const c = lessonPartRulesOf(settings)?.cover;
+  const rule = lessonPartRulesOf(settings);
+  if (!rule) return base;
+  // (작업 172) 표지가 아닌 활동은 이름만 바꾼다(3차시 L3-E5)
+  if (def.id !== LESSON_PART_COVER_EVENTS[rule.lesson]) return rule.titles?.[def.id] ? { ...base, title: rule.titles[def.id]! } : base;
+  const c = rule.cover;
   if (!c) return base;
   return { title: c.title, body: c.body, teacherPrompts: c.teacherPrompts ?? base.teacherPrompts };
 }

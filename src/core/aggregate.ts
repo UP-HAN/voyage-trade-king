@@ -12,6 +12,7 @@ import { eventsById } from '../data/events';
 import type { WorksheetId } from '../data/types';
 import { VOTE_OPTIONS, voteCounts } from './activities';
 import { boardFrom } from './worksheet-helpers';
+import { econGauge, publicPhone } from './phone';
 import { awards, hasCertificate, leaderboard, publicCompanyName } from './scoring';
 import type { ClassState, HostSnapshot, LeaderEntry, Player, PublicClass, PublicPayload, PublicState, SessionMeta } from './types';
 
@@ -24,13 +25,13 @@ export interface AggregateOptions {
 
 /**
  * 이 학생이 사건에 응답했나(응답 수 "응답 21/27"의 규칙 — 교사 표 `respondedToCurrent`도 같은 규칙).
- * - 확인 퀴즈: 그 구간의 지정 문항을 모두 답했을 때.
+ * - 확인 퀴즈: 그 구간의 지정 문항을 모두 답했을 때. (작업 172) 짧은 형태(카드만 — 3차시 경쟁 세 가지)면 카드를 확인했을 때.
  * - 그 밖: 응답 기록이 있고 마감 때 채운 '응답 없음'이 아닐 때.
  */
-export function respondedTo(eventId: string, p: Player): boolean {
+export function respondedTo(eventId: string, p: Player, short = false): boolean {
   const def = eventsById[eventId];
   if (!def) return false;
-  if (def.kind === 'checkQuiz') {
+  if (def.kind === 'checkQuiz' && !short) {
     const qs = checkQuizFor(def.lesson);
     return qs.length > 0 && qs.every((q) => p.game.checkQuiz[q.id] !== undefined);
   }
@@ -49,13 +50,13 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
   const ce = cs.currentEvent;
   const def = ce ? eventsById[ce.id] : undefined;
   if (ce && def && def.needsResponse) {
-    const responded = list.filter((p) => respondedTo(ce.id, p)).length;
+    const responded = list.filter((p) => respondedTo(ce.id, p, ce.short)).length;
     event = { id: ce.id, responded, total: list.length };
   }
 
   // (작업 111) 개인 결정의 선택 분포(이름 없이 수만, '응답 없음' 기본값 제외)
   let decision: PublicState['decision'] = null;
-  if (ce && def && def.kind === 'decision' && def.options?.length && !VOTE_OPTIONS[ce.id]) {
+  if (ce && def && (def.kind === 'decision' || def.kind === 'article') && def.options?.length && !VOTE_OPTIONS[ce.id]) {
     const counts: Record<string, number> = {};
     for (const o of def.options) counts[o.id] = 0;
     for (const p of list) {
@@ -160,6 +161,9 @@ export function aggregate(cs: ClassState, players: Record<string, Player> | read
         })
       : null,
     customsBoard: cs.settings.scope.includes('L2') ? boardFrom(list) : null,
+    // (작업 172) 학급 스마트폰 프로젝트(회사 이름만)·경제 게이지(평균만) — 없으면 싣지 않는다
+    ...(cs.phone ? { phone: publicPhone(cs, list, (p) => publicCompanyName(p, nameReview)) } : {}),
+    ...(econGauge(cs, list) ? { econGauge: econGauge(cs, list)! } : {}),
     // (작업 176) TV 띠용 한 비트: 이번 라운드에 누군가에게 폭풍이 지나갔다(누구인지·길·상품은 싣지 않음)
     ...(cs.settings.fairTrade !== false && cs.round > 0 && !tradeOver && list.some((p) => p.game.fairTrade?.lastStormRound === cs.round) ? { stormNews: true as const } : {}),
   };

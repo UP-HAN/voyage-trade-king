@@ -13,14 +13,18 @@ import { eventsById } from '../../data/events';
 import type { GameEvent as EventDef } from '../../data/types';
 import { classForPredict, playerForPredict, type MeView } from '../predict';
 
-export type EventShape = 'card' | 'decision' | 'quiz' | 'minigame' | 'none';
+export type EventShape = 'card' | 'decision' | 'vote' | 'quiz' | 'minigame' | 'none';
 
-/** 사건 정의 → 화면 모양 */
-export function shapeOf(def: EventDef): EventShape {
+/**
+ * 사건 정의 → 화면 모양.
+ * (작업 172) 학급 투표(L3-E4 등)는 투표 공통 카드('vote'), 기사 + 결정(L3-E1)은 결정, 짧은 형태 확인 퀴즈(3차시 경쟁 세 가지 '카드만')는 카드
+ */
+export function shapeOf(def: EventDef, short = false): EventShape {
   if (def.isCover || def.tier === 'prep' || def.tier === 'wrap') return 'none';
   if (def.kind === 'minigame') return 'minigame';
-  if (def.kind === 'checkQuiz') return 'quiz';
-  if ((def.kind === 'decision' || def.kind === 'vote') && def.options?.length) return 'decision';
+  if (def.kind === 'checkQuiz') return short && def.shortForm ? 'card' : 'quiz';
+  if (def.kind === 'vote' && def.options?.length) return 'vote';
+  if ((def.kind === 'decision' || def.kind === 'article') && def.options?.length) return 'decision';
   if (def.kind === 'worksheet') return 'none';
   return 'card';
 }
@@ -41,7 +45,7 @@ export function liveEvent(cls: PublicClass | null | undefined): LiveEvent | null
   if (!ce || ce.closed) return null;
   const def = eventsById[ce.id];
   if (!def) return null;
-  const shape = shapeOf(def);
+  const shape = shapeOf(def, ce.short);
   if (shape === 'none') return null;
   return { id: ce.id, def, shape, short: ce.short, blocking: isBlocking(def, ce.short), revealed: ce.revealed === true };
 }
@@ -55,8 +59,8 @@ export function resultEvent(cls: PublicClass | null | undefined, now: number): L
   if (!cls || !ce || !resultShowing(cls, now)) return null;
   const def = eventsById[ce.id];
   if (!def) return null;
-  const shape = shapeOf(def);
-  if (shape !== 'quiz' && shape !== 'decision') return null;
+  const shape = shapeOf(def, ce.short);
+  if (shape !== 'quiz' && shape !== 'decision' && shape !== 'vote') return null;
   return { id: ce.id, def, shape, short: ce.short, blocking: isBlocking(def, ce.short), revealed: true };
 }
 
@@ -64,7 +68,7 @@ export function resultEvent(cls: PublicClass | null | undefined, now: number): L
 export function hasDone(me: MeView, id: string): boolean {
   const def = eventsById[id];
   if (!def) return false;
-  if (def.kind === 'checkQuiz') {
+  if (def.kind === 'checkQuiz' && me.game.responses[id] === undefined) {
     const qs = checkQuizFor(def.lesson);
     return qs.length > 0 && qs.every((q) => me.game.checkQuiz[q.id] !== undefined);
   }

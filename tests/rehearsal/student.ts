@@ -27,6 +27,10 @@ export interface StudentProbe {
   card: string | null;
   cardConfirmEnabled: boolean;
   decision: boolean;
+  /** (작업 172) 교과서 속 기사(밑줄 → [다 읽었어요 · 고르러 가기]) */
+  article: boolean;
+  /** (작업 172) 투표 공통 카드 버튼 */
+  vote: boolean;
   quiz: boolean;
   worksheet: boolean;
   worksheetDuring: boolean;
@@ -81,7 +85,7 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
         return true;
       };
       const v = (id: string) => vis(q(`[data-testid="${id}"]`));
-      const card = [...document.querySelectorAll('[data-testid="event-card"],[data-testid="decision-card"],[data-testid="quiz-card"]')].find(vis) as HTMLElement | undefined;
+      const card = [...document.querySelectorAll('[data-testid="event-card"],[data-testid="decision-card"],[data-testid="quiz-card"],[data-testid="article-card"],[data-testid="vote-card"]')].find(vis) as HTMLElement | undefined;
       const conf = [...document.querySelectorAll('[data-testid="card-confirm"]')].find(vis) as HTMLButtonElement | undefined;
       const mg = q('[data-testid="minigame"]');
       const ws = q('[data-testid="worksheet-popup"]');
@@ -149,6 +153,8 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
         cardConfirmEnabled: Boolean(conf && !conf.disabled),
         decision: Boolean([...document.querySelectorAll('[data-testid^="decision-opt-"]')].find((e) => vis(e) && !(e as HTMLButtonElement).disabled && e.tagName === 'BUTTON')),
         quiz: Boolean([...document.querySelectorAll('[data-testid="quiz-q"]')].find((e) => vis(e) && !e.getAttribute('data-result'))),
+        article: v('article-done'),
+        vote: Boolean([...document.querySelectorAll('[data-testid="vote-card"] button[data-testid^="vote-"]')].find((e) => vis(e) && !(e as HTMLButtonElement).disabled)),
         worksheet: vis(ws),
         worksheetDuring: ws?.getAttribute('data-during') === '1',
         worksheetDone: v('worksheet-done'),
@@ -188,7 +194,7 @@ export async function probeStudent(p: Page): Promise<StudentProbe | null> {
 /** 지금 학생이 '할 일'이 화면에 떠 있는가(활동·카드·팝업·편지·따라잡기) */
 export function hasTask(pr: StudentProbe): boolean {
   // 편지는 아이콘이 실제로 눌릴 때만 할 일(수정 1)
-  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable));
+  return Boolean(pr.minigame || pr.cardConfirmEnabled || pr.decision || pr.article || pr.vote || pr.quiz || (pr.worksheet && pr.worksheetDone) || pr.catchup || pr.founding || (pr.letters > 0 && pr.lettersClickable));
 }
 
 /** 라운드 중 거래·출항에 쓸 수 있는 조작이 '보이고 실제로 눌리는가'(수정 1: 투명 층·남은 층·pointer-events:none이 덮으면 아님). readyNote = 이미 출항 준비함 */
@@ -365,6 +371,24 @@ export async function studentStep(p: Page, pr: StudentProbe, o: BrainOpts, mem: 
       else if (await p.getByTestId('minigame-finish').isVisible().catch(() => false)) await click('minigame-finish');
       else await p.getByTestId('minigame-close').click({ timeout: 2000 });
       return `minigame ${pr.minigame}`;
+    }
+    // (작업 172) 교과서 속 기사: 문장 하나 밑줄 → [다 읽었어요 · 고르러 가기]
+    if (pr.article) {
+      if (later(`art${pr.card}`, 20_000)) return null;
+      const sents = p.locator('[data-testid="article-card"] [data-testid="article-sentence"]:visible');
+      if ((await sents.count()) > 0) await clickLoc('article-sentence', sents.nth(Math.floor(o.rand() * (await sents.count()))));
+      await click('article-done');
+      return 'article';
+    }
+    // (작업 172) 투표 공통 카드: 두 버튼 중 하나
+    if (pr.vote) {
+      if (later(`vote${pr.card}`, 15_000)) return null;
+      const btns = p.locator('[data-testid="vote-card"] button[data-testid^="vote-"]:visible');
+      const n = await btns.count();
+      if (n > 0) {
+        await clickLoc('vote', btns.nth(Math.floor(o.rand() * n)));
+        return 'vote';
+      }
     }
     if (pr.decision) {
       if (later(`dec${pr.card ?? pr.eventPanel}`, 25_000)) return null;

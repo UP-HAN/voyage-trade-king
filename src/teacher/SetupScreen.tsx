@@ -13,7 +13,7 @@ import { syncMode } from '../config/deploy';
 import { tradeWorksheets, type ItemForm, type SchedulePreview } from '../core';
 import { leaderboardRules } from '../data/awards';
 import { fairTradeText } from '../data/fairTrade';
-import { LESSON_PART_TEXT, LESSON_PARTS, lessonPartRules, type LessonPart } from '../data/lessonParts';
+import { LESSON_PARTS, lessonPartRules, lessonPartText, type LessonPart } from '../data/lessonParts';
 import { activityRatio as RATIO, lessonCards, playUnits, tradeMinutes as TRADE_MINUTES, worksheetModes, type WorksheetMode } from '../data/schedule';
 import type { LessonId } from '../data/types';
 import { NoticeBanner } from '../ui/common/NoticeBanner';
@@ -35,6 +35,8 @@ import {
   savePrefs,
   freeVoyageAvailable,
   lessonPartAvailable,
+  phoneFullMinutes,
+  phoneMinMinutes,
   lessonPartOf,
   VOYAGE_MODE_SHORT,
   VOYAGE_MODE_TEXT,
@@ -172,7 +174,7 @@ function PreviewPanel({
     <div class="t-preview" data-testid="preview">
       {lessonPartAvailable(values) && (
         <p class="t-preview__part" data-testid="preview-part" data-part={values.lessonPart}>
-          {LESSON_PART_TEXT[values.lessonPart].preview}
+          {lessonPartText(values.lesson, values.lessonPart).preview}
         </p>
       )}
       {order && (
@@ -309,6 +311,10 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
   const lessonStep = values.playUnit === 'lesson';
   // (작업 154) 2차시면 ③ 어느 시간 내용을 할까요? 가 끼어 번호가 하나씩 밀린다
   const partStep = lessonPartAvailable(values);
+  // (작업 172) 3차시: 스마트폰이 들어가는 가장 짧은 무역 시간(실제 배치 계산)
+  // (172 검증 반영) 두 시간 모두: 스마트폰이 전체 형태가 되는 무역 시간
+  const phoneFull = useMemo(() => (values.playUnit === 'lesson' && values.lesson === 'L3' && values.lessonPart === 'all' ? phoneFullMinutes('all', { activityRatio: values.activityRatio, worksheetMode: values.worksheetMode }) : null), [values.playUnit, values.lesson, values.lessonPart, values.activityRatio, values.worksheetMode]);
+  const phoneHint = useMemo(() => (values.playUnit === 'lesson' && values.lesson === 'L3' ? phoneMinMinutes(values.lessonPart, { activityRatio: values.activityRatio, worksheetMode: values.worksheetMode }) : null), [values.playUnit, values.lesson, values.lessonPart, values.activityRatio, values.worksheetMode]);
   const nPart = nums[2];
   const nTime = nums[(lessonStep ? 2 : 1) + (partStep ? 1 : 0)];
   const nClass = nums[(lessonStep ? 3 : 2) + (partStep ? 1 : 0)];
@@ -513,8 +519,8 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
                         aria-pressed={values.lessonPart === part}
                         onClick={() => set({ lessonPart: part, overrides: {} })}
                       >
-                        <b>{LESSON_PART_TEXT[part].title}</b>
-                        <span class="t-lesson__pages">{LESSON_PART_TEXT[part].sub}</span>
+                        <b>{lessonPartText(values.lesson, part).title}</b>
+                        <span class="t-lesson__pages">{lessonPartText(values.lesson, part).sub}</span>
                       </button>
                     ))}
                   </div>
@@ -523,6 +529,16 @@ export function SetupScreen({ values, onChange, rooms, opening, openError, onOpe
               {values.lesson === 'L2' && values.tradeMinutes < 25 && values.lessonPart !== 'back' && (
                 <p class="t-note" data-testid="lesson2-time-hint">
                   2차시는 무역 25분 이상을 권해요. 라운드가 3개 이상이어야 공장에서 만든 상품을 수출하고 세관 게시판을 채울 시간이 넉넉해요.
+                </p>
+              )}
+              {values.lesson === 'L3' && phoneHint !== null && values.tradeMinutes < phoneHint && (
+                <p class="t-note" data-testid="lesson3-time-hint">
+                  3차시{values.lessonPart === 'front' ? ' 앞 시간' : ''}은 무역 {phoneHint}분 이상을 권해요. 라운드가 2개 이상이어야 '우리 반 스마트폰' 활동이 들어가요.
+                </p>
+              )}
+              {values.lesson === 'L3' && values.lessonPart === 'all' && phoneFull !== null && values.tradeMinutes < phoneFull && (
+                <p class="t-note" data-testid="lesson3-all-phone-hint">
+                  두 시간 모두 판은 무역 {phoneFull}분 이상이어야 '우리 반 스마트폰'이 전체 형태로 들어가요. 그보다 짧으면 대개 짧은 형태(필요 부품 수 절반)예요.
                 </p>
               )}
             </>

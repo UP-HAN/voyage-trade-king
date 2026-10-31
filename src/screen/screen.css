@@ -409,3 +409,29 @@
 /* (작업 176) 같은 거래 반복 — TV 해도 띠(이름 없음), 항해 규칙 아래 한 줄 */
 .scr-map__news { margin: calc(var(--u) * 0.4) 0 0; padding: calc(var(--u) * 0.3) calc(var(--u) * 0.8); border-radius: calc(var(--u) * 0.5); background: rgba(31, 78, 107, 0.85); color: #f6efdc; font-size: calc(var(--u) * 1.4); }
 .scr-rules__fair { margin: calc(var(--u) * 1) 0 0; font-size: calc(var(--u) * 1.6); text-align: center; }
+
+/* (작업 172) L3-E5 우리 반 스마트폰 결과 + 경제 게이지, 라운드 중 부품 띠 */
+/* (172 검증 반영) 어두운 남색 TV 배경 위 밝은 초록 — 대비 4.5:1 이상 */
+.scr-phone__title.is-done { color: #8fd6a3; }
+.scr-phone__parts, .scr-gauge { width: 100%; display: grid; grid-template-columns: max-content 1fr max-content; align-items: center; gap: calc(var(--u) * 0.6) calc(var(--u) * 1.2); }
+.scr-gauge > .scr-gauge__h, .scr-gauge > .scr-gauge__steps, .scr-gauge > .scr-lead { grid-column: 1 / -1; }
+.scr-gauge__h { margin: 0; font-family: var(--font-title); font-size: var(--scr-body); color: var(--ink); }
+.scr-gauge__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 0.8); margin: 0; padding: 0; list-style: none; font-size: var(--scr-body); }
+.scr-gauge__steps li { padding: calc(var(--u) * 0.6); border-radius: 10px; border: 2px solid var(--brass); opacity: 0.55; }
+.scr-gauge__steps li.is-on { opacity: 1; background: rgba(61, 139, 90, 0.18); }
+.scr-phone__build { display: flex; justify-content: center; margin: calc(var(--u) * 0.5) 0; }
+.scr-phone__device { display: block; width: calc(var(--u) * 6); height: calc(var(--u) * 11); border-radius: calc(var(--u) * 1); background: #2b3440; padding: calc(var(--u) * 0.5); animation: scr-phone-in 1.2s ease-out both; }
+.scr-phone__screen { display: block; width: 100%; height: 100%; border-radius: calc(var(--u) * 0.6); background: linear-gradient(160deg, #7fc4e8, #2f7d9c); }
+@keyframes scr-phone-in { from { transform: translateY(30%) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scr-phone__device { animation: none; } }
+.scr-phone-band { position: absolute; left: 50%; bottom: calc(var(--u) * 1); transform: translateX(-50%); display: flex; flex-wrap: wrap; gap: calc(var(--u) * 0.6) calc(var(--u) * 1.2); padding: calc(var(--u) * 0.5) calc(var(--u) * 1.2); border-radius: 12px; background: rgba(255, 250, 238, 0.92); font-size: calc(var(--scr-body) * 0.8); }
+.scr-phone-band__k { font-weight: 700; }
+.scr-phone-band__part.is-done { color: #2f6e45; font-weight: 700; }
+.scr-bars__result { font-weight: 700; }
+
+.scr-phone__cols { width: 100%; display: grid; gap: calc(var(--u) * 1.5); }
+.scr-phone__cols.is-two { grid-template-columns: 1fr 1fr; align-items: start; }
+.scr-phone__left { display: grid; gap: calc(var(--u) * 0.8); justify-items: center; }
+.scr-phone__cols.is-two .scr-h1 { font-size: calc(var(--scr-body) * 1.15); }
+.scr-phone__cols.is-two .scr-gauge__steps { grid-template-columns: 1fr 1fr; }
+.scr-gauge > .scr-lead { color: var(--ink); font-size: calc(var(--scr-body) * 0.85); }

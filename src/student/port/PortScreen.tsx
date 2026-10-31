@@ -56,6 +56,8 @@ import {
 } from './market';
 import { helperLine } from '../../core/worksheet-helpers';
 import { factoryCards, factoryOpen, type FactoryCard } from './factory';
+import { assemblyOpen, assemblyRows, type AssemblyRow } from './assembly';
+import { PHONE_TEXT } from '../../data/phone';
 import { PortScene, PortStory } from './PortCard';
 import { ContractIcon, FlameIcon, GoodIcon } from './PortIcons';
 import './port.css';
@@ -83,7 +85,7 @@ export interface PortScreenProps {
   onBack: () => void;
 }
 
-type Tab = 'market' | 'factory' | 'story';
+type Tab = 'market' | 'factory' | 'assembly' | 'story';
 
 function Stepper({
   value,
@@ -367,6 +369,43 @@ function SaleResult({ sale, port, onDone }: { sale: SaleSummary & { id: number }
   );
 }
 
+/** (작업 172) 조립장 부품 카드 한 장 */
+function AssemblyCardView({ r, qty, setQty, trading, onPut }: { r: AssemblyRow; qty: number; setQty: (n: number) => void; trading: boolean; onPut: () => void }) {
+  const q = Math.min(Math.max(1, qty), Math.max(1, r.max));
+  const off = !trading || r.max === 0;
+  const pct = r.need > 0 ? Math.round((Math.min(r.have, r.need) / r.need) * 100) : 0;
+  return (
+    <div class={`pt-card pt-asm${r.mine ? ' is-mine' : ''}${r.max === 0 ? ' is-off' : ''}`} data-testid={`part-${r.good}`} data-part={r.good} data-max={r.max} data-have={r.have} data-need={r.need}>
+      <div class="pt-asm__head">
+        <GoodIcon good={r.good} size={36} />
+        <strong>{r.name}</strong>
+        {r.mine && <span class="st-tag pt-asm__mine">우리 팀</span>}
+        <span class="pt-asm__count" data-testid="part-count">
+          {Math.min(r.have, r.need)}/{r.need}
+        </span>
+      </div>
+      <span class="pt-asm__bar" aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      <p class="pt-asm__where">
+        {r.where} · 가진 것 {r.held}
+        {r.service ? '계약' : '상자'} · 1{r.service ? '계약' : '상자'}에 {formatMoney(r.reward)}
+      </p>
+      {r.reason && (
+        <p class="pt-card__reason" data-testid="part-reason">
+          {r.reason}
+        </p>
+      )}
+      <div class="pt-card__act">
+        <Stepper value={q} max={Math.max(1, r.max)} disabled={off} onChange={setQty} testId={`put-${r.good}`} unit={r.service ? '계약' : '상자'} />
+        <button type="button" class="btn btn--primary pt-card__btn" disabled={off} data-testid={`put-${r.good}`} onClick={onPut}>
+          넣기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** (작업 115) 공장 레시피 카드: 재료 → 공장 → 상품 3칸 컨베이어 */
 function FactoryCardView({ c, qty, setQty, trading, onMake }: { c: FactoryCard; qty: number; setQty: (n: number) => void; trading: boolean; onMake: () => void }) {
   const q = Math.min(Math.max(1, qty), Math.max(1, c.max));
@@ -496,7 +535,10 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
   const setQ = (k: string, n: number) => setQtyMap({ ...qty, [k]: n });
   const hasFactory = factoryOpen(cs, player);
   const facCards = hasFactory ? factoryCards(cs, player) : [];
-  const shownTab: Tab = tab === 'factory' && !hasFactory ? 'market' : tab;
+  // (작업 172) 부산 [조립장](학급 스마트폰 프로젝트가 시작된 판)
+  const hasAssembly = assemblyOpen(cs, player);
+  const asmRows = hasAssembly ? assemblyRows(cs, player) : [];
+  const shownTab: Tab = (tab === 'factory' && !hasFactory) || (tab === 'assembly' && !hasAssembly) ? 'market' : tab;
   const focusCard = sells.find((c) => c.good === focus && !c.reason) ?? sells.find((c) => !c.reason) ?? null;
 
   /** 거래 보내기: 미리 계산으로 결과 이벤트를 얻고 보낸다. 보내졌으면 이벤트, 아니면 null */
@@ -548,6 +590,16 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
     store.toast(`${goodsById[c.good].name} ${n}${c.service ? '계약' : '상자'}를 샀어요`, 'info');
   };
 
+  const doPut = (r: AssemblyRow) => {
+    const n = Math.min(Math.max(1, qOf(`p:${r.good}`)), r.max);
+    const events = send({ type: 'depositPart', good: r.good, qty: n });
+    if (!events) return;
+    setQ(`p:${r.good}`, 1);
+    const ev = events.find((e) => e.type === 'partDeposited');
+    const coop = ev && ev.type === 'partDeposited' ? ev.coop : 0;
+    store.toast(`${r.name} ${n}${r.service ? '계약' : '상자'}를 조립장에 넣었어요${coop ? ` · 협력 +${coop}` : ''}`, 'info');
+  };
+
   const doMake = (c: FactoryCard) => {
     const n = Math.min(Math.max(1, qOf(`m:${c.id}`)), c.max);
     const events = send({ type: 'produce', recipe: c.id, qty: n });
@@ -575,6 +627,11 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
                 공장
               </button>
             )}
+            {hasAssembly && (
+              <button type="button" role="tab" aria-selected={shownTab === 'assembly'} class={`pt-tab${shownTab === 'assembly' ? ' is-on' : ''}`} data-testid="tab-assembly" onClick={() => setTab('assembly')}>
+                조립장
+              </button>
+            )}
             <button type="button" role="tab" aria-selected={shownTab === 'story'} class={`pt-tab${shownTab === 'story' ? ' is-on' : ''}`} data-testid="tab-story" onClick={() => setTab('story')}>
               이야기
             </button>
@@ -594,6 +651,33 @@ export function PortScreen({ store, st, onBack }: PortScreenProps) {
       {shownTab === 'story' ? (
         <div class="pt-body pt-body--story">
           <PortStory port={port.id} />
+        </div>
+      ) : shownTab === 'assembly' ? (
+        <div class="pt-body" data-testid="assembly">
+          <section class="pt-sec" aria-labelledby="pt-asm-h">
+            <div class="pt-sec__head">
+              <h2 id="pt-asm-h" class="pt-sec__title title-font">
+                부산 조립장 · 우리 반 스마트폰
+              </h2>
+              <span class="pt-sec__help">여러 나라에서 가져온 부품을 한데 모아 스마트폰을 만들어요. 넣은 부품은 팔리는 것이 아니라 학급 스마트폰에 쓰여요.</span>
+              <span class="st-tag pt-rule-tag" title="부품 수·보상은 게임 설정이에요(교과서 106쪽)">
+                게임 규칙
+              </span>
+            </div>
+            {cls.phone?.completedRound != null && (
+              <p class="pt-asm__done" data-testid="assembly-complete">
+                {PHONE_TEXT.complete} {PHONE_TEXT.end}
+              </p>
+            )}
+            <div class="pt-grid" data-testid="part-list">
+              {asmRows.map((r) => (
+                <AssemblyCardView key={r.good} r={r} qty={qOf(`p:${r.good}`)} setQty={(n) => setQ(`p:${r.good}`, n)} trading={trading} onPut={() => doPut(r)} />
+              ))}
+            </div>
+            <p class="pt-limit" data-testid="assembly-rule">
+              <span class="st-tag pt-rule-tag">게임 규칙</span> 한 사람은 한 부품에 2상자까지 넣어요. 우리 팀 부품은 1상자에 협력 +2, 다른 팀 부품을 넣어 도우면 1상자에 협력 +5(부품으로 받는 협력은 모두 +20까지). 부품이 모두 모이면 모두 협력 +20, 자금 +50만 원.
+            </p>
+          </section>
         </div>
       ) : shownTab === 'factory' ? (
         <div class="pt-body" data-testid="factory">

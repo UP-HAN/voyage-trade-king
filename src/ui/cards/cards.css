@@ -556,3 +556,24 @@ button.vc__q-choice {
 .vc--panel .vc__options {
   grid-template-columns: 1fr;
 }
+
+/* ─── (작업 172) 투표 공통 카드 · AI 시장 그래프 · 기사 밑줄 정답 표시 ─── */
+.vc__vote-q { font-weight: 700; }
+.vc__vote-btns { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
+.vc__vote-btn { min-width: 120px; min-height: 52px; font-size: 1.1em; }
+.vc__vote-result { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(30, 90, 140, 0.1); font-weight: 700; }
+.vc__vote-secret { margin: 8px 0 0; font-size: 0.85em; opacity: 0.75; }
+.vc--screen .vc__vote-btn { display: none; }
+.vc-graph { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(80, 60, 30, 0.2); }
+.vc-graph__cap { font-weight: 700; margin-bottom: 6px; }
+.vc-graph__bars { display: flex; align-items: flex-end; gap: 18px; height: 140px; padding: 0 6px; }
+.vc-graph--small .vc-graph__bars { height: 80px; }
+.vc-graph__col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.vc-graph__bar { width: 70%; min-height: 4px; border-radius: 6px 6px 0 0; background: #2f7d9c; }
+.vc-graph__val { font-size: 0.85em; font-weight: 700; }
+.vc-graph__year { font-size: 0.85em; }
+.vc-graph__src { margin: 6px 0 0; font-size: 0.75em; opacity: 0.75; }
+.vc--screen .vc-graph__bars { height: 220px; }
+.vc__sentence.is-target { outline: 2px dashed rgba(200, 120, 20, 0.7); outline-offset: 2px; }
+.vc__article-help { margin: 8px 0; font-size: 0.95em; }
+.vc__targets { margin: 6px 0 0; padding-left: 1.2em; font-size: 0.9em; }

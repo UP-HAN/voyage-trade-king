@@ -27,11 +27,18 @@ export interface Timed<T> {
 }
 
 export interface Scenario {
-  id: 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+  id: 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'g2';
   title: string;
   unit: boolean;
   /** (작업 115) 차시 한 판의 차시(없으면 1차시) */
-  lesson?: 'L1' | 'L2';
+  lesson?: 'L1' | 'L2' | 'L3';
+  /** (작업 172) 나눠 고르기가 있는 차시의 [앞 시간/뒤 시간/두 시간 모두](없으면 판 설정 기본 '앞 시간') */
+  lessonPart?: 'front' | 'back' | 'all';
+  /**
+   * (작업 172) 기능 플래그(LESSON_READY)로 아직 닫힌 차시를 개발용 열쇠(localStorage)로 이 교사 브라우저에서만 연다.
+   * preview 와 달리 거절 응답을 '준비 중 기능(참고)'으로 낮추지 않는다(그 차시를 본편처럼 검사)
+   */
+  unlock?: { devKey: string; why: string };
   minutes: number;
   manual: boolean;
   /** (보완 1) 기능 플래그로 꺼 둔 준비 중 기능을 개발용 열쇠(localStorage)로 열어 돌리는 시나리오 — L2~L4 미구현 때문에 생긴 것은 '준비 중 기능(참고)'로 */
@@ -133,6 +140,8 @@ export const SCENARIOS: Scenario[] = [
     title: '차시 2차시 25분 자동(늦은 입장·새로 고침·라운드 끝)',
     unit: false,
     lesson: 'L2',
+    // (작업 172) 2차시 나눠 고르기 — 판 설정 기본(앞 시간)을 밝혀 둔다
+    lessonPart: 'front',
     minutes: 25,
     manual: false,
     teacher: [{ at: 0.45, phase: 'round', do: { op: 'endRound' } }],
@@ -148,6 +157,44 @@ export const SCENARIOS: Scenario[] = [
       { at: 0.55, do: { op: 'botDrop', seat: 8, backAfterSec: 30 } },
       { at: 0.62, do: { op: 'refresh', student: 1 } },
       { at: 0.7, do: { op: 'botDrop', seat: 12, backAfterSec: 60 } },
+    ],
+  },
+  {
+    // (작업 172) 3차시 앞 시간 — 광물 협력 기사·결정, 우리 반 스마트폰(부품 팀·조립장·결과), 학습지 ⑨⑩
+    id: 'g',
+    title: '차시 3차시 앞 시간 25분 자동(늦은 입장·새로 고침·라운드 끝)',
+    unit: false,
+    lesson: 'L3',
+    lessonPart: 'front',
+    unlock: { devKey: 'voyage.dev.fullUnit', why: '3차시는 verifier PASS 전까지 LESSON_READY.L3=false(src/data/schedule.ts)' },
+    minutes: 25,
+    manual: false,
+    teacher: [{ at: 0.45, phase: 'round', do: { op: 'endRound' } }],
+    crowd: [
+      { at: 0.15, do: { op: 'lateJoin', seats: [24] } },
+      { at: 0.2, phase: 'round', do: { op: 'refresh', student: 2 } },
+      { at: 0.4, do: { op: 'botDrop', seat: 9, backAfterSec: 40 } },
+      { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
+      { at: 0.35, do: { op: 'refresh', student: 1 } },
+      { at: 0.6, do: { op: 'botDrop', seat: 8, backAfterSec: 30 } },
+    ],
+  },
+  {
+    // (작업 172) 3차시 뒤 시간 — AI 기술 경쟁(비공개 연구비), 자동화 항만 투표, 경제 게이지, 경쟁 세 가지 카드, 학습지 ⑪⑫
+    id: 'g2',
+    title: '차시 3차시 뒤 시간 25분 자동(늦은 입장·새로 고침·사건 마감)',
+    unit: false,
+    lesson: 'L3',
+    lessonPart: 'back',
+    unlock: { devKey: 'voyage.dev.fullUnit', why: '3차시는 verifier PASS 전까지 LESSON_READY.L3=false(src/data/schedule.ts)' },
+    minutes: 25,
+    manual: false,
+    teacher: [{ at: 0.3, phase: 'round', do: { op: 'endRound' } }],
+    crowd: [
+      { at: 0.15, do: { op: 'lateJoin', seats: [24] } },
+      { at: 0.25, phase: 'round', do: { op: 'refresh', student: 3 } },
+      { at: 0.45, do: { op: 'botDrop', seat: 10, backAfterSec: 40 } },
+      { at: 0.5, do: { op: 'lateJoin', seats: [25] } },
     ],
   },
 ];

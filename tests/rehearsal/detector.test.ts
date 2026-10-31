@@ -15,6 +15,7 @@ describe('리허설 탐지기(작업 135)', () => {
   it('라운드 안내 글을 알아본다(134 예정 문구 포함)', () => {
     expect(hasRoundGuidance('지금은 다 함께 활동하는 시간이에요 · 라운드 1까지 3:30')).toBe(true);
     expect(hasRoundGuidance('다음 라운드까지 0:45')).toBe(true);
+    expect(hasRoundGuidance('지금 활동이 끝나면 라운드 1이 열려요 · 라운드가 열리면 거래할 수 있어요')).toBe(true);
     expect(hasRoundGuidance('지도에서 항구를 눌러 바로 갈 수 있어요 · 선생님이 멈출 때까지 자유롭게 다녀요')).toBe(true); // (작업 153 추가)
     expect(hasRoundGuidance('선생님이 시작하면 라운드가 열려요')).toBe(true);
     expect(hasRoundGuidance('선생님 활동이 끝나면 이어서 해요')).toBe(false);

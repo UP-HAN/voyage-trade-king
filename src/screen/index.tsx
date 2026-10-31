@@ -40,7 +40,7 @@ export function hashParam(hash: string, name: string): string | null {
 }
 
 /** 멈춤 중에도 TV에 그대로 두는 '설명할 수 있는' 장면 */
-export const PAUSE_EXPLAIN_SCENES: ReadonlySet<string> = new Set(['cover', 'summary', 'event', 'bars', 'customs', 'worksheet']);
+export const PAUSE_EXPLAIN_SCENES: ReadonlySet<string> = new Set(['cover', 'summary', 'event', 'bars', 'customs', 'phone', 'worksheet']);
 
 /** '자동'이면 확장 고르기(115~118) → 기본 규칙 */
 export function resolveScene(d: ScreenData, now: number): string {

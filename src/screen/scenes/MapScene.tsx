@@ -8,6 +8,7 @@ import { flagHex } from '../../ui/common/FlagIcon';
 import type { OtherShip } from '../../ui/map/ships';
 import { WorldMap } from '../../ui/map/WorldMap';
 import { roundRemainingSec } from '../model';
+import { PhoneBand } from './PhoneScene';
 import type { SceneProps } from './types';
 
 export function MapScene({ d, now }: SceneProps) {
@@ -50,6 +51,8 @@ export function MapScene({ d, now }: SceneProps) {
           </p>
         )}
       </div>
+      {/* (작업 172) 학급 스마트폰 부품 진행(라운드 중) */}
+      <PhoneBand d={d} />
     </div>
   );
 }

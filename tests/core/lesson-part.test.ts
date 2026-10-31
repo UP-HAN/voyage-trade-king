@@ -55,7 +55,9 @@ describe('설정 lessonPart(v0.3.9)', () => {
     expect(lessonPartRules('lesson', ['L2'], undefined)?.part).toBe('all');
     expect(lessonPartRules('unit', ['L1', 'L2', 'L3', 'L4'], 'front')).toBeNull();
     expect(lessonPartRules('custom', ['L2'], 'front')).toBeNull();
-    expect(lessonPartRules('lesson', ['L3'], 'back')).toBeNull();
+    // (작업 172) 3차시도 나눠 고르기가 있다(lesson3 시험). 1·4차시는 규칙 없음
+    expect(lessonPartRules('lesson', ['L1'], 'front')).toBeNull();
+    expect(lessonPartRules('lesson', ['L4'], 'back')).toBeNull();
   });
 
   it('표지 덮어쓰기: 앞 시간·뒤 시간 제목, 두 시간 모두·단원 한 판은 그대로', () => {
@@ -360,6 +362,78 @@ describe('수출국 4유형 임무(L2-E4) 시점(작업 168)', () => {
     for (const id of ['L2-E3', 'L2-E4', 'L2-E5']) {
       const it = at(sch, id)!;
       if (it.form !== 'dropped') expect(it.at, id).toBe(first.at);
+    }
+  });
+});
+
+// ─── (작업 172) 3차시 나눠 고르기 ───────────────────────────────
+
+describe('3차시 나눠 고르기(작업 172)', () => {
+  const L3_FRONT_ONLY = ['L3-01', 'L3-02', 'L3-05', 'L3-09', 'L3-10'];
+  const L3_BACK_ONLY = ['L3-03', 'L3-04', 'L3-06', 'L3-07', 'L3-08'];
+
+  it('규칙: 앞 시간 = 뒤 시간 활동·학습지·편지 뺌, 뒤 시간 = 앞 시간 것 뺌, 두 시간 모두 = 빼는 것 없음', () => {
+    expect(lessonPartRules('lesson', ['L3'], 'front')).toMatchObject({ dropEvents: ['L3-E3', 'L3-E4', 'L3-E6'], dropWorksheets: ['W11', 'W12'], dropLetters: L3_BACK_ONLY });
+    expect(lessonPartRules('lesson', ['L3'], 'back')).toMatchObject({ dropEvents: ['L3-E1', 'L3-E2'], dropWorksheets: ['W09', 'W10'], dropLetters: L3_FRONT_ONLY });
+    expect(lessonPartRules('lesson', ['L3'], 'all')).toMatchObject({ dropEvents: [], dropWorksheets: [], dropLetters: [] });
+    expect(lessonPartRules('lesson', ['L3'], undefined)?.part).toBe('all');
+  });
+
+  it('편지 은행(3차시 단독 10통): 난이도별 5문항 이상·합계 10 이상, 다른 시간 문항 없음', () => {
+    for (const [part, drop] of [['front', L3_BACK_ONLY], ['back', L3_FRONT_ONLY], ['all', []]] as const) {
+      const easy = letterBank('L3', 'easy', drop);
+      const normal = letterBank('L3', 'normal', drop);
+      expect(easy.length, `${part} easy`).toBeGreaterThanOrEqual(5);
+      expect(normal.length, `${part} normal`).toBeGreaterThanOrEqual(5);
+      expect(easy.length + normal.length, part).toBeGreaterThanOrEqual(10);
+      for (const q of [...easy, ...normal]) expect(drop as readonly string[]).not.toContain(q.id);
+      for (const q of [...easy, ...normal]) expect(q.pages.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('표지: 앞 시간 "서로 기대어 만들어요", 뒤 시간 "서로 겨뤄요", 두 시간 모두는 데이터 그대로. L3-E5 이름도 시간에 맞춤', () => {
+    const def = eventsById['L3-COVER']!;
+    const base = { playUnit: 'lesson', scope: ['L3'] as const };
+    expect(coverTextFor(def, { ...base, lessonPart: 'front' }).title).toBe('L3. 서로 기대어 만들어요');
+    expect(coverTextFor(def, { ...base, lessonPart: 'back' }).title).toBe('L3. 서로 겨뤄요');
+    expect(coverTextFor(def, { ...base, lessonPart: 'all' }).title).toBe(def.title);
+    expect(coverTextFor(eventsById['L3-E5']!, { ...base, lessonPart: 'front' }).title).toBe('우리 반 스마트폰 결과');
+    expect(coverTextFor(eventsById['L3-E5']!, { ...base, lessonPart: 'back' }).title).toBe('경제 게이지 — 수출이 늘어나면');
+    expect(coverTextFor(eventsById['L3-E5']!, { playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], lessonPart: 'front' }).title).toBe(eventsById['L3-E5']!.title);
+  });
+
+  it('배치표·오늘 순서 이름·미리보기: 다른 시간 활동이 없다(뒤 시간에 스마트폰 시작 L3-E2 없음, L3-E5는 경제 게이지 이름)', () => {
+    const back = buildSchedule({ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25, lessonPart: 'back' });
+    expect(back.items.some((it) => it.refId === 'L3-E2')).toBe(false);
+    expect(back.activities.some((a) => a.id === 'L3-E2')).toBe(false);
+    expect(back.items.find((it) => it.refId === 'L3-E5')?.title).toBe('경제 게이지 — 수출이 늘어나면');
+    const front = buildSchedule({ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25, lessonPart: 'front' });
+    expect(front.items.find((it) => it.refId === 'L3-E5')?.title).toBe('우리 반 스마트폰 결과');
+    expect(front.activities.find((a) => a.id === 'L3-E5')?.title).toBe('우리 반 스마트폰 결과');
+  });
+
+  it('늦게 온 학생 따라잡기에도 다른 시간 사건이 없다(발동하지 않았으므로) — 뒤 시간 판의 늦은 학생은 부품 팀이 없다', () => {
+    let s = startSession({ code: '1', playUnit: 'lesson', scope: ['L3'], seed: 3, now: 0, settings: { lessonPart: 'back' } });
+    s = hostReduce(s, { type: 'join', seat: 1, pid: 'p1', deviceToken: 'd1', companyName: '해오름', nameKey: '해오름' }, 0).snapshot;
+    s = teach(s, { type: 'startStage', stage: 'L3' });
+    s = teach(s, { type: 'closeEvent' });
+    s = teach(s, { type: 'fireEvent', id: 'L3-E3' });
+    s = hostReduce(s, { type: 'join', seat: 2, pid: 'p2', deviceToken: 'd2', companyName: '늦은배', nameKey: '늦은배' }, 2000).snapshot;
+    expect(s.class.firedEvents).not.toContain('L3-E1');
+    expect(s.class.firedEvents).not.toContain('L3-E2');
+    expect(player(s, 2).game.phone).toBeUndefined();
+    expect(player(s, 2).game.missions['M-PHONE']).toBeUndefined();
+  });
+
+  it('2차시 규칙 값은 그대로(작업 154·165·167·168)', () => {
+    expect(lessonPartRules('lesson', ['L2'], 'front')).toMatchObject({ lesson: 'L2', dropEvents: ['L2-E4', 'L2-E5', 'L2-E7'], customsBeforeLastRounds: 2, singapore: 'closed' });
+    expect(lessonPartRules('lesson', ['L2'], 'back')).toMatchObject({ dropEvents: ['L2-E2', 'L2-E3', 'L2-E6', 'L2-E7'], anchorOverride: { 'L2-E4': 'round:3' }, singapore: 'open' });
+    expect(lessonPartRules('lesson', ['L2'], 'all')).toMatchObject({ scheduleOnlyDrop: ['L2-E4', 'L2-E5'], fireAfterW06: ['L2-E4'], singapore: 'afterW06' });
+    for (const p of ['front', 'back', 'all'] as const) {
+      const r = lessonPartRules('lesson', ['L2'], p)!;
+      expect(r.forceShort ?? []).toEqual([]);
+      expect(r.hideGoods).toBeUndefined();
+      expect(r.titles).toBeUndefined();
     }
   });
 });

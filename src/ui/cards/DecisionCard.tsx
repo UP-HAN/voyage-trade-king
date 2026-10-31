@@ -48,7 +48,7 @@ export function DecisionCard({ model: m, size = 'student', panel, chosen, noResp
         )}
         {!done && m.ask.length > 0 && <p class="vc__ask">{m.ask.join(' ')}</p>}
         {!done && (
-          <div class="vc__options" role={interactive ? 'radiogroup' : undefined} aria-label="선택지" data-testid="decision-options">
+          <div class="vc__options" role={interactive ? 'radiogroup' : undefined} aria-label="고르기" data-testid="decision-options">
             {m.options.map((o) => {
               const on = pick === o.id;
               const inner = (
@@ -101,7 +101,7 @@ export function DecisionCard({ model: m, size = 'student', panel, chosen, noResp
         {interactive && (
           <>
             <label class="vc__reason">
-              <span>까닭 쓰기(선택)</span>
+              <span>까닭 쓰기(쓰고 싶으면)</span>
               <input
                 type="text"
                 maxLength={REASON_MAX}
@@ -130,7 +130,7 @@ export function DecisionCard({ model: m, size = 'student', panel, chosen, noResp
         {done && (
           <div class="vc__chosen" data-testid="decision-chosen" data-choice={chosen ?? ''}>
             <p class="vc__chosen-label">
-              {noResponse ? '응답 없음 — 기본 선택: ' : '내 선택: '}
+              {noResponse ? '응답 없음 — 저절로 고른 것: ' : '내가 고른 것: '}
               <b>{chosenOpt?.label ?? chosen}</b>
             </p>
             {chosenOpt?.after && <p class="vc__p">{chosenOpt.after}</p>}

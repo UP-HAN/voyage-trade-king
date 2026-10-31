@@ -18,6 +18,7 @@ import { applyLetterAnswer } from './letters';
 import { isPortClosed, quote, tariffForLot, voyageCostFor } from './market';
 import { grantDex, isForeignRaw, onBuy, onProduce, onSell } from './progress';
 import { afterSale, type FairSaleLot } from './fairTrade';
+import { depositPart, phoneOnGet } from './phone';
 import { canTrade, clone, fareDueOf, isFreeVoyage, isTrading, LESSON_ORDER, sailsThisRoundOf, spendable } from './state';
 import { arrive } from './voyage';
 import type { Action, ActionResult, CargoLot, ClassState, GameEvent, Player, StampKind } from './types';
@@ -126,6 +127,8 @@ function buy(cs: ClassState, p: Player, good: GoodId, qty: number, events: GameE
   events.push({ type: 'bought', good, qty, amount: cost });
   grantDex(p, `good:${good}`, events);
   onBuy(p, good, port, events);
+  // (작업 172) 우리 팀 스마트폰 부품을 샀으면 임무 1단계
+  phoneOnGet(p, good, events);
   p.game.log.push({ round: cs.round, stage: cs.stage, kind: 'buy', good, qty, port, amount: cost });
   return null;
 }
@@ -307,6 +310,7 @@ function produce(cs: ClassState, p: Player, recipeId: GoodId, qty: number, event
   }
   grantDex(p, `good:${recipeId}`, events);
   onProduce(p, usedForeignRaw, events);
+  phoneOnGet(p, recipeId, events);
   p.game.log.push({ round: cs.round, stage: cs.stage, kind: 'produce', good: recipeId, qty, port: 'BUS', amount: fee });
   return null;
 }
@@ -388,6 +392,10 @@ export function applyAction(cs: ClassState, player: Player, action: Action, ctx:
       break;
     case 'produce':
       error = produce(cs, p, action.recipe, action.qty, events);
+      break;
+    case 'depositPart':
+      // (작업 172) 학급 스마트폰 조립장 — 판매가 아니다(도장·수출액·관세·같은 거래 반복 셈 없음)
+      error = canTrade(cs) ? depositPart(cs, p, action.good, action.qty, events) : 'NOT_TRADING';
       break;
     case 'foundCompany': {
       if (!FLAG_COLOR_IDS.includes(action.color) || !FLAG_EMBLEM_IDS.includes(action.emblem) || !AVATAR_IDS.includes(action.avatar)) {

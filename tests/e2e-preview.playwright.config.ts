@@ -18,10 +18,12 @@ process.env.ROUNDSTART_E2E = '1';
 process.env.FIRSTTIME_E2E = '1';
 process.env.LESSON2_E2E = '1';
 process.env.FAIR_E2E = '1';
+// (작업 172) 3차시 판 끝에서 끝까지
+process.env.LESSON3_E2E = '1';
 
 export default defineConfig({
   testDir: '../e2e',
-  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time|lesson2-full|fair-trade)\.spec\.ts$/,
+  testMatch: /(lesson1-events|minigames-l1|worksheet-letters|student-port|round-start|teacher-first-time|lesson2-full|lesson3-full|fair-trade)\.spec\.ts$/,
   outputDir: '../test-results/e2e-preview',
   reporter: [['list']],
   fullyParallel: false,

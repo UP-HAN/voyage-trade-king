@@ -93,6 +93,8 @@ export interface ScheduleItem {
   blocking?: boolean;
   /** 활동 등급(사건 항목) */
   tier?: 1 | 2 | 3;
+  /** (작업 172) 나눠 고르기 규칙이 바꾼 활동 이름(교사 화면 — 없으면 사건 데이터 제목) */
+  title?: string;
 }
 
 /** 배치표 항목 형태 */
@@ -319,6 +321,20 @@ export interface ClassState {
   votes: Record<string, ClassVote>;
   /** 무역 시간이 끝났는가(편지 모두 만료) */
   tradeEnded: boolean;
+  /** (작업 172) 학급 스마트폰 프로젝트(L3-E2 발동 때 만듦 — 개인 자금·출석번호 없음). 옛 상태에는 없음 */
+  phone?: PhoneProject | null;
+}
+
+/** (작업 172) 학급 스마트폰 프로젝트(PRD 6.12.3, p.106) — 학급 상태(공개). 팀 배정은 학생 상태(`PlayerGame.phone`) */
+export interface PhoneProject {
+  /** 부품 → 필요 수량(발동 때 고정)·모인 수량 */
+  parts: Partial<Record<GoodId, { need: number; have: number }>>;
+  /** 발동 라운드 */
+  startedRound: number;
+  /** 짧은 형태(필요 수량 절반) */
+  half: boolean;
+  /** 모든 부품이 모인 라운드(아직이면 null) */
+  completedRound: number | null;
 }
 
 // ─── 학생 회사 상태 ───────────────────────────────────────
@@ -387,6 +403,20 @@ export interface PlayerEffects {
   chipPenaltyUntilRound: number | null;
   /** (작업 176) 같은 거래 반복 폭풍: 이 학생만, 이 항구에서 이 상품 판매 값 절반(이 라운드까지). 옛 상태에는 없음(= null) */
   storm?: StormEffect | null;
+  /** (작업 172) L3-E1 광물 협력에 함께함: 남은 판 동안 자카르타 니켈 사는 값 20% 싸게. 옛 상태에는 없음(= false) */
+  nickelDiscount?: boolean;
+}
+
+/** (작업 172) 학생 한 명의 스마트폰 프로젝트 기록(본인·교사만 봄) */
+export interface PlayerPhone {
+  /** 맡은 부품(부품 팀) */
+  team: GoodId;
+  /** 넣은 부품 상자 수(부품별) */
+  deposited: Partial<Record<GoodId, number>>;
+  /** 부품 넣기로 받은 협력 점수 합계(최대 phoneRules.coopMax) */
+  coop: number;
+  /** 우리 팀 부품을 처음 넣을 때 그 부품을 산 항구(공장 생산이면 'BUS') */
+  fromPort: PortId | null;
 }
 
 /** (작업 176) 개인 폭풍 효과 */
@@ -462,7 +492,7 @@ export interface LogEntry {
   round: number;
   stage: LessonId;
   /** (작업 161) 'resell' = 산 항구에서 산 값의 80%로 되팔기(PRD 6.5.5) — 학습지 도우미·'사고판 학생' 집계에 넣지 않는다 */
-  kind: 'buy' | 'sell' | 'resell' | 'produce' | 'voyage' | 'loan' | 'letter' | 'event';
+  kind: 'buy' | 'sell' | 'resell' | 'produce' | 'voyage' | 'loan' | 'letter' | 'event' | 'deposit';
   good?: GoodId;
   qty?: number;
   port?: PortId;
@@ -527,6 +557,8 @@ export interface PlayerGame {
   gullHints?: GullHintRecord[];
   /** (작업 176) 같은 거래 반복·다양한 무역 기록. 옛 상태에는 없음(normalizePlayer 가 채움) */
   fairTrade?: FairTradeState;
+  /** (작업 172) 스마트폰 프로젝트 부품 팀·넣은 부품. 3차시 L3-E2 전·옛 상태에는 없음 */
+  phone?: PlayerPhone;
 }
 
 /** (작업 160b) 학생이 받은 갈매기 힌트 한 개 */
@@ -645,6 +677,16 @@ export interface PublicState {
   customsBoard?: { imports: Partial<Record<GoodId, number>>; exports: Partial<Record<GoodId, number>> } | null;
   /** (작업 176) 이번 라운드에 누군가에게 폭풍이 지나갔다(TV 띠용 한 비트 — 누구인지·길·상품은 싣지 않음). 없으면 싣지 않음 */
   stormNews?: true;
+  /** (작업 172) 학급 스마트폰 프로젝트 진행(부품별 필요·모인 수량 + 부품 팀 회사 이름). 프로젝트가 없으면 싣지 않음 */
+  phone?: PublicPhone;
+  /** (작업 172) 경제 게이지: 3차시 학급 [수출] 판매액 ÷ 회사 수(만 원)와 칸 수(0~4). 범위에 3차시가 있고 게이지가 있는 판만 */
+  econGauge?: { avg: number; step: number };
+}
+
+/** (작업 172) 공개 스마트폰 프로젝트(출석번호·개인 자금 없음 — 회사 이름만) */
+export interface PublicPhone {
+  parts: { good: GoodId; need: number; have: number; team: string[] }[];
+  complete: boolean;
 }
 
 /** 방 전체에 보내는 학급 상태(교사 전용 필드 제외) */
@@ -671,6 +713,8 @@ export type Action =
   | { type: 'foundCompany'; color: string; emblem: string; avatar: string }
   /** 준비 단계 또는 이름이 막힌 뒤에만 */
   | { type: 'setCompanyName'; name: string }
+  /** (작업 172) 학급 스마트폰 프로젝트: 부산 [조립장]에 부품 넣기(판매 아님) */
+  | { type: 'depositPart'; good: GoodId; qty: number }
   | { type: 'answerLetter'; slotId: string; answer: Answer }
   | { type: 'answerCheckQuiz'; qid: string; answer: Answer }
   /** 결정·투표·미니게임 결과 */
@@ -785,7 +829,11 @@ export type GameEvent =
   /** (작업 176) 같은 거래 반복: 갈매기 예보·폭풍, 다양한 무역 보너스 */
   | { type: 'fairForecast'; route: string }
   | { type: 'fairStorm'; route: string; port: PortId; good: GoodId; untilRound: number }
-  | { type: 'fairBonus'; kind: 'ports' | 'goods'; step: number; amount: number };
+  | { type: 'fairBonus'; kind: 'ports' | 'goods'; step: number; amount: number }
+  /** (작업 172) 조립장에 부품을 넣음(amount = 받은 돈, coop = 받은 협력) */
+  | { type: 'partDeposited'; good: GoodId; qty: number; amount: number; coop: number }
+  /** (작업 172) 학급 스마트폰 완성(모두) */
+  | { type: 'phoneComplete'; money: number; coop: number };
 
 export interface ActionResult {
   player: Player;

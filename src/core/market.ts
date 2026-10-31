@@ -3,13 +3,14 @@
  *
  * - 항구 가격은 **학급 공통**이다: 같은 seed·구간·라운드면 어느 학생이 보든 같은 값(흔들림 ±5%, 시드 기반).
  *   학생 상태가 바꾸는 것은 '남은 한도'(이번 입항에 사고판 양·신속 통관)와 개인 효과 두 가지뿐이다:
- *   평판 하락(L4-E3: 인기 H → 보통 N 값), 기술 경쟁 뒤처짐(L3-E3: 반도체 판매가 −10%).
+ *   평판 하락(L4-E3: 인기 H → 보통 N 값), 기술 경쟁 뒤처짐(L3-E3: 반도체 판매가 −10%), (작업 172) 광물 협력(L3-E1: 자카르타 니켈 사는 값 −20%).
  * - 사건 효과(`activeEffects`)의 꼬리표 변경·가격 배수·관세·한도 배수를 반영한다.
  * - 공개되지 않은 구간의 상품, 열리지 않은 항구는 보이지 않는다(visible=false).
  */
 import { goodsById } from '../data/goods';
 import { marketByPort, marketTagLabels, priceMultipliers, PRICE_JITTER, tariffRate, tradeLimits } from '../data/market';
 import { fairTradeRules } from '../data/fairTrade';
+import { MINERAL_COOP } from '../data/phone';
 import { letterRewards } from '../data/letterSchedule';
 import { shipsById } from '../data/ships';
 import { voyageCost } from '../data/routes';
@@ -169,10 +170,15 @@ export function quote(cs: ClassState, player: Player, port: PortId, good: GoodId
   const st = g.effects.storm;
   const storm = cs.settings?.fairTrade !== false && sell !== null && !!st && st.port === port && st.good === good && cs.round <= st.untilRound;
   if (storm && sell !== null) sell = toPrice(sell * fairTradeRules.stormSellMul);
+  // (작업 172) L3-E1 광물 협력에 함께한 학생: 남은 판 동안 자카르타 니켈 사는 값 ×0.8(다른 항구·다른 상품은 그대로)
+  const buy = base.buy !== null && g.effects.nickelDiscount === true && port === MINERAL_COOP.discountPort && good === MINERAL_COOP.discountGood
+    ? toPrice(base.buy * MINERAL_COOP.discountMul)
+    : base.buy;
   const tag = base.tag;
   const labelOf = (t: QuoteTag | null): string => (t === null ? '' : t === 'domestic' ? marketTagLabels.domestic.text : marketTagLabels[t].text);
   return {
     ...base,
+    buy,
     sell,
     overLimitSell: sell === null ? null : toPrice(sell * tradeLimits.overLimitSellMultiplier),
     buyLeft: Math.max(0, buyLimit - bought),

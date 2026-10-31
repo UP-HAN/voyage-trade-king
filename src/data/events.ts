@@ -242,40 +242,88 @@ const L2_EVENTS: readonly GameEvent[] = [
 ];
 
 const L3_EVENTS: readonly GameEvent[] = [
+  // (작업 172) 3차시 본문 — 교과서 인용은 p.106~107 원문(docs/source/textbook-text.md)을 짧게. 효과 수치는 src/data/phone.ts [게임 설정]
   skeleton({
     id: 'L3-COVER', lesson: 'L3', kind: 'screen', required: true, trigger: { type: 'lessonStart' },
     title: 'L3. 서로 기대고 서로 겨뤄요 — 상호 의존과 경쟁', pages: [106], worksheetAfter: null,
     body: '여러 나라가 서로 기대고 겨루는 모습을 무역으로 만나 봐요.',
+    textbook: [{ pages: [106], note: '여러 나라의 우수한 물자를 한데 모아서 새로운 제품을 생산하기도 하고, 여러 나라가 각자 잘하는 분야를 중심으로 협력하여 사업을 진행하기도 합니다.' }],
     effects: [{ type: 'unlock', features: ['shipyard'] }], image: 'lessons/l3.png', isCover: true,
+    teacherPrompts: ['무역을 통해 세계 여러 나라는 어떻게 서로 기대고 겨룰까요?'],
     tier: 1, blocking: true, minutes: { full: 0.3, short: 0.3 }, shortForm: null, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
     id: 'L3-E1', lesson: 'L3', kind: 'article', required: true, title: '교과서 속 기사: 한국-인도네시아 핵심 광물 협력', pages: [106], worksheetAfter: 'W09',
+    body: '우리나라와 인도네시아가 핵심 광물 연구 개발 협력을 강화하기로 했어요. 인도네시아는 니켈이 풍부하고, 우리나라는 광물 탐사 기술이 뛰어나요. 우리 회사도 탐사 기술 지원에 함께할까요? 50만 원이 들고, 함께하면 자카르타에서 니켈을 20% 싸게 살 수 있어요. 함께할지 골라 보세요.',
+    textbook: [{ pages: [106], note: '여러 나라가 각자 잘하는 분야를 중심으로 협력하여 사업을 진행하기도 합니다.' }],
+    options: [
+      { id: 'join', label: '함께해요 (50만 원)', after: '두 나라가 잘하는 것으로 서로 도우면 둘 다 이익을 얻어요. 자카르타 니켈을 싸게 살 수 있어요.' },
+      { id: 'none', label: '이번에는 안 해요', after: '우리나라와 인도네시아는 서로 잘하는 것으로 협력해요.' },
+    ],
+    effects: [{ type: 'decision', ref: 'L3-E1' }, { type: 'dexCard', card: 'interdependence' }],
+    goal: { type: 'decide', ref: 'L3-E1' },
     needsResponse: true, catchUp: 'replay',
+    teacherPrompts: ['두 나라는 이 협력으로 각각 어떤 이익을 얻을까요?'],
     tier: 1, blocking: true, minutes: { full: 4, short: 0 }, shortForm: { blocking: false, note: '기사 2줄 요약 + 결정 패널(비차단)' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
     id: 'L3-E2', lesson: 'L3', kind: 'mission', required: false, trigger: { type: 'roundStart', round: 1 },
-    title: '학급 스마트폰 프로젝트 시작', pages: [106], worksheetAfter: null, catchUp: 'replay',
+    title: '우리 반 스마트폰 만들기', pages: [106], worksheetAfter: null, catchUp: 'replay',
+    body: '우리 반이 여러 나라의 부품을 모아 스마트폰을 만들어요. 출석번호 순서대로 부품 팀이 정해졌어요. 우리 팀 부품을 사거나 만들어서 부산 항구 [조립장]에 넣어요. 다른 팀 부품을 넣어 도와도 좋아요.',
+    textbook: [{ pages: [106], note: '여러 나라의 우수한 물자를 한데 모아서 새로운 제품을 생산하기도 합니다.' }],
+    effects: [{ type: 'mission', ref: 'M-PHONE' }],
+    gameRule: true,
+    teacherPrompts: ['스마트폰 한 대에는 어느 나라의 물자가 들어갈까요?'],
     tier: 2, priority: 1, blocking: false, minutes: { full: 0.5, short: 0.5 }, shortForm: { blocking: false, note: '필요 수량 절반' }, needsRounds: 2, anchor: 'round:1',
   }),
   skeleton({
     id: 'L3-E3', lesson: 'L3', kind: 'decision', required: true, title: '생성형 인공지능 기술 경쟁', pages: [107], worksheetAfter: null,
+    body: '더 나은 생성형 인공지능 제품을 만들려고 세계 여러 나라가 경쟁하고 있어요. 전 세계 생성형 인공지능 시장은 2023년 37억 달러에서 2028년 363억 달러로 커질 것으로 보여요. 우리 회사는 기술 연구에 얼마를 쓸까요? 다른 회사는 볼 수 없어요. 연구비를 골라 보세요.',
+    textbook: [{ pages: [107], note: '더 나은 품질의 생성형 인공지능 제품을 개발해서 세계 여러 나라에 수출하기 위한 각 나라의 경쟁이 치열해지고 있습니다.' }],
+    options: [
+      { id: '0', label: '0원' },
+      { id: '100', label: '100만 원' },
+      { id: '200', label: '200만 원' },
+      { id: '300', label: '300만 원' },
+    ],
+    effects: [{ type: 'dexCard', card: 'competition-tech' }],
     needsResponse: true, catchUp: 'replay',
+    teacherPrompts: ['나라들은 왜 첨단 기술을 먼저 개발하려고 경쟁할까요?'],
     tier: 1, blocking: true, minutes: { full: 3, short: 0 }, shortForm: { blocking: false, note: '그래프 작게 + 비공개 결정 패널(비차단, 60초)' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
-    id: 'L3-E4', lesson: 'L3', kind: 'vote', required: false, title: '부산 자동화 항만 투표', pages: [107], worksheetAfter: null,
+    id: 'L3-E4', lesson: 'L3', kind: 'vote', required: false, fake: true, title: '부산 자동화 항만 투표', pages: [107], worksheetAfter: null,
+    body: '상하이·싱가포르도 자동화 항만을 도입했대요. 자동화 항만이 있으면 배가 더 빨리 짐을 싣고 내릴 수 있어요. 모두 50만 원씩 모아 부산에 자동화 항만을 만들까요?',
+    textbook: [{ pages: [107], note: '세계 여러 나라는 자동화 항만 시스템을 도입하며 우수한 무역 환경을 갖추려고 경쟁합니다.' }],
+    options: [
+      { id: 'yes', label: '찬성' },
+      { id: 'no', label: '반대' },
+    ],
+    effects: [{ type: 'dexCard', card: 'competition-env' }],
     needsResponse: true,
+    teacherPrompts: ['부산항이 좋아지면 누가 이익일까?'],
     tier: 2, priority: 2, blocking: true, minutes: { full: 3, short: 1.5 }, shortForm: { blocking: true, note: '투표 + 결과만' }, needsRounds: 0, anchor: 'afterPrev',
   }),
   skeleton({
-    id: 'L3-E5', lesson: 'L3', kind: 'screen', required: false, title: '스마트폰 완성/결과 + 경제 게이지', pages: [106, 107], worksheetAfter: 'W10',
+    id: 'L3-E5', lesson: 'L3', kind: 'screen', required: false, title: '우리 반 스마트폰과 경제 게이지', pages: [106, 107], worksheetAfter: 'W10',
+    body: '우리 반이 모은 스마트폰 부품을 확인해요. 여러 나라의 우수한 물자를 한데 모아 새로운 제품을 만들어요. 수출이 늘어나면 산업이 성장하고 일자리와 소득이 늘어요.',
+    textbook: [
+      { pages: [106], note: '여러 나라의 우수한 물자를 한데 모아서 새로운 제품을 생산하기도 합니다.' },
+      { pages: [107], note: '수출이 늘어나면 더 많은 물자나 서비스를 생산해야 하므로 산업이 성장합니다. 이에 따라 일자리가 늘어나고 사람들의 소득도 증가하게 됩니다.' },
+    ],
+    teacherPrompts: ['스마트폰을 만드는 데 왜 우리 반 모두가 필요했을까요?', '수출이 늘어나면 우리 생활은 어떻게 달라질까요?'],
     tier: 2, priority: 1, blocking: true, minutes: { full: 3, short: 1 }, shortForm: { blocking: true, note: '결과 막대만' }, needsRounds: 2, anchor: 'stageEnd',
   }),
   skeleton({
-    id: 'L3-E6', lesson: 'L3', kind: 'checkQuiz', required: false, title: '경쟁 세 가지 카드 + 확인 퀴즈', pages: [107], worksheetAfter: ['W11', 'W12'],
-    effects: [{ type: 'checkQuiz', lesson: 'L3' }], needsResponse: true, catchUp: 'none',
+    id: 'L3-E6', lesson: 'L3', kind: 'checkQuiz', required: false, title: '경쟁 세 가지', pages: [107], worksheetAfter: ['W11', 'W12'],
+    body: '세계 여러 나라는 수출로 더 많은 이익을 얻으려고 여러 분야에서 서로 경쟁해요. ① 첨단 기술을 개발하기 위한 경쟁 ② 다른 나라에 필요한 시설을 건설하기 위한 경쟁 ③ 더 나은 무역 환경을 만들기 위한 경쟁',
+    textbook: [
+      { pages: [107], note: '더 나은 품질의 생성형 인공지능 제품을 개발해서 세계 여러 나라에 수출하기 위한 각 나라의 경쟁이 치열해지고 있습니다.' },
+      { pages: [107], note: '철도, 도로, 발전소 등 다른 나라의 주요 시설을 건설하기 위한 세계 여러 나라의 경쟁이 치열합니다.' },
+      { pages: [107], note: '세계 여러 나라는 자동화 항만 시스템을 도입하며 우수한 무역 환경을 갖추려고 경쟁합니다.' },
+    ],
+    effects: [{ type: 'checkQuiz', lesson: 'L3' }, { type: 'dexCard', card: 'competition-facility' }], needsResponse: true, catchUp: 'none',
+    teacherPrompts: ['우리나라 기업이 다른 나라에 다리를 지으면 무엇이 좋을까요?'],
     tier: 3, blocking: true, minutes: { full: 3, short: 1 }, shortForm: { blocking: true, note: '카드만' }, needsRounds: 0, anchor: 'stageEnd',
   }),
 ];

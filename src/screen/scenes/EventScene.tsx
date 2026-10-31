@@ -10,7 +10,9 @@
  */
 import { checkQuizFor } from '../../data/checkQuiz';
 import { eventsById } from '../../data/events';
-import { CheckQuizCard, CardQuoteBox, DecisionCard, EventCard, decisionModel, eventCardModel } from '../../ui/cards';
+import { AiGraph, ArticleCard, CheckQuizCard, CardQuoteBox, DecisionCard, EventCard, VoteCard, decisionModel, eventCardModel } from '../../ui/cards';
+import { textbookArticles } from '../../data/text';
+import { TECH_RACE } from '../../core';
 import { Bar } from '../parts';
 import { ConceptSlides, isConceptSlideEvent } from './ConceptSlides';
 import type { SceneProps } from './types';
@@ -44,7 +46,21 @@ export function EventScene({ d, now }: SceneProps) {
       </div>
     );
   }
-  if (def.kind === 'checkQuiz') {
+  if (def.kind === 'vote') {
+    // (작업 172) 투표 공통 카드(공용 화면): 질문 + "투표한 회사 n/m". 마감 뒤 막대는 BarsScene
+    card = (
+      <VoteCard def={def} size="screen">
+        {count}
+      </VoteCard>
+    );
+  } else if (def.kind === 'article' && def.options?.length && !revealed) {
+    // (작업 172) 교과서 속 기사(L3-E1): 기사 원문 → 결과 공개 뒤 결정 분포 막대
+    card = (
+      <ArticleCard article={textbookArticles.mineralCoop} size="screen" showTargets testId="screen-article">
+        {count}
+      </ArticleCard>
+    );
+  } else if (def.kind === 'checkQuiz') {
     card = (
       <CheckQuizCard
         size="screen"
@@ -58,13 +74,16 @@ export function EventScene({ d, now }: SceneProps) {
         {count}
       </CheckQuizCard>
     );
-  } else if (def.kind === 'decision' && def.options?.length) {
+  } else if ((def.kind === 'decision' || def.kind === 'article') && def.options?.length) {
     const m = decisionModel(def, { scope });
     const counts = d.pub.decision && d.pub.decision.id === def.id ? d.pub.decision.counts : null;
     const total = counts ? Object.values(counts).reduce((a, n) => a + n, 0) : 0;
     card = (
       <DecisionCard size="screen" model={revealed ? { ...m, options: [], ask: [], situation: m.situation.slice(0, 1) } : m}>
+        {/* (작업 172) 기술 경쟁: 교과서 107쪽 그래프 + 결과 공개 뒤 기준선 */}
+        {def.id === 'L3-E3' && !revealed && <AiGraph />}
         {count}
+        {def.id === 'L3-E3' && revealed && counts && <TechCutoff counts={counts} />}
         {revealed && counts && (
           <div class="scr-event__bars" data-testid="decision-bars">
             {m.options.map((o) => (
@@ -93,5 +112,28 @@ export function EventScene({ d, now }: SceneProps) {
     <div class="scr-scene scr-event" data-testid="scene-event" data-event={ce.id} data-short={ce.short ? '1' : '0'} data-revealed={revealed ? '1' : '0'}>
       <div class="scr-event__card">{card}</div>
     </div>
+  );
+}
+
+/**
+ * (작업 172) L3-E3 기준선: 연구비 상위 30%(최소 3명, 0원 제외)가 AI 반도체 — 분포(이름 없음)에서 기준 연구비를 계산해 한 줄로.
+ * core closeEventForAll 과 같은 규칙.
+ */
+export function techCutoff(counts: Record<string, number>): number | null {
+  const n = Object.values(counts).reduce((a, x) => a + x, 0);
+  const k = Math.max(TECH_RACE.minWinners, Math.ceil(n * TECH_RACE.topRatio));
+  const vals: number[] = [];
+  for (const [v, c] of Object.entries(counts)) for (let i = 0; i < c; i++) if (Number(v) > 0) vals.push(Number(v));
+  vals.sort((a, b) => b - a);
+  if (!vals.length) return null;
+  return vals[Math.min(k, vals.length) - 1]!;
+}
+
+function TechCutoff({ counts }: { counts: Record<string, number> }) {
+  const c = techCutoff(counts);
+  return (
+    <p class="scr-event__count" data-testid="tech-cutoff">
+      {c === null ? '연구비를 쓴 회사가 없어요 — 다른 나라가 품질 좋은 반도체를 내놓았어요' : `기준선: 연구비 ${c}만 원 이상 → AI 반도체를 만들 수 있어요`}
+    </p>
   );
 }

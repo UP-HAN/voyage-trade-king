@@ -310,7 +310,22 @@ export async function runScenario(browser: Browser, sc: Scenario, o: RunOptions)
       await unitBtn.click();
     } else {
       await t.getByTestId('unit-lesson').click();
+      // (작업 172) 아직 기능 플래그로 닫힌 차시(3차시)는 개발용 열쇠로 이 교사 브라우저에서만 연다(본편처럼 검사)
+      if (sc.unlock && (await t.getByTestId(`lesson-${sc.lesson ?? 'L1'}`).isDisabled().catch(() => false))) {
+        step(`차시 ${sc.lesson} '준비 중' → 개발용 열쇠 ${sc.unlock.devKey}로 이 교사 브라우저에서만 엶`);
+        await t.evaluate((k) => localStorage.setItem(k, '1'), sc.unlock.devKey);
+        await t.reload();
+        await t.getByTestId('teacher-start').waitFor({ timeout: 30_000 });
+        await t.getByTestId('btn-new').click();
+        await t.getByTestId('unit-lesson').click();
+        metrics.preview = `${sc.unlock.why} — 개발용 열쇠 ${sc.unlock.devKey}로 열어 돌림(본편 검사)`;
+      }
       await t.getByTestId(`lesson-${sc.lesson ?? 'L1'}`).click();
+      // (작업 172) 나눠 고르기(2·3차시): 시나리오가 정한 시간을 누른다
+      if (sc.lessonPart && (await t.getByTestId(`lesson-part-${sc.lessonPart}`).count())) {
+        await t.getByTestId(`lesson-part-${sc.lessonPart}`).click();
+        step(`나눠 고르기: ${(await t.getByTestId(`lesson-part-${sc.lessonPart}`).innerText()).split('\n')[0]}`);
+      }
     }
     const custom = t.getByTestId('trade-minutes-custom');
     await custom.fill(String(sc.minutes));

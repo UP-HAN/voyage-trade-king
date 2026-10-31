@@ -152,7 +152,9 @@ describe('(작업 151) 항해 방식 — 1·2차시 차시 판 기본 자유롭�
     expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L1' })).toBe('free');
     expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L2' })).toBe('free');
     expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L2', voyageMode: 'round' })).toBe('round');
-    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L3', voyageMode: 'free' })).toBe('round');
+    // (작업 172) 3차시도 자유 항해 기본 — 4차시는 아직 라운드마다
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L3' })).toBe('free');
+    expect(voyageModeOf({ ...base, playUnit: 'lesson', lesson: 'L4', voyageMode: 'free' })).toBe('round');
     expect(voyageModeOf({ ...base, playUnit: 'unit', voyageMode: 'free' })).toBe('round');
     expect(voyageModeOf({ ...base, playUnit: 'custom', voyageMode: 'free' })).toBe('round');
     expect(freeVoyageAvailable({ playUnit: 'lesson', lesson: 'L1' })).toBe(true);

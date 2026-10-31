@@ -770,3 +770,13 @@
   background: var(--parchment-light);
   font-size: 18px;
 }
+
+/* ─── (작업 172) 부산 조립장 ─── */
+.pt-asm.is-mine { border-color: #c98a1c; box-shadow: 0 0 0 2px rgba(201, 138, 28, 0.35); }
+.pt-asm__head { display: flex; align-items: center; gap: 8px; }
+.pt-asm__mine { background: #f3d9a4; }
+.pt-asm__count { margin-left: auto; font-weight: 700; font-size: 1.1em; }
+.pt-asm__bar { display: block; height: 10px; margin: 8px 0; border-radius: 5px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
+.pt-asm__bar > span { display: block; height: 100%; background: #3d8b5a; }
+.pt-asm__where { margin: 0 0 6px; font-size: 0.9em; }
+.pt-asm__done { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: rgba(61, 139, 90, 0.15); font-weight: 700; }

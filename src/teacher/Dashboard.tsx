@@ -432,6 +432,9 @@ export function Dashboard({ view, actions, demo, onExit, screenLinked }: Dashboa
       case 'showFold':
         if (b.fold) openFold(b.fold);
         return;
+      case 'oneMoreRound':
+        // (작업 172) 무역 시간을 라운드 하나만큼 늘린다 — 남은 순서가 다시 배치되며 라운드가 하나 더 생긴다
+        return actions.dispatch({ type: 'extend', sec: c.settings.roundSec });
     }
   };
 

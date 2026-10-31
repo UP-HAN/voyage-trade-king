@@ -172,7 +172,9 @@ const EXPECTED: [string, ScheduleInput, Partial<Record<LessonId, StageExp>>][] =
     L2: { forms: { 'L2-E2': 'F', 'L2-E6': 'F' }, ws: 'each', during: [], used: 540, rounds: 5, len: [184, 184] },
   }],
   ['차시 L3 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, {
-    L3: { forms: { 'L3-E1': 's', 'L3-E3': 'F', 'L3-E2': 'F', 'L3-E5': 'F', 'L3-E4': 's', 'L3-E6': '-' }, ws: 'each', during: [], used: 870, rounds: 3, len: [196, 197] },
+    // (작업 172) 차시 한 판 3차시는 나눠 고르기 규칙(기본 '두 시간 모두')을 탄다 — 경쟁 세 가지 카드 L3-E6 '카드만'(1분)을 늘 넣어서
+    // 스마트폰(L3-E2·E5) 전체 형태(+2분)가 예산을 넘고, 항만 투표 전체(+1.5분)가 들어간다(PRD 4.3.6 표와 다른 점 — result.md)
+    L3: { forms: { 'L3-E1': 's', 'L3-E3': 'F', 'L3-E2': 's', 'L3-E5': 's', 'L3-E4': 'F', 'L3-E6': 's' }, ws: 'each', during: [], used: 900, rounds: 3, len: [186, 187] },
   }],
   ['차시 L4 25분(차시 한 판 v0.3.8)', { playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, {
     L4: { forms: { 'L4-E1': 'F', 'L4-E2': 's', 'L4-E4': 'F' }, ws: 'each', during: [], used: 780, rounds: 4, len: [170, 170] },
@@ -716,7 +718,8 @@ describe('세관 게시판·⑤를 마지막 라운드 2개 앞으로(v0.3.10, �
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 10 }, 'ef8de1c0'],
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 25 }, 'b12ede2d'],
     [{ playUnit: 'lesson', scope: ['L1'], tradeMinutes: 40 }, '4819425a'],
-    [{ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, '2fe5b8c0'],
+    // (작업 172) 차시 한 판 3차시는 나눠 고르기 규칙(기본 '두 시간 모두' — L3-E6 카드만 늘 짧게)을 탄다: 2fe5b8c0 → ad9db268
+    [{ playUnit: 'lesson', scope: ['L3'], tradeMinutes: 25 }, 'ad9db268'],
     [{ playUnit: 'lesson', scope: ['L4'], tradeMinutes: 25 }, '957f1a24'],
     [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 25 }, 'd6be36b7'],
     [{ playUnit: 'unit', scope: ['L1', 'L2', 'L3', 'L4'], tradeMinutes: 40 }, 'c5490fee'],

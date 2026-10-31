@@ -16,6 +16,7 @@ import { applyFiredEventToPlayer, closeEventForAll } from './activities';
 import { basicNameValidator, type NameValidator } from './company';
 import { applyTeacherAction, type SideEffect } from './lesson';
 import { assignDeliveredLetters } from './letters';
+import { afterDeposit, joinPhoneProject, PHONE_EVENT_START, startPhoneProject } from './phone';
 import { publicPayload } from './aggregate';
 import { applyAction, predict, type ActionContext } from './rules';
 import { clone, createPlayer, seatKey } from './state';
@@ -105,6 +106,8 @@ function applySideEffects(w: Work, side: readonly SideEffect[]): void {
         addEvents(w, key, evs);
       }
       w.snap = { ...w.snap, players };
+      // (작업 172) 학급 스마트폰 프로젝트 시작: 지금 들어온 학생을 출석번호 순으로 부품 팀에 배정(임무는 위에서 시작)
+      if (s.id === PHONE_EVENT_START) w.snap = startPhoneProject(w.snap);
     }
     if (s.type === 'eventClosed') {
       const r = closeEventForAll(w.snap.class, w.snap.players, s.id);
@@ -290,6 +293,8 @@ export function hostReduce(snapshot: HostSnapshot, input: HostInput, now: number
       } else {
         w.snap = { ...w.snap, players: { ...w.snap.players, [key]: r.player } };
         ackFor = { seat: input.seat, seq: input.seq, ok: true, events: r.events };
+        // (작업 172) 조립장에 넣은 부품을 학급 수량에 더한다(다 모이면 그 순간 모두 완성 보상)
+        for (const e of r.events) if (e.type === 'partDeposited') w.snap = afterDeposit(w.snap, e.good, e.qty, w.events);
       }
       break;
     }
@@ -338,6 +343,8 @@ export function hostReduce(snapshot: HostSnapshot, input: HostInput, now: number
         }
         // 이미 도착했고 아직 만료되지 않은 편지도 받는다(PRD 6.7.2) — 문항 배정
         assignDeliveredLetters(w.snap.class, np);
+        // (작업 172) 스마트폰 프로젝트가 진행 중이면 인원이 가장 적은 부품 팀에(필요 수량은 그대로)
+        joinPhoneProject(w.snap.class, w.snap.players, np);
         w.snap = { ...w.snap, players: { ...w.snap.players, [key]: np } };
       }
       break;

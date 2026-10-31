@@ -7,6 +7,7 @@ import { eventsById } from '../data/events';
 import { fairTradeText } from '../data/fairTrade';
 import type { NameStatus } from '../sync/app-messages';
 import type { HostView } from '../sync/host-session';
+import { goodsById } from '../data/goods';
 import { portsById } from '../data/ports';
 import type { TeacherGame } from './game';
 
@@ -92,7 +93,7 @@ export function respondedToCurrent(cs: ClassState, p: Player): boolean | null {
   const def = ce ? eventsById[ce.id] : undefined;
   if (!ce || !def || !def.needsResponse) return null;
   // 규칙은 103 aggregate 와 하나(core `respondedTo`): 확인 퀴즈는 그 구간 문항을 모두 답했을 때, 마감 때 채운 '응답 없음'은 응답 아님(작업 111)
-  return respondedTo(ce.id, p);
+  return respondedTo(ce.id, p, ce.short);
 }
 
 /** 지금 사건 응답 수(타임라인 "응답 n/m") — 응답이 필요 없는 사건이면 null */
@@ -132,16 +133,32 @@ export function nowTaskOf(g: TeacherGame, p: Player | undefined): NowTask {
     const read = p.game.responses[ce.id] !== undefined;
     return { text: read ? '카드 읽음' : '카드 읽는 중', done: read };
   }
-  if (c.phase === 'round') return c.settings.voyageMode === 'free' ? freeRoundTask(c.round, p) : roundTask(p);
+  if (c.phase === 'round') return withPhone(c, p, c.settings.voyageMode === 'free' ? freeRoundTask(c.round, p) : roundTask(p));
   // (작업 153 추가) 자유 항해 판의 라운드 사이도 항해·사고팔기 시간
-  if (c.phase === 'between' && c.settings.voyageMode === 'free' && c.round >= 1 && !c.tradeEnded) return freeRoundTask(c.round, p);
+  if (c.phase === 'between' && c.settings.voyageMode === 'free' && c.round >= 1 && !c.tradeEnded) return withPhone(c, p, freeRoundTask(c.round, p));
   return { text: '기다리는 중', done: null };
+}
+
+/**
+ * (작업 172) 학급 스마트폰 프로젝트 중: 우리 팀 부품이 아직 덜 모였으면 '부품 넣기 · 반도체' 를 덧붙인다(교사 화면 — 할 일 판단은 그대로).
+ */
+export function phoneTaskText(c: Pick<ClassState, 'phone'>, p: Player): string | null {
+  const team = p.game.phone?.team;
+  const x = team ? c.phone?.parts[team] : undefined;
+  if (!team || !x || c.phone?.completedRound !== null || x.have >= x.need) return null;
+  return `부품 넣기 · ${goodsById[team]?.name ?? team} ${x.have}/${x.need}`;
+}
+
+function withPhone(c: ClassState, p: Player, t: NowTask): NowTask {
+  const extra = phoneTaskText(c, p);
+  return extra ? { ...t, text: `${t.text} · ${extra}` } : t;
 }
 
 /** (작업 151, PRD 4.3.7.1) 자유 항해 라운드: 이번 라운드 사고팔기 했는가 + 항해 횟수 */
 function freeRoundTask(round: number, p: Player): NowTask {
   const log = p.game.log;
-  const traded = log.some((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce'));
+  // (작업 172) 조립장에 부품 넣기도 이번 라운드에 한 일로 센다
+  const traded = log.some((l) => l.round === round && (l.kind === 'buy' || l.kind === 'sell' || l.kind === 'produce' || l.kind === 'deposit'));
   const k = p.game.sailsThisRound ?? log.filter((l) => l.round === round && l.kind === 'voyage').length;
   return traded ? { text: `사고팔기 ✓ · 항해 ${k}번`, done: true } : { text: `아직 사고팔기 전 · 항해 ${k}번`, done: false };
 }
